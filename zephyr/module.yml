@@ -1,0 +1,4 @@
+name: Electronya Embedded Services
+build:
+  cmake: .
+  kconfig: Kconfig

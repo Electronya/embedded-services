@@ -1,0 +1,30 @@
+# Electronya Embedded Datastore
+# Copyright (C) 2025 by Electronya
+
+config ENYA_EMBEDDED_SERVICES
+  bool "Electronya Embedded Services"
+  default y
+  help
+    The Electronya embedded services.
+      - ADC Acquisition
+
+if ENYA_EMBEDDED_SERVICES
+
+config ENYA_ADC_ACQUISITION
+  bool "Electronya ADC Acquisition Service"
+  default n
+  depends on ADC
+  help
+    The Electronya ADC acquisition service.
+
+if ENYA_ADC_ACQUISITION
+
+config ENYA_ADC_ACQUISITION_LOG_LEVEL
+  int "Electronya ADC Acquisition Log Level"
+  default 3
+  help
+    The Electronya ADC acquisition log level.
+
+endif
+
+endif
