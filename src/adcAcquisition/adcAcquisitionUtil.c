@@ -105,6 +105,21 @@ static struct adc_sequence sequence;
 static struct adc_sequence_options seqOptions;
 
 /**
+ * @brief   The subscription entry.
+ */
+typedef struct
+{
+  AdcSubCallback_t callback;
+  bool isPaused;
+}
+AdcSubEntry_t;
+
+/**
+ * @brief   The subscriptions.
+ */
+AdcSubEntry_t *subscriptions = NULL;
+
+/**
  * @brief   Allocate the ADC buffers.
  *
  * @param[in]   chanCount: The size of the buffer.
@@ -116,7 +131,7 @@ static inline int allocateBuffers(size_t chanCount, size_t conversionCount)
 {
   int err = 0;
 
-  buffer = k_malloc(chanCount * conversionCount);
+  buffer = k_malloc(chanCount * conversionCount * sizeof(uint16_t));
   if(!buffer)
   {
     err = -ENOSPC;
@@ -124,7 +139,7 @@ static inline int allocateBuffers(size_t chanCount, size_t conversionCount)
     return err;
   }
 
-  rawAverages = k_malloc(chanCount);
+  rawAverages = k_malloc(chanCount * sizeof(uint32_t));
   if(!rawAverages)
   {
     err = -ENOSPC;
@@ -132,12 +147,35 @@ static inline int allocateBuffers(size_t chanCount, size_t conversionCount)
     return err;
   }
 
-  voltAverages = k_malloc(chanCount);
+  voltAverages = k_malloc(chanCount * sizeof(float));
   if(!chanCount)
   {
     err = -ENOSPC;
     LOG_ERR("ERROR %d: unable to allocate the volt average array", err);
   }
+
+  return err;
+}
+
+/**
+ * @brief   Allocate the subscriptions.
+ *
+ * @param[in]   maxCount: The maximum subscription count.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+static inline int allocateSubscription(size_t maxCount)
+{
+  int err = 0;
+
+  subscriptions = k_malloc(maxCount * sizeof(AdcSubEntry_t));
+  if(!subscriptions)
+  {
+    err = -ENOSPC;
+    LOG_ERR("ERROR %d: unable to allocate the subscriptions", err);
+  }
+
+  config.activeSubCount = 0;
 
   return err;
 }
@@ -240,7 +278,9 @@ static void adcAcqUtilProcessData(struct k_work *work)
     voltAverages[chanIdx] = calculateVdd(rawAverages[config.chanCount - 1]) * (float)rawAverages[chanIdx] / ADC_FULL_RANGE_VALUE;
   }
 
-  // TODO: do notifications.
+  for(size_t i = 0; i < config.activeSubCount; ++i)
+    if(!subscriptions[i].isPaused)
+      subscriptions[i].callback(voltAverages, config.chanCount);
 }
 
 /**
@@ -269,6 +309,10 @@ int adcAcqUtilInitAdc(AdcConfig_t *adcConfig)
   memcpy(&config, adcConfig, sizeof(AdcConfig_t));
 
   err = allocateBuffers(config.chanCount, config.conversionCount);
+  if(err < 0)
+    return err;
+
+  err = allocateSubscription(config.maxSubCount);
   if(err < 0)
     return err;
 
@@ -301,6 +345,46 @@ k_tid_t adcAcqUtilInitWorkQueue(uint32_t priority)
   k_work_schedule_for_queue(&adcWorkQueue, &adcStartConvWork, K_MSEC(config.samplingRate));
 
   return adcWorkQueue.thread_id;
+}
+
+int adcAcqUtilAddSubscription(AdcSubCallback_t callback)
+{
+  int err;
+
+  if(config.activeSubCount + 1 >= config.maxSubCount)
+  {
+    err = -ENOSPC;
+    LOG_ERR("ERROR %d: unable to add the new subscription", err);
+    return err;
+  }
+
+  subscriptions[config.activeSubCount].callback = callback;
+  subscriptions[config.activeSubCount].isPaused = false;
+
+  ++config.activeSubCount;
+
+  return 0;
+}
+
+int adcAcqUtilSetSubPauseState(AdcSubCallback_t callback, bool isPaused)
+{
+  int err = -ESRCH;
+
+  for(size_t i = 0; i < config.activeSubCount && err < 0; ++i)
+  {
+    if(subscriptions[i].callback == callback)
+    {
+      subscriptions[i].isPaused = isPaused;
+      err = 0;
+
+      if(isPaused)
+        LOG_INF("pausing subscription %d", i);
+      else
+        LOG_INF("unpausing subscription %d", i);
+    }
+  }
+
+  return err;
 }
 
 /** @} */

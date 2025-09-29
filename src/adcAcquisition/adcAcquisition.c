@@ -44,4 +44,19 @@ int adcAcqInit(AdcConfig_t *adcConfig, uint32_t priority, k_tid_t *threadId)
   return 0;
 }
 
+int adcAcqSubscribe(AdcSubCallback_t callback)
+{
+  return adcAcqUtilAddSubscription(callback);
+}
+
+int adcAcqPauseSubscription(AdcSubCallback_t callback)
+{
+  return adcAcqUtilSetSubPauseState(callback, true);
+}
+
+int adcAqcUnpauseSubscription(AdcSubCallback_t callback)
+{
+  return adcAcqUtilSetSubPauseState(callback, false);
+}
+
 /** @} */

@@ -44,6 +44,25 @@ int adcAcqUtilInitAdc(AdcConfig_t *adcConfig);
  */
 k_tid_t adcAcqUtilInitWorkQueue(uint32_t priority);
 
+/**
+ * @brief   Add a new subscription.
+ *
+ * @param[in]   callback: The subscription callback.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int adcAcqUtilAddSubscription(AdcSubCallback_t callback);
+
+/**
+ * @brief   Set the subscription pause state.
+ *
+ * @param[in]   callback: The subscription callback.
+ * @param[in]   isPaused: The pause state flag.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int adcAcqUtilSetSubPauseState(AdcSubCallback_t callback, bool isPaused);
+
 #endif    /* ADC_ACQUISITION_UTIL */
 
 /** @} */
