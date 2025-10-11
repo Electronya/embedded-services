@@ -48,6 +48,11 @@ AdcConfig_t;
 int adcAcqInit(AdcConfig_t *adcConfig, uint32_t priority, k_tid_t *threadId);
 
 /**
+ * @brief   Start the ADC acquisition service.
+ */
+void adcAcqStart(void);
+
+/**
  * @brief   Subscribe to the ADC service.
  *
  * @param[in]   callback: The subscription callback.

@@ -44,6 +44,11 @@ int adcAcqInit(AdcConfig_t *adcConfig, uint32_t priority, k_tid_t *threadId)
   return 0;
 }
 
+void adcAcqStart(void)
+{
+  adcAcqUtilStartWorkQueue();
+}
+
 int adcAcqSubscribe(AdcSubCallback_t callback)
 {
   return adcAcqUtilAddSubscription(callback);

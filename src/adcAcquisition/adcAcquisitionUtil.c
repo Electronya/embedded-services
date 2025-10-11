@@ -23,12 +23,12 @@ LOG_MODULE_DECLARE(ADC_AQC_SERVICE_NAME);
 /**
  * @brief   The oversampling setting value.
  */
-#define OVERSAMPLING_SETTING                                            (16)
+#define OVERSAMPLING_SETTING                                            (4)
 
 /**
  * @brief   The oversampling effective resolution.
  */
-#define OVERSAMPLING_RESOLUTION                                         (14)
+#define OVERSAMPLING_RESOLUTION                                         (12)
 
 /**
  * @brief   The in between channel interval.
@@ -48,7 +48,7 @@ LOG_MODULE_DECLARE(ADC_AQC_SERVICE_NAME);
 /**
  * @brief
  */
-#define ADC_WORK_QUEUE_STACK_SIZE                                       (256)
+#define ADC_WORK_QUEUE_STACK_SIZE                                       (1024)
 /**
  * @brief   Defining The work queue stack area.
  */
@@ -215,7 +215,7 @@ static inline int configureChannels(void)
  *
  * @return  ADC_ACTION_CONTINUE until all conversion are done, ADC_ACTION_FINISH otherwise.
  */
-static enum adc_action adcAcqUtilSeqCallback(const struct device *dev, const struct adc_sequence *sequence, uint16_t samplingIndex)
+static enum adc_action adcSeqCallback(const struct device *dev, const struct adc_sequence *sequence, uint16_t samplingIndex)
 {
   if(samplingIndex >= sequence->options->extra_samplings)
   {
@@ -237,11 +237,11 @@ static inline void setupSequence(void)
   sequence.calibrate = false;
   sequence.options = &seqOptions;
   sequence.buffer = buffer;
-  sequence.buffer_size = config.chanCount * config.conversionCount;
+  sequence.buffer_size = config.chanCount * config.conversionCount * sizeof(uint16_t);
 
-  seqOptions.extra_samplings = config.conversionCount;
+  seqOptions.extra_samplings = config.conversionCount - 1; /* the initial conversion is already taken into account */
   seqOptions.interval_us = CHANNEL_INTERVAL;
-  seqOptions.callback = adcAcqUtilSeqCallback;
+  seqOptions.callback = adcSeqCallback;
 }
 
 /**
@@ -263,7 +263,7 @@ static inline float calculateVdd(uint16_t vrefVal)
  *
  * @param[in]   work: The work structure.
  */
-static void adcAcqUtilProcessData(struct k_work *work)
+static void processAdcData(struct k_work *work)
 {
   uint32_t sum;
 
@@ -288,7 +288,7 @@ static void adcAcqUtilProcessData(struct k_work *work)
  *
  * @param[in]   work: The work structure.
  */
-static void adcAcqUtilStartConversion(struct k_work *work)
+static void startConversion(struct k_work *work)
 {
   int err;
 
@@ -333,18 +333,22 @@ int adcAcqUtilInitAdc(AdcConfig_t *adcConfig)
 
 k_tid_t adcAcqUtilInitWorkQueue(uint32_t priority)
 {
+  LOG_INF("NVIC ISER0: 0x%08x", NVIC->ISER[0]);
   adcWorkQueueConfig.name = STRINGIFY(ADC_AQC_SERVICE_NAME);
 
   k_work_queue_init(&adcWorkQueue);
 
   k_work_queue_start(&adcWorkQueue, adcWorkQueueStack, ADC_WORK_QUEUE_STACK_SIZE, K_PRIO_PREEMPT(priority), &adcWorkQueueConfig);
 
-  k_work_init(&adcProcessWork, adcAcqUtilProcessData);
-  k_work_init_delayable(&adcStartConvWork, adcAcqUtilStartConversion);
-
-  k_work_schedule_for_queue(&adcWorkQueue, &adcStartConvWork, K_MSEC(config.samplingRate));
+  k_work_init(&adcProcessWork, processAdcData);
+  k_work_init_delayable(&adcStartConvWork, startConversion);
 
   return adcWorkQueue.thread_id;
+}
+
+void adcAcqUtilStartWorkQueue(void)
+{
+  k_work_schedule_for_queue(&adcWorkQueue, &adcStartConvWork, K_MSEC(config.samplingRate));
 }
 
 int adcAcqUtilAddSubscription(AdcSubCallback_t callback)
@@ -383,6 +387,57 @@ int adcAcqUtilSetSubPauseState(AdcSubCallback_t callback, bool isPaused)
         LOG_INF("unpausing subscription %d", i);
     }
   }
+
+  return err;
+}
+
+size_t adcAcqUtilGetChanCount(void)
+{
+  return config.chanCount;
+}
+
+int adcAcqUtilGetRaw(size_t chanId, uint32_t *rawVal)
+{
+  int err = 0;
+
+  if(chanId >= config.chanCount)
+  {
+    err = -EINVAL;
+    LOG_ERR("ERROR %d: invalid channel ID %d", err, chanId);
+    return err;
+  }
+
+  if(!rawVal)
+  {
+    err = -EINVAL;
+    LOG_ERR("ERROR %d: invalid raw value pointer", err);
+    return err;
+  }
+
+  *rawVal = rawAverages[chanId];
+
+  return err;
+}
+
+int adcAcqUtilGetVolt(size_t chanId, float *voltVal)
+{
+  int err = 0;
+
+  if(chanId >= config.chanCount)
+  {
+    err = -EINVAL;
+    LOG_ERR("ERROR %d: invalid channel ID %d", err, chanId);
+    return err;
+  }
+
+  if(!voltVal)
+  {
+    err = -EINVAL;
+    LOG_ERR("ERROR %d: invalid volt value pointer", err);
+    return err;
+  }
+
+  *voltVal = voltAverages[chanId];
 
   return err;
 }

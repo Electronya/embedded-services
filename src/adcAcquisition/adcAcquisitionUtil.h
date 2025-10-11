@@ -45,6 +45,11 @@ int adcAcqUtilInitAdc(AdcConfig_t *adcConfig);
 k_tid_t adcAcqUtilInitWorkQueue(uint32_t priority);
 
 /**
+ * @brief   Start the ADC work queue.
+ */
+void adcAcqUtilStartWorkQueue(void);
+
+/**
  * @brief   Add a new subscription.
  *
  * @param[in]   callback: The subscription callback.
@@ -62,6 +67,33 @@ int adcAcqUtilAddSubscription(AdcSubCallback_t callback);
  * @return  0 if successful, the error code otherwise.
  */
 int adcAcqUtilSetSubPauseState(AdcSubCallback_t callback, bool isPaused);
+
+/**
+ * @brief   Get the ADC channel count.
+ *
+ * @return  The ADC channel count.
+ */
+size_t adcAcqUtilGetChanCount(void);
+
+/**
+ * @brief   Get the raw value of a channel.
+ *
+ * @param[in]   chanId: The channel ID.
+ * @param[out]  rawVal: The raw value pointer.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int adcAcqUtilGetRaw(size_t chanId, uint32_t *rawVal);
+
+/**
+ * @brief   Get the volt value of a channel.
+ *
+ * @param[in]   chanId: The channel ID.
+ * @param[out]  voltVal: The volt value pointer.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int adcAcqUtilGetVolt(size_t chanId, float *voltVal);
 
 #endif    /* ADC_ACQUISITION_UTIL */
 
