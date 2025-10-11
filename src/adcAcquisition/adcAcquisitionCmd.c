@@ -13,8 +13,11 @@
  */
 
 #include <zephyr/shell/shell.h>
+#include <stdio.h>
 
 #include "adcAcquisitionUtil.h"
+
+#define MAX_VAL_STR_LEN                                         (10)
 
 /**
  * @brief   Execute the get channel count command.
@@ -47,11 +50,11 @@ static int execGetChanCount(const struct shell *shell, size_t argc, char **argv)
  */
 static int execGetRaw(const struct shell *shell, size_t argc, char **argv)
 {
-  int err;
+  int err = 0;
   size_t chanId;
   uint32_t rawVal;
 
-  err = shell_strtoul(argv[1], 10, &chanId);
+  chanId = shell_strtoul(argv[1], 10, &err);
   if(err < 0)
   {
     shell_print(shell, "FAIL %d: invalid channel ID argument", err);
@@ -82,11 +85,12 @@ static int execGetRaw(const struct shell *shell, size_t argc, char **argv)
  */
 static int execGetVolt(const struct shell *shell, size_t argc, char **argv)
 {
-  int err;
+  int err = 0;
   size_t chanId;
   float voltVal;
+  char valStr[MAX_VAL_STR_LEN];
 
-  err = shell_strtoul(argv[1], 10, &chanId);
+  chanId = shell_strtoul(argv[1], 10, &err);
   if(err < 0)
   {
     shell_print(shell, "FAIL %d: invalid channel ID argument", err);
@@ -101,7 +105,8 @@ static int execGetVolt(const struct shell *shell, size_t argc, char **argv)
     return err;
   }
 
-  shell_print(shell, "SUCCESS: channel %d volt value: %.3f V", chanId, (double)voltVal);
+  sprintf(valStr, "%.3f", (double)voltVal);
+  shell_print(shell, "SUCCESS: channel %d volt value: %s V", chanId, valStr);
 
   return 0;
 }
