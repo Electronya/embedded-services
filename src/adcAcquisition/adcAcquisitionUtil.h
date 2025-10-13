@@ -36,18 +36,34 @@
 int adcAcqUtilInitAdc(AdcConfig_t *adcConfig);
 
 /**
- * @brief   Initialize the ADC work queue.
+ * @brief   Initialize the ADC subscriptions.
  *
- * @param[in]   priority: The work queue priority.
+ * @param[in]   adcSubConfig: The ADC subscription configuration.
  *
- * @return  The thread ID of the work queue.
+ * @return  0 if successful, the error code otherwise.
  */
-k_tid_t adcAcqUtilInitWorkQueue(uint32_t priority);
+int adcAcqUtilInitSubscriptions(AdcSubConfig_t *adcSubConfig);
 
 /**
- * @brief   Start the ADC work queue.
+ * @brief   Start the ADC trigger.
+ *
+ * @return  0 if successful, the error code otherwise.
  */
-void adcAcqUtilStartWorkQueue(void);
+int adcAcqUtilStartTrigger(void);
+
+/**
+ * @brief   Process the acquired data.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int adcAcqUtilProcessData(void);
+
+/**
+ * @brief   Notify the active subscribers.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int adcAcqUtilNotifySubscribers(void);
 
 /**
  * @brief   Add a new subscription.

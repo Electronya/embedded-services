@@ -12,10 +12,13 @@
  * @{
  */
 
+#include <zephyr/drivers/counter.h>
+#include <zephyr/drivers/sensor.h>
 #include <zephyr/logging/log.h>
 #include <string.h>
 
 #include "adcAcquisitionUtil.h"
+#include "adcAcquisitionFilter.h"
 
 /* Setting module logging */
 LOG_MODULE_DECLARE(ADC_AQC_SERVICE_NAME);
@@ -29,6 +32,11 @@ LOG_MODULE_DECLARE(ADC_AQC_SERVICE_NAME);
  * @brief   The oversampling effective resolution.
  */
 #define OVERSAMPLING_RESOLUTION                                         (12)
+
+/**
+ * @brief   The extra sampling setting.
+ */
+#define EXTRA_SAMPLINGS_SETTING                                         (0)
 
 /**
  * @brief   The in between channel interval.
@@ -46,38 +54,32 @@ LOG_MODULE_DECLARE(ADC_AQC_SERVICE_NAME);
 #define ADC_FULL_RANGE_VALUE                                            (16383.0f)
 
 /**
- * @brief
+ * @brief   The ADC reference voltage sensor.
  */
-#define ADC_WORK_QUEUE_STACK_SIZE                                       (1024)
-/**
- * @brief   Defining The work queue stack area.
- */
-K_THREAD_STACK_DEFINE(adcWorkQueueStack, ADC_WORK_QUEUE_STACK_SIZE);
+static const struct device *vrefSensor = DEVICE_DT_GET(DT_ALIAS(volt_sensor0));
 
 /**
- * @brief   The ADC work queue.
+ * @brief  The ADC trigger configuration.
  */
-static struct k_work_q adcWorkQueue;
-
-/**
- * @brief   The ADC work queue configuration.
- */
-static struct k_work_queue_config adcWorkQueueConfig;
-
-/**
- * @brief   The ADC processing work.
- */
-static struct k_work adcProcessWork;
-
-/**
- * @brief   The Start conversion work.
- */
-static struct k_work_delayable adcStartConvWork;
+static struct counter_top_cfg triggerConfig;
 
 /**
  * @brief   The ADC acquisition configuration.
  */
-static AdcConfig_t config;
+static AdcConfig_t config = {
+  .adc = NULL,
+  .channels = NULL,
+  .chanCount = 0,
+  .timer = NULL,
+  .samplingRate = 0,
+  .tempCounter = NULL,
+  .filterTaus = NULL
+};
+
+/**
+ * @brief   The ADC subscription configuration.
+ */
+static AdcSubConfig_t subConfig;
 
 /**
  * @brief   The ADC buffer.
@@ -85,14 +87,9 @@ static AdcConfig_t config;
 static uint16_t *buffer = NULL;
 
 /**
- * @brief   The average of the raw ADC values.
- */
-static uint32_t *rawAverages = NULL;
-
-/**
  * @brief   The average of the ADC value in volts.
  */
-static float *voltAverages = NULL;
+static float *voltValues = NULL;
 
 /**
  * @brief   The ADC conversion sequence.
@@ -123,15 +120,14 @@ AdcSubEntry_t *subscriptions = NULL;
  * @brief   Allocate the ADC buffers.
  *
  * @param[in]   chanCount: The size of the buffer.
- * @param[in]   conversionCount: The conversion count.
  *
  * @return  0 if successful, the error code otherwise.
  */
-static inline int allocateBuffers(size_t chanCount, size_t conversionCount)
+static inline int allocateBuffers(size_t chanCount)
 {
   int err = 0;
 
-  buffer = k_malloc(chanCount * conversionCount * sizeof(uint16_t));
+  buffer = k_malloc(chanCount * sizeof(uint16_t));
   if(!buffer)
   {
     err = -ENOSPC;
@@ -139,19 +135,26 @@ static inline int allocateBuffers(size_t chanCount, size_t conversionCount)
     return err;
   }
 
-  rawAverages = k_malloc(chanCount * sizeof(uint32_t));
-  if(!rawAverages)
-  {
-    err = -ENOSPC;
-    LOG_ERR("ERROR %d: unable to allocate the raw average array", err);
-    return err;
-  }
-
-  voltAverages = k_malloc(chanCount * sizeof(float));
+  voltValues = k_malloc(chanCount * sizeof(float));
   if(!chanCount)
   {
     err = -ENOSPC;
     LOG_ERR("ERROR %d: unable to allocate the volt average array", err);
+  }
+
+  config.filterTaus = k_malloc(chanCount * sizeof(int32_t));
+  if(!config.filterTaus)
+  {
+    err = -ENOSPC;
+    LOG_ERR("ERROR %d: unable to allocate the filter tau array", err);
+    return err;
+  }
+
+  config.tempCounter = k_malloc(chanCount * sizeof(uint32_t));
+  if(!config.tempCounter)
+  {
+    err = -ENOSPC;
+    LOG_ERR("ERROR %d: unable to allocate the temporization counter array", err);
   }
 
   return err;
@@ -175,7 +178,7 @@ static inline int allocateSubscription(size_t maxCount)
     LOG_ERR("ERROR %d: unable to allocate the subscriptions", err);
   }
 
-  config.activeSubCount = 0;
+  subConfig.activeSubCount = 0;
 
   return err;
 }
@@ -207,24 +210,65 @@ static inline int configureChannels(void)
 }
 
 /**
+ * @brief   The timer interrupt function.
+ *
+ * @param[in]   dev: The timer device.
+ * @param[in]   user_data: The user data.
+ */
+static void triggerConversion(const struct device *dev, void *user_data)
+{
+  int err;
+
+  err = adc_read_async(config.adc, &sequence, NULL);
+  if(err < 0)
+    LOG_ERR("ERROR %d: unable to start the ADC conversion", err);
+}
+
+/**
+ * @brief  Configure the trigger timer.
+ *
+ * @return int
+ */
+int configureTimer(void)
+{
+  int err;
+
+  if(!device_is_ready(config.timer))
+  {
+    err = -EBUSY;
+    LOG_ERR("ERROR %d: timer device busy", err);
+    return err;
+  }
+
+  triggerConfig.flags = 0;
+  triggerConfig.ticks = counter_us_to_ticks(config.timer, config.samplingRate);
+  triggerConfig.callback = triggerConversion;
+  triggerConfig.user_data = NULL;
+
+  return 0;
+}
+
+/**
  * @brief   The sequence callback.
  *
  * @param[in]   dev: The ADC device.
  * @param[in]   sequence: The ADC conversion sequence.
  * @param[in]   samplingIndex: The sample index.
  *
- * @return  ADC_ACTION_CONTINUE until all conversion are done, ADC_ACTION_FINISH otherwise.
+ * @return  ADC_ACTION_FINISH to stop the conversion cycle.
  */
 static enum adc_action adcSeqCallback(const struct device *dev, const struct adc_sequence *sequence, uint16_t samplingIndex)
 {
-  if(samplingIndex >= sequence->options->extra_samplings)
-  {
-    k_work_submit_to_queue(&adcWorkQueue, &adcProcessWork);
+  int err;
 
-    return ADC_ACTION_FINISH;
+  for(size_t i = 0; i < config.chanCount; ++i)
+  {
+    err = adcAcqFilterPushData(i, (int32_t)buffer[i], config.filterTaus[i]);
+    if(err < 0)
+      LOG_ERR("ERROR %d: unable to push data to the filter", err);
   }
 
-  return ADC_ACTION_CONTINUE;
+  return ADC_ACTION_FINISH;
 }
 
 /**
@@ -237,9 +281,9 @@ static inline void setupSequence(void)
   sequence.calibrate = false;
   sequence.options = &seqOptions;
   sequence.buffer = buffer;
-  sequence.buffer_size = config.chanCount * config.conversionCount * sizeof(uint16_t);
+  sequence.buffer_size = config.chanCount * sizeof(uint16_t);
 
-  seqOptions.extra_samplings = config.conversionCount - 1; /* the initial conversion is already taken into account */
+  seqOptions.extra_samplings = EXTRA_SAMPLINGS_SETTING;
   seqOptions.interval_us = CHANNEL_INTERVAL;
   seqOptions.callback = adcSeqCallback;
 }
@@ -251,75 +295,35 @@ static inline void setupSequence(void)
  *
  * @return  The calculated real VDD.
  */
-static inline float calculateVdd(uint16_t vrefVal)
+static inline float calculateVdd(float vrefVal)
 {
   uint16_t vrefCal = *VREFINT_CAL_ADDR;
 
   return VREFINT_CAL_VOLTAGE * (float)vrefCal / (float)vrefVal;
 }
 
-/**
- * @brief   Process the ADC data.
- *
- * @param[in]   work: The work structure.
- */
-static void processAdcData(struct k_work *work)
-{
-  uint32_t sum;
-
-  for(size_t chanIdx = 0; chanIdx < config.chanCount; ++chanIdx)
-  {
-    sum = 0;
-
-    for(size_t i = 0; i < config.conversionCount; ++i)
-      sum += buffer[i * config.chanCount + chanIdx];
-
-    rawAverages[chanIdx] = sum / config.conversionCount;
-    voltAverages[chanIdx] = calculateVdd(rawAverages[config.chanCount - 1]) * (float)rawAverages[chanIdx] / ADC_FULL_RANGE_VALUE;
-  }
-
-  for(size_t i = 0; i < config.activeSubCount; ++i)
-    if(!subscriptions[i].isPaused)
-      subscriptions[i].callback(voltAverages, config.chanCount);
-}
-
-/**
- * @brief   Start a conversion cycle.
- *
- * @param[in]   work: The work structure.
- */
-static void startConversion(struct k_work *work)
-{
-  int err;
-
-  err = adc_read_async(config.adc, &sequence, NULL);
-  if(err < 0)
-  {
-    LOG_ERR("ERROR %d: unable to start the reading the ADC", err);
-    return;
-  }
-
-  k_work_schedule_for_queue(&adcWorkQueue, &adcStartConvWork, K_MSEC(config.samplingRate));
-}
-
 int adcAcqUtilInitAdc(AdcConfig_t *adcConfig)
 {
   int err;
 
-  memcpy(&config, adcConfig, sizeof(AdcConfig_t));
+  config.adc = adcConfig->adc;
+  config.channels = adcConfig->channels;
+  config.chanCount = adcConfig->chanCount;
+  config.timer = adcConfig->timer;
+  config.samplingRate = adcConfig->samplingRate;
 
-  err = allocateBuffers(config.chanCount, config.conversionCount);
+  err = allocateBuffers(config.chanCount);
   if(err < 0)
     return err;
 
-  err = allocateSubscription(config.maxSubCount);
-  if(err < 0)
-    return err;
+  memcpy(config.filterTaus, adcConfig->filterTaus, config.chanCount * sizeof(int32_t));
+  memcpy(config.tempCounter, adcConfig->tempCounter, config.chanCount * sizeof(uint32_t));
 
   if(!device_is_ready(config.adc))
   {
     err = -EBUSY;
     LOG_ERR("ERROR %d: ADC device busy", err);
+    return err;
   }
 
   err = configureChannels();
@@ -328,44 +332,123 @@ int adcAcqUtilInitAdc(AdcConfig_t *adcConfig)
 
   setupSequence();
 
+  if(!device_is_ready(vrefSensor))
+  {
+    err = -EBUSY;
+    LOG_ERR("ERROR %d: Vref sensor device busy", err);
+    return err;
+  }
+
+  err = configureTimer();
+  if(err < 0)
+    LOG_ERR("ERROR %d: unable to configure the trigger timer", err);
+
   return err;
 }
 
-k_tid_t adcAcqUtilInitWorkQueue(uint32_t priority)
+int adcAcqUtilInitSubscriptions(AdcSubConfig_t *adcSubConfig)
 {
-  LOG_INF("NVIC ISER0: 0x%08x", NVIC->ISER[0]);
-  adcWorkQueueConfig.name = STRINGIFY(ADC_AQC_SERVICE_NAME);
+  int err;
 
-  k_work_queue_init(&adcWorkQueue);
+  memcpy(&subConfig, adcSubConfig, sizeof(AdcSubConfig_t));
 
-  k_work_queue_start(&adcWorkQueue, adcWorkQueueStack, ADC_WORK_QUEUE_STACK_SIZE, K_PRIO_PREEMPT(priority), &adcWorkQueueConfig);
+  err = allocateSubscription(subConfig.maxSubCount);
+  if(err < 0)
+  {
+    LOG_ERR("ERROR %d: unable to allocate the subscriptions", err);
+    return err;
+  }
 
-  k_work_init(&adcProcessWork, processAdcData);
-  k_work_init_delayable(&adcStartConvWork, startConversion);
+  subConfig.activeSubCount = 0;
 
-  return adcWorkQueue.thread_id;
+  return err;
 }
 
-void adcAcqUtilStartWorkQueue(void)
+int adcAcqUtilStartTrigger(void)
 {
-  k_work_schedule_for_queue(&adcWorkQueue, &adcStartConvWork, K_MSEC(config.samplingRate));
+  int err;
+
+  err = counter_set_top_value(config.timer, &triggerConfig);
+  if(err < 0)
+  {
+    LOG_ERR("ERROR %d: unable to set the timer trigger", err);
+    return err;
+  }
+
+  err = counter_start(config.timer);
+  if(err < 0)
+    LOG_ERR("ERROR %d: unable to start the trigger timer", err);
+
+  return err;
+}
+
+int adcAcqUtilProcessData(void)
+{
+  int err;
+  int32_t rawData;
+  struct sensor_value rawVref;
+  float vref;
+
+  err = sensor_sample_fetch(vrefSensor);
+  if(err < 0)
+  {
+    LOG_ERR("ERROR %d: unable to fetch the Vref sensor data", err);
+    return err;
+  }
+
+  err = sensor_channel_get(vrefSensor, SENSOR_CHAN_VOLTAGE, &rawVref);
+  if(err < 0)
+  {
+    LOG_ERR("ERROR %d: unable to get the Vref sensor data", err);
+    return err;
+  }
+
+  vref = calculateVdd((uint16_t)rawVref.val1);
+
+  for(size_t i = 0; i < config.chanCount - 1; ++i)
+  {
+    err = adcAcqFilterGetThirdOrderData(i, &rawData);
+    if(err < 0)
+      return err;
+
+    voltValues[i] = ((float)rawData * vref) / ADC_FULL_RANGE_VALUE;
+  }
+
+  return 0;
+}
+
+int adcAcqUtilNotifySubscribers(void)
+{
+  int err;
+
+  for(size_t i = 0; i < subConfig.activeSubCount; ++i)
+  {
+    if(!subscriptions[i].isPaused)
+    {
+      err = subscriptions[i].callback(voltValues, config.chanCount - 1);
+      if(err < 0)
+        LOG_ERR("ERROR %d: unable to notify subscription %d", err, i);
+    }
+  }
+
+  return 0;
 }
 
 int adcAcqUtilAddSubscription(AdcSubCallback_t callback)
 {
   int err;
 
-  if(config.activeSubCount + 1 >= config.maxSubCount)
+  if(subConfig.activeSubCount + 1 >= subConfig.maxSubCount)
   {
     err = -ENOSPC;
     LOG_ERR("ERROR %d: unable to add the new subscription", err);
     return err;
   }
 
-  subscriptions[config.activeSubCount].callback = callback;
-  subscriptions[config.activeSubCount].isPaused = false;
+  subscriptions[subConfig.activeSubCount].callback = callback;
+  subscriptions[subConfig.activeSubCount].isPaused = false;
 
-  ++config.activeSubCount;
+  ++subConfig.activeSubCount;
 
   return 0;
 }
@@ -374,7 +457,7 @@ int adcAcqUtilSetSubPauseState(AdcSubCallback_t callback, bool isPaused)
 {
   int err = -ESRCH;
 
-  for(size_t i = 0; i < config.activeSubCount && err < 0; ++i)
+  for(size_t i = 0; i < subConfig.activeSubCount && err < 0; ++i)
   {
     if(subscriptions[i].callback == callback)
     {
@@ -414,7 +497,9 @@ int adcAcqUtilGetRaw(size_t chanId, uint32_t *rawVal)
     return err;
   }
 
-  *rawVal = rawAverages[chanId];
+  err = adcAcqFilterGetThirdOrderData(chanId, (int32_t *)rawVal);
+  if(err < 0)
+    LOG_ERR("ERROR %d: unable to get the raw value of channel %d", err, chanId);
 
   return err;
 }
@@ -437,7 +522,7 @@ int adcAcqUtilGetVolt(size_t chanId, float *voltVal)
     return err;
   }
 
-  *voltVal = voltAverages[chanId];
+  *voltVal = voltValues[chanId];
 
   return err;
 }

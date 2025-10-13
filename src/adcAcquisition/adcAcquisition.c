@@ -15,6 +15,7 @@
 #include <zephyr/logging/log.h>
 
 #include "adcAcquisition.h"
+#include "adcAcquisitionFilter.h"
 #include "adcAcquisitionUtil.h"
 
 /**
@@ -24,7 +25,48 @@ LOG_MODULE_REGISTER(ADC_AQC_SERVICE_NAME, CONFIG_ENYA_ADC_ACQUISITION_LOG_LEVEL)
 
 // TODO: Get the ADC and channel config from the device tree when zephyr 4.3 release.
 
-int adcAcqInit(AdcConfig_t *adcConfig, uint32_t priority, k_tid_t *threadId)
+/**
+ * @brief   The ADC thread stack size.
+ */
+#define ADC_STACK_SIZE                                                (1024)
+
+/**
+ * @brief   Defining the ADC thread stack area.
+ */
+K_THREAD_STACK_DEFINE(adcStack, ADC_STACK_SIZE);
+
+/**
+ * @brief   The ADC thread.
+ */
+static struct k_thread thread;
+
+/**
+ * @brief   The ADC acquisition thread.
+ *
+ * @param[in]   p1: The first parameter.
+ * @param[in]   p2: The second parameter.
+ * @param[in]   p3: The third parameter.
+ */
+void run(void *p1, void *p2, void *p3)
+{
+  int err;
+  uint32_t notificationRate = *((uint32_t *)p1);
+
+  for(;;)
+  {
+    k_sleep(K_MSEC(notificationRate));
+
+    err = adcAcqUtilProcessData();
+    if(err < 0)
+      LOG_ERR("ERROR %d: unable to process ADC data", err);
+
+    err = adcAcqUtilNotifySubscribers();
+    if(err < 0)
+      LOG_ERR("ERROR %d: unable to notify ADC subscribers", err);
+  }
+}
+
+int adcAcqInit(AdcConfig_t *adcConfig, AdcSubConfig_t *adcSubConfig, uint32_t priority, k_tid_t *threadId)
 {
   int err;
 
@@ -35,18 +77,46 @@ int adcAcqInit(AdcConfig_t *adcConfig, uint32_t priority, k_tid_t *threadId)
     return err;
   }
 
+  if(!adcSubConfig)
+  {
+    err = -EINVAL;
+    LOG_ERR("ERROR %d: invalid ADC subscription configuration", err);
+    return err;
+  }
+
   err = adcAcqUtilInitAdc(adcConfig);
   if(err < 0)
     return err;
 
-  *threadId = adcAcqUtilInitWorkQueue(priority);
+  err = adcAcqUtilInitSubscriptions(adcSubConfig);
+  if(err < 0)
+    return err;
 
-  return 0;
+  err = adcAcqFilterInit(adcConfig->chanCount);
+  if(err < 0)
+    return err;
+
+  *threadId = k_thread_create(&thread, adcStack, ADC_STACK_SIZE, run, &adcSubConfig->notificationRate,
+                              NULL, NULL, K_PRIO_PREEMPT(priority), 0, K_FOREVER);
+
+  err = k_thread_name_set(&thread, STRINGIFY(ADC_AQC_SERVICE_NAME));
+  if(err < 0)
+    LOG_ERR("ERROR %d: unable to set ADC acquisition thread name", err);
+
+  return err;
 }
 
-void adcAcqStart(void)
+int adcAcqStart(void)
 {
-  adcAcqUtilStartWorkQueue();
+  int err;
+
+  k_thread_start(&thread);
+
+  err = adcAcqUtilStartTrigger();
+  if(err < 0)
+    LOG_ERR("ERROR %d: unable to start ADC trigger", err);
+
+  return err;
 }
 
 int adcAcqSubscribe(AdcSubCallback_t callback)

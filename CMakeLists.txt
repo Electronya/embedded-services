@@ -11,6 +11,7 @@ if(CONFIG_ENYA_ADC_ACQUISITION)
     zephyr_library_sources(
       ./src/adcAcquisition/adcAcquisition.c
       ./src/adcAcquisition/adcAcquisitionUtil.c
+      ./src/adcAcquisition/adcAcquisitionFilter.c
       ./src/adcAcquisition/adcAcquisitionCmd.c
     )
   endif()

@@ -19,38 +19,60 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/adc.h>
 
+/**
+ * @brief   The ADc subscription callback type.
+ */
 typedef int (*AdcSubCallback_t)(float values[], size_t valCount);
 
 /**
- * @brief   ADC conversion configuration.
+ * @brief   The ADC configuration structure.
+ *
+ *          The sampling rate is in microseconds and will be used to set the timer period.
+ *          The timer will trigger the ADC conversion.
+ *          The temporization counters are used to modulate the frequency at which a sample is push in the filter stage.
+ *          The filter tage is a simple RC in integer mathematics to make sure the calculations are fast.
+ *          The Tau values are used in the filter stage to set the cut-off frequency of the filter.
+ *          TODO: Add filter calculations description.
  */
 typedef struct
 {
   const struct device *adc;                         /**< The ADC device. */
   const struct adc_channel_cfg *channels;           /**< The ADC channel configurations. */
   size_t chanCount;                                 /**< The ADC channel count. */
-  size_t conversionCount;                           /**< The conversion count for averaging. */
-  uint32_t samplingRate;                            /**< The ADC sampling rate. */
+  const struct device *timer;                       /**< The timer device used to trigger the conversion. */
+  uint32_t samplingRate;                            /**< The ADC sampling rate [usec]. */
+  uint32_t *tempCounter;                            /**< The ADC sampling temporization counter [multiple of sampling rate]. */
+  int32_t *filterTaus;                              /**< The ADC filter tau values. */
+} AdcConfig_t;
+
+/**
+ * @brief   The ADC subscriptions configuration structure.
+ */
+typedef struct
+{
   size_t maxSubCount;                               /**< The maximum subscription count. */
   size_t activeSubCount;                            /**< The active subscription count. */
-}
-AdcConfig_t;
+  uint32_t notificationRate;                        /**< The subscription notification rate [msec]. */
+} AdcSubConfig_t;
 
 /**
  * @brief   Initialize the ADC acquisition.
  *
  * @param[in]   adcConfig: The ADC conversion configuration.
+ * @param[in]   adcSubConfig: The ADC subscription configuration.
  * @param[in]   priority: The service priority.
  * @param[out]  threadId: The thread ID.
  *
  * @return  0 if successful, the error code otherwise.
  */
-int adcAcqInit(AdcConfig_t *adcConfig, uint32_t priority, k_tid_t *threadId);
+int adcAcqInit(AdcConfig_t *adcConfig, AdcSubConfig_t *adcSubConfig, uint32_t priority, k_tid_t *threadId);
 
 /**
  * @brief   Start the ADC acquisition service.
+ *
+ * @return  0 if successful, the error code otherwise.
  */
-void adcAcqStart(void);
+int adcAcqStart(void);
 
 /**
  * @brief   Subscribe to the ADC service.
