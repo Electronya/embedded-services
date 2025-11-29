@@ -7,6 +7,43 @@
  * @brief     ADC Acquisition Service Filter Stage.
  *
  *            ADC acquisition filter stage API.
+ *            This is a simple RC filter. The implementation is base from the
+ *            information provided on https://dsplog.com/2007/12/02/digital-implementation-of-rc-low-pass-filter/.
+ *            Special thanks to Louis Geoffrion for the first introduction to this filter.
+ *
+ *            Filter Equation:
+ *              y[n] = y[n-1] + α × (x[n] - y[n-1])
+ *
+ *              Where:
+ *                - y[n] = current filtered output
+ *                - y[n-1] = previous filtered output
+ *                - x[n] = current input sample
+ *                - α (alpha) = filter coefficient
+ *
+ *            Filter Parameters
+ *              - FILTER_PRESCALE = 9
+ *              - FILTER_MIN_TAU = 1
+ *              - FILTER_MAX_TAU = 511
+ *              - tau = user-configurable parameter (1 to 511)
+ *
+ *            Alpha calculation:
+ *              α = tau / 2^FILTER_PRESCALE = tau / 512
+ *
+ *            Cutoff Frequency Formulas
+ *              fc = (fs / 2π) × (-ln(1 - α))
+ *              fc = (fs / 2π) × (-ln(1 - tau/512))
+ *
+ *            Inverse Calculation: tau from desired fc
+ *              α = 1 - exp(-2π × fc / fs)
+ *              tau = α × 512
+ *
+ *            Cascaded Filter Orders
+ *              - 1st order: Single RC filter
+ *              - 2nd order: Two cascaded RC filters (fc₂ = fc₁ × 0.6436)
+ *              - 3rd order: Three cascaded RC filters (fc₃ = fc₁ × 0.5098)
+ *
+ *              For cascaded identical filters, the effective cutoff frequency decreases:
+ *                fc_nth_order = fc_1st_order × √(2^(1/n) - 1)
  *
  * @ingroup   adc-acquisition
  *

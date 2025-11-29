@@ -7,6 +7,9 @@
  * @brief     ADC Acquisition Filter Stage
  *
  *            ADC acquisition filter stage implementation.
+ *            This is a simple RC filter. The implementation is base from the
+ *            information provided on https://dsplog.com/2007/12/02/digital-implementation-of-rc-low-pass-filter/.
+ *            Special thanks to Louis Geoffrion for the first introduction to this filter.
  *
  * @ingroup   adc-acquisition
  * @{
@@ -19,6 +22,21 @@
 
 /* Setting module logging */
 LOG_MODULE_DECLARE(ADC_AQC_SERVICE_NAME);
+
+/**
+ * @brief   The filter first order index.
+ */
+#define FILTER_FIRST_ORDER_IDX                                        (1)
+
+/**
+ * @brief   The filter second order index.
+ */
+#define FILTER_SECOND_ORDER_IDX                                       (2)
+
+/**
+ * @brief   The filter third order index.
+ */
+#define FILTER_THIRD_ORDER_IDX                                        (3)
 
 /**
  * @brief   The filter max order.
@@ -72,7 +90,7 @@ int adcAcqFilterInit(size_t chanCount)
 int adcAcqFilterPushData(size_t chanId, int32_t rawData, int32_t tau)
 {
   int err;
-  size_t chanBaseIdx = chanId * FILTER_MAX_ORDER;
+  size_t chanBaseIdx = chanId * (FILTER_MAX_ORDER + 1);
 
   if(chanId >= filterCount)
   {
@@ -86,8 +104,8 @@ int adcAcqFilterPushData(size_t chanId, int32_t rawData, int32_t tau)
   else if(tau > FILTER_MAX_TAU)
     tau = FILTER_MAX_TAU;
 
-  filterBuf[chanBaseIdx] = rawData;
   rawData <<= FILTER_PRESCALE;
+  filterBuf[chanBaseIdx] = rawData;
   filterBuf[chanBaseIdx + 1] += (((rawData - filterBuf[chanBaseIdx + 1]) * tau) >> FILTER_PRESCALE);
   filterBuf[chanBaseIdx + 2] += (((filterBuf[chanBaseIdx + 1] - filterBuf[chanBaseIdx + 2]) * tau) >> FILTER_PRESCALE);
   filterBuf[chanBaseIdx + 3] += (((filterBuf[chanBaseIdx + 2] - filterBuf[chanBaseIdx + 3]) * tau) >> FILTER_PRESCALE);
@@ -98,6 +116,7 @@ int adcAcqFilterPushData(size_t chanId, int32_t rawData, int32_t tau)
 int adcAcqFilterGetRawData(size_t chanId, int32_t *rawData)
 {
   int err;
+  size_t dataIdx = chanId * (FILTER_MAX_ORDER + 1);
 
   if(chanId >= filterCount)
   {
@@ -106,7 +125,7 @@ int adcAcqFilterGetRawData(size_t chanId, int32_t *rawData)
     return err;
   }
 
-  *rawData = filterBuf[chanId * FILTER_MAX_ORDER];
+  *rawData = filterBuf[dataIdx] >> FILTER_PRESCALE;
 
   return 0;
 }
@@ -114,6 +133,7 @@ int adcAcqFilterGetRawData(size_t chanId, int32_t *rawData)
 int adcAcqFilterGetFirstOrderData(size_t chanId, int32_t *filtData)
 {
   int err;
+  size_t dataIdx = chanId * (FILTER_MAX_ORDER + 1) + FILTER_FIRST_ORDER_IDX;
 
   if(chanId >= filterCount)
   {
@@ -122,7 +142,7 @@ int adcAcqFilterGetFirstOrderData(size_t chanId, int32_t *filtData)
     return err;
   }
 
-  *filtData = filterBuf[chanId * FILTER_MAX_ORDER + 1];
+  *filtData = filterBuf[dataIdx] >> FILTER_PRESCALE;
 
   return 0;
 }
@@ -130,6 +150,7 @@ int adcAcqFilterGetFirstOrderData(size_t chanId, int32_t *filtData)
 int adcAcqFilterGetSecondOrderData(size_t chanId, int32_t *filtData)
 {
   int err;
+  size_t dataIdx = chanId * (FILTER_MAX_ORDER + 1) + FILTER_SECOND_ORDER_IDX;
 
   if(chanId >= filterCount)
   {
@@ -138,7 +159,7 @@ int adcAcqFilterGetSecondOrderData(size_t chanId, int32_t *filtData)
     return err;
   }
 
-  *filtData = filterBuf[chanId * FILTER_MAX_ORDER + 2];
+  *filtData = filterBuf[dataIdx];
 
   return 0;
 }
@@ -146,6 +167,7 @@ int adcAcqFilterGetSecondOrderData(size_t chanId, int32_t *filtData)
 int adcAcqFilterGetThirdOrderData(size_t chanId, int32_t *filtData)
 {
   int err;
+  size_t dataIdx = chanId * (FILTER_MAX_ORDER + 1) + 3;
 
   if(chanId >= filterCount)
   {
@@ -154,7 +176,7 @@ int adcAcqFilterGetThirdOrderData(size_t chanId, int32_t *filtData)
     return err;
   }
 
-  *filtData = filterBuf[chanId * FILTER_MAX_ORDER + 3];
+  *filtData = filterBuf[dataIdx] >> FILTER_PRESCALE;
 
   return 0;
 }
