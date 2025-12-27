@@ -50,7 +50,7 @@ static struct k_thread thread;
 void run(void *p1, void *p2, void *p3)
 {
   int err;
-  uint32_t notificationRate = *((uint32_t *)p1);
+  uint32_t notificationRate = (uint32_t)(uintptr_t)p1;
 
   for(;;)
   {
@@ -96,7 +96,7 @@ int adcAcqInit(AdcConfig_t *adcConfig, AdcSubConfig_t *adcSubConfig, uint32_t pr
   if(err < 0)
     return err;
 
-  *threadId = k_thread_create(&thread, adcStack, ADC_STACK_SIZE, run, &adcSubConfig->notificationRate,
+  *threadId = k_thread_create(&thread, adcStack, ADC_STACK_SIZE, run, (void *)(uintptr_t)adcSubConfig->notificationRate,
                               NULL, NULL, K_PRIO_PREEMPT(priority), 0, K_FOREVER);
 
   err = k_thread_name_set(&thread, STRINGIFY(ADC_AQC_SERVICE_NAME));
