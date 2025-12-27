@@ -102,6 +102,11 @@ static struct adc_sequence sequence;
 static struct adc_sequence_options seqOptions;
 
 /**
+ * @brief   ADC conversion in progress flag.
+ */
+static volatile bool adcBusy = false;
+
+/**
  * @brief   The subscription entry.
  */
 typedef struct
@@ -219,9 +224,20 @@ static void triggerConversion(const struct device *dev, void *user_data)
 {
   int err;
 
+  /* Skip if previous conversion still in progress */
+  if(adcBusy)
+  {
+    LOG_WRN("ADC conversion still in progress, skipping trigger");
+    return;
+  }
+
+  adcBusy = true;
   err = adc_read_async(config.adc, &sequence, NULL);
   if(err < 0)
+  {
     LOG_ERR("ERROR %d: unable to start the ADC conversion", err);
+    adcBusy = false;  /* Clear flag on error */
+  }
 }
 
 /**
@@ -268,6 +284,9 @@ static enum adc_action adcSeqCallback(const struct device *dev, const struct adc
       LOG_ERR("ERROR %d: unable to push data to the filter", err);
   }
 
+  /* Clear busy flag - conversion complete */
+  adcBusy = false;
+
   return ADC_ACTION_FINISH;
 }
 
@@ -295,7 +314,7 @@ static inline void setupSequence(void)
  *
  * @return  The calculated real VDD.
  */
-static inline float calculateVdd(float vrefVal)
+static inline float calculateVdd(int32_t vrefVal)
 {
   uint16_t vrefCal = *VREFINT_CAL_ADDR;
 
@@ -403,7 +422,7 @@ int adcAcqUtilProcessData(void)
     return err;
   }
 
-  vref = calculateVdd((uint16_t)rawVref.val1);
+  vref = sensor_value_to_float(&rawVref);
 
   for(size_t i = 0; i < config.chanCount - 1; ++i)
   {
@@ -425,7 +444,7 @@ int adcAcqUtilNotifySubscribers(void)
   {
     if(!subscriptions[i].isPaused)
     {
-      err = subscriptions[i].callback(voltValues, config.chanCount - 1);
+      err = subscriptions[i].callback(voltValues, config.chanCount);
       if(err < 0)
         LOG_ERR("ERROR %d: unable to notify subscription %d", err, i);
     }
