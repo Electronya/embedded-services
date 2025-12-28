@@ -23,17 +23,10 @@
  */
 LOG_MODULE_REGISTER(ADC_AQC_SERVICE_NAME, CONFIG_ENYA_ADC_ACQUISITION_LOG_LEVEL);
 
-// TODO: Get the ADC and channel config from the device tree when zephyr 4.3 release.
-
-/**
- * @brief   The ADC thread stack size.
- */
-#define ADC_STACK_SIZE                                                (1024)
-
 /**
  * @brief   Defining the ADC thread stack area.
  */
-K_THREAD_STACK_DEFINE(adcStack, ADC_STACK_SIZE);
+K_THREAD_STACK_DEFINE(adcStack, CONFIG_ENYA_ADC_ACQUISITION_STACK_SIZE);
 
 /**
  * @brief   The ADC thread.
@@ -98,8 +91,9 @@ int adcAcqInit(AdcConfig_t *adcConfig, AdcSubConfig_t *adcSubConfig, uint32_t pr
   if(err < 0)
     return err;
 
-  *threadId = k_thread_create(&thread, adcStack, ADC_STACK_SIZE, run, (void *)(uintptr_t)adcSubConfig->notificationRate,
-                              NULL, NULL, K_PRIO_PREEMPT(priority), 0, K_FOREVER);
+  *threadId = k_thread_create(&thread, adcStack, CONFIG_ENYA_ADC_ACQUISITION_STACK_SIZE, run,
+                              (void *)(uintptr_t)adcSubConfig->notificationRate, NULL, NULL,
+                              K_PRIO_PREEMPT(priority), 0, K_FOREVER);
 
   err = k_thread_name_set(&thread, STRINGIFY(ADC_AQC_SERVICE_NAME));
   if(err < 0)
