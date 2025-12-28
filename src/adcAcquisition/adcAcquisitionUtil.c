@@ -65,6 +65,11 @@ LOG_MODULE_DECLARE(ADC_AQC_SERVICE_NAME);
 #define VREF_CHANNEL_INDEX                                              DT_PROP(USER_NODE, vref_channel_index)
 
 /**
+ * @brief   The ADC trigger timer from devicetree alias.
+ */
+#define ADC_TRIGGER_TIMER                                               DEVICE_DT_GET(DT_ALIAS(adc_trigger))
+
+/**
  * @brief  The ADC trigger configuration.
  */
 static struct counter_top_cfg triggerConfig;
@@ -262,7 +267,7 @@ int configureTimer(void)
 {
   int err;
 
-  if(!device_is_ready(config.timer))
+  if(!device_is_ready(ADC_TRIGGER_TIMER))
   {
     err = -EBUSY;
     LOG_ERR("ERROR %d: timer device busy", err);
@@ -270,7 +275,7 @@ int configureTimer(void)
   }
 
   triggerConfig.flags = 0;
-  triggerConfig.ticks = counter_us_to_ticks(config.timer, config.samplingRate);
+  triggerConfig.ticks = counter_us_to_ticks(ADC_TRIGGER_TIMER, config.samplingRate);
   triggerConfig.callback = triggerConversion;
   triggerConfig.user_data = NULL;
 
@@ -340,7 +345,6 @@ int adcAcqUtilInitAdc(AdcConfig_t *adcConfig)
 
   adc = adcChannels[0].dev;
   chanCount = ARRAY_SIZE(adcChannels);
-  config.timer = adcConfig->timer;
   config.samplingRate = adcConfig->samplingRate;
   config.filterTau = adcConfig->filterTau;
 
@@ -389,14 +393,14 @@ int adcAcqUtilStartTrigger(void)
 {
   int err;
 
-  err = counter_set_top_value(config.timer, &triggerConfig);
+  err = counter_set_top_value(ADC_TRIGGER_TIMER, &triggerConfig);
   if(err < 0)
   {
     LOG_ERR("ERROR %d: unable to set the timer trigger", err);
     return err;
   }
 
-  err = counter_start(config.timer);
+  err = counter_start(ADC_TRIGGER_TIMER);
   if(err < 0)
     LOG_ERR("ERROR %d: unable to start the trigger timer", err);
 

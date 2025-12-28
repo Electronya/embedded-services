@@ -28,6 +28,7 @@ typedef int (*AdcSubCallback_t)(float values[], size_t valCount);
  * @brief   The ADC configuration structure.
  *
  *          The ADC device and channels are obtained from devicetree io-channels property.
+ *          The trigger timer is obtained from the adc-trigger devicetree alias.
  *          The sampling rate is in microseconds and will be used to set the timer period.
  *          The timer will trigger the ADC conversion.
  *          The filter is a simple RC in integer mathematics to make sure the calculations are fast.
@@ -36,7 +37,6 @@ typedef int (*AdcSubCallback_t)(float values[], size_t valCount);
  */
 typedef struct
 {
-  const struct device *timer;                       /**< The timer device used to trigger the conversion. */
   uint32_t samplingRate;                            /**< The ADC sampling rate [usec]. */
   int32_t filterTau;                                /**< The ADC filter tau value. */
 } AdcConfig_t;
