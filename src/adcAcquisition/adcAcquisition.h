@@ -38,17 +38,19 @@ typedef int (*AdcSubCallback_t)(float values[], size_t valCount);
  *          Where α = tau / 512 (FILTER_PRESCALE = 9)
  *
  *          Filter Tau Calculation:
- *          To calculate the tau value for a desired cutoff frequency (fc):
- *            1. Calculate alpha: α = 1 - exp(-2π × fc / fs)
+ *          To calculate the tau value for a desired 3rd-order cutoff frequency (fc_3rd):
+ *            1. Calculate the required 1st-order cutoff: fc_1st = fc_3rd / 0.5098
+ *            2. Calculate alpha: α = 1 - exp(-2π × fc_1st / fs)
  *               where fs is the sampling frequency (1/samplingRate)
- *            2. Calculate tau: tau = α × 512
- *            3. Round to nearest integer (valid range: 1 to 511)
+ *            3. Calculate tau: tau = α × 512
+ *            4. Round to nearest integer (valid range: 1 to 511)
  *
- *          Example: For fs = 2000 Hz (samplingRate = 500 μs) and fc = 10 Hz:
- *            α = 1 - exp(-2π × 10 / 2000) ≈ 0.0313
- *            tau = 0.0313 × 512 ≈ 16
+ *          Example: For fs = 2000 Hz (samplingRate = 500 μs) and desired fc_3rd = 10 Hz:
+ *            fc_1st = 10 / 0.5098 ≈ 19.6 Hz
+ *            α = 1 - exp(-2π × 19.6 / 2000) ≈ 0.0614
+ *            tau = 0.0614 × 512 ≈ 31
  *
- *          Note: The 3rd-order cascaded filter has an effective cutoff frequency:
+ *          Note: Each RC stage has cutoff fc_1st, but cascading three stages results in:
  *            fc_3rd = fc_1st × 0.5098
  */
 typedef struct
