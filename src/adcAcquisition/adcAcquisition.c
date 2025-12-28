@@ -52,6 +52,8 @@ void run(void *p1, void *p2, void *p3)
   int err;
   uint32_t notificationRate = (uint32_t)(uintptr_t)p1;
 
+  LOG_INF("ADC acquisition thread started, notification rate: %d ms", notificationRate);
+
   for(;;)
   {
     k_sleep(K_MSEC(notificationRate));

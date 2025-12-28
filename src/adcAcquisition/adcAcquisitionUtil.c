@@ -13,9 +13,9 @@
  */
 
 #include <zephyr/drivers/counter.h>
-#include <zephyr/drivers/sensor.h>
 #include <zephyr/logging/log.h>
 #include <string.h>
+#include <soc.h>
 
 #include "adcAcquisitionUtil.h"
 #include "adcAcquisitionFilter.h"
@@ -52,11 +52,6 @@ LOG_MODULE_DECLARE(ADC_AQC_SERVICE_NAME);
  * @brief   The ADC full range value.
  */
 #define ADC_FULL_RANGE_VALUE                                            (16383.0f)
-
-/**
- * @brief   The ADC reference voltage sensor.
- */
-static const struct device *vrefSensor = DEVICE_DT_GET(DT_ALIAS(volt_sensor0));
 
 /**
  * @brief  The ADC trigger configuration.
@@ -351,12 +346,11 @@ int adcAcqUtilInitAdc(AdcConfig_t *adcConfig)
 
   setupSequence();
 
-  if(!device_is_ready(vrefSensor))
-  {
-    err = -EBUSY;
-    LOG_ERR("ERROR %d: Vref sensor device busy", err);
-    return err;
-  }
+  /* Enable VREFINT in ADC Common Control Register for channel 13 */
+  ADC1_COMMON->CCR |= ADC_CCR_VREFEN;
+
+  /* Wait for VREFINT to stabilize (min 12μs per datasheet) */
+  k_busy_wait(15);
 
   err = configureTimer();
   if(err < 0)
@@ -405,32 +399,28 @@ int adcAcqUtilProcessData(void)
 {
   int err;
   int32_t rawData;
-  struct sensor_value rawVref;
-  float vref;
+  int32_t rawVref;
+  float vdd;
 
-  err = sensor_sample_fetch(vrefSensor);
+  /* Read Vref from channel 3 (index 3 = channel 13 in our sequence) */
+  err = adcAcqFilterGetThirdOrderData(config.chanCount - 1, &rawVref);
   if(err < 0)
   {
-    LOG_ERR("ERROR %d: unable to fetch the Vref sensor data", err);
+    LOG_ERR("ERROR %d: unable to get vref data from ADC", err);
     return err;
   }
 
-  err = sensor_channel_get(vrefSensor, SENSOR_CHAN_VOLTAGE, &rawVref);
-  if(err < 0)
-  {
-    LOG_ERR("ERROR %d: unable to get the Vref sensor data", err);
-    return err;
-  }
+  /* Calculate real VDD from internal Vref reading */
+  vdd = calculateVdd(rawVref);
 
-  vref = sensor_value_to_float(&rawVref);
-
+  /* Convert first 3 channels (user channels) to voltage */
   for(size_t i = 0; i < config.chanCount - 1; ++i)
   {
     err = adcAcqFilterGetThirdOrderData(i, &rawData);
     if(err < 0)
       return err;
 
-    voltValues[i] = ((float)rawData * vref) / ADC_FULL_RANGE_VALUE;
+    voltValues[i] = ((float)rawData * vdd) / ADC_FULL_RANGE_VALUE;
   }
 
   return 0;
