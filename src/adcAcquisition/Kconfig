@@ -1,0 +1,31 @@
+# Electronya ADC Acquisition Service
+# Copyright (C) 2025 by Electronya
+
+config ENYA_ADC_ACQUISITION
+  bool "Electronya ADC Acquisition Service"
+  default n
+  depends on ADC
+  help
+    The Electronya ADC acquisition service.
+
+    This service provides timer-triggered ADC acquisition with DMA,
+    3rd-order cascaded RC filtering, and a publish-subscribe mechanism
+    for ADC data. ADC channels and trigger timer are configured via
+    devicetree.
+
+if ENYA_ADC_ACQUISITION
+
+config ENYA_ADC_ACQUISITION_LOG_LEVEL
+  int "Electronya ADC Acquisition Log Level"
+  default 3
+  help
+    The Electronya ADC acquisition log level.
+    0=OFF, 1=ERR, 2=WRN, 3=INF, 4=DBG
+
+config ENYA_ADC_ACQUISITION_STACK_SIZE
+  int "Electronya ADC Acquisition Stack Size"
+  default 1024
+  help
+    The Electronya ADC acquisition service thread stack size in bytes.
+
+endif
