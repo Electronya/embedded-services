@@ -450,12 +450,9 @@ int adcAcqUtilProcessData(void)
   /* Calculate real VDD from internal Vref reading */
   vdd = calculateVdd(rawVref);
 
-  /* Convert all channels except vref to voltage */
+  /* Convert all channels to voltage */
   for(size_t i = 0; i < ARRAY_SIZE(adcChannels); ++i)
   {
-    if(i == VREF_CHANNEL_INDEX)
-      continue;
-
     err = adcAcqFilterGetThirdOrderData(i, &rawData);
     if(err < 0)
       return err;
