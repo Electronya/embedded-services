@@ -95,6 +95,11 @@ static AdcConfig_t config;
 static AdcSubConfig_t subConfig;
 
 /**
+ * @brief   The ADC subscription memory pool.
+ */
+static osMemoryPoolId_t subDataPool = NULL;
+
+/**
  * @brief   The ADC buffer.
  */
 static uint16_t *buffer = NULL;
@@ -374,6 +379,8 @@ int adcAcqUtilInitAdc(AdcConfig_t *adcConfig)
 int adcAcqUtilInitSubscriptions(AdcSubConfig_t *adcSubConfig)
 {
   int err;
+  size_t blockSize;
+  size_t blockCount;
 
   memcpy(&subConfig, adcSubConfig, sizeof(AdcSubConfig_t));
 
@@ -386,7 +393,25 @@ int adcAcqUtilInitSubscriptions(AdcSubConfig_t *adcSubConfig)
 
   subConfig.activeSubCount = 0;
 
-  return err;
+  /* Calculate memory pool parameters */
+  blockSize = sizeof(AdcSubData_t) + (chanCount * sizeof(float));
+  blockCount = 2 * subConfig.maxSubCount;
+
+  LOG_INF("attempting to create pool: chanCount=%zu, blockSize=%zu, blockCount=%zu",
+          chanCount, blockSize, blockCount);
+
+  /* Create memory pool for subscription data */
+  subDataPool = osMemoryPoolNew(blockCount, blockSize, NULL);
+  if(subDataPool == NULL)
+  {
+    err = -ENOMEM;
+    LOG_ERR("ERROR %d: unable to create subscription data pool", err);
+    return err;
+  }
+
+  LOG_INF("created subscription pool: %zu blocks of %zu bytes", blockCount, blockSize);
+
+  return 0;
 }
 
 int adcAcqUtilStartTrigger(void)
@@ -444,14 +469,34 @@ int adcAcqUtilProcessData(void)
 int adcAcqUtilNotifySubscribers(void)
 {
   int err;
+  AdcSubData_t *data;
 
   for(size_t i = 0; i < subConfig.activeSubCount; ++i)
   {
     if(!subscriptions[i].isPaused)
     {
-      err = subscriptions[i].callback(voltValues, chanCount);
+      /* Allocate buffer from pool */
+      data = (AdcSubData_t *)osMemoryPoolAlloc(subDataPool, 0);
+      if(data == NULL)
+      {
+        err = -ENOSPC;
+        LOG_ERR("ERROR %d: pool allocation failed for subscription %d", err, i);
+        continue;
+      }
+
+      /* Fill in data */
+      data->pool = subDataPool;
+      data->valCount = chanCount;
+      memcpy(data->values, voltValues, chanCount * sizeof(float));
+
+      /* Call subscriber callback */
+      err = subscriptions[i].callback(data);
       if(err < 0)
-        LOG_ERR("ERROR %d: unable to notify subscription %d", err, i);
+      {
+        LOG_ERR("ERROR %d: callback failed for subscription %d", err, i);
+        /* Free the buffer since callback failed */
+        osMemoryPoolFree(subDataPool, data);
+      }
     }
   }
 
@@ -475,6 +520,34 @@ int adcAcqUtilAddSubscription(AdcSubCallback_t callback)
   ++subConfig.activeSubCount;
 
   return 0;
+}
+
+int adcAcqUtilRemoveSubscription(AdcSubCallback_t callback)
+{
+  int err = -ESRCH;
+
+  for(size_t i = 0; i < subConfig.activeSubCount; ++i)
+  {
+    if(subscriptions[i].callback == callback)
+    {
+      /* Shift remaining subscriptions down */
+      for(size_t j = i; j < subConfig.activeSubCount - 1; ++j)
+      {
+        subscriptions[j] = subscriptions[j + 1];
+      }
+
+      --subConfig.activeSubCount;
+      err = 0;
+
+      LOG_INF("removed subscription %d", i);
+      break;
+    }
+  }
+
+  if(err < 0)
+    LOG_ERR("ERROR %d: subscription not found", err);
+
+  return err;
 }
 
 int adcAcqUtilSetSubPauseState(AdcSubCallback_t callback, bool isPaused)

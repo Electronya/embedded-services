@@ -18,11 +18,30 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/adc.h>
+#include <zephyr/portability/cmsis_os2.h>
 
 /**
- * @brief   The ADc subscription callback type.
+ * @brief   The ADC subscription data structure.
+ *
+ *          This structure is allocated from the service's memory pool and passed
+ *          to subscribers. Subscribers must free the memory back to the pool
+ *          after processing using the embedded pool ID.
  */
-typedef int (*AdcSubCallback_t)(float values[], size_t valCount);
+typedef struct
+{
+  osMemoryPoolId_t pool;                            /**< Memory pool to return buffer to. */
+  size_t valCount;                                  /**< Number of ADC values. */
+  float values[];                                   /**< Flexible array of ADC values. */
+} AdcSubData_t;
+
+/**
+ * @brief   The ADC subscription callback type.
+ *
+ * @param[in]   data: The ADC data buffer (must be freed by subscriber).
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+typedef int (*AdcSubCallback_t)(AdcSubData_t *data);
 
 /**
  * @brief   The ADC configuration structure.
@@ -96,6 +115,15 @@ int adcAcqStart(void);
  * @return  0 if successful, the error code otherwise.
  */
 int adcAcqSubscribe(AdcSubCallback_t callback);
+
+/**
+ * @brief   Unsubscribe from the ADC service.
+ *
+ * @param[in]   callback: The subscription callback.
+ *
+ * @return  0 if successful, -ESRCH if subscription not found.
+ */
+int adcAcqUnsubscribe(AdcSubCallback_t callback);
 
 /**
  * @brief   Pause a subscription.

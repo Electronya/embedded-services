@@ -75,6 +75,15 @@ int adcAcqUtilNotifySubscribers(void);
 int adcAcqUtilAddSubscription(AdcSubCallback_t callback);
 
 /**
+ * @brief   Remove a subscription.
+ *
+ * @param[in]   callback: The subscription callback.
+ *
+ * @return  0 if successful, -ESRCH if subscription not found.
+ */
+int adcAcqUtilRemoveSubscription(AdcSubCallback_t callback);
+
+/**
  * @brief   Set the subscription pause state.
  *
  * @param[in]   callback: The subscription callback.

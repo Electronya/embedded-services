@@ -120,6 +120,11 @@ int adcAcqSubscribe(AdcSubCallback_t callback)
   return adcAcqUtilAddSubscription(callback);
 }
 
+int adcAcqUnsubscribe(AdcSubCallback_t callback)
+{
+  return adcAcqUtilRemoveSubscription(callback);
+}
+
 int adcAcqPauseSubscription(AdcSubCallback_t callback)
 {
   return adcAcqUtilSetSubPauseState(callback, true);
