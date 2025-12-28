@@ -14,6 +14,7 @@
 
 #include <zephyr/drivers/counter.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/devicetree.h>
 #include <string.h>
 #include <soc.h>
 
@@ -54,22 +55,34 @@ LOG_MODULE_DECLARE(ADC_AQC_SERVICE_NAME);
 #define ADC_FULL_RANGE_VALUE                                            (16383.0f)
 
 /**
+ * @brief   The user node from devicetree.
+ */
+#define USER_NODE                                                       DT_PATH(zephyr_user)
+
+/**
+ * @brief   The Vref channel index from devicetree.
+ */
+#define VREF_CHANNEL_INDEX                                              DT_PROP(USER_NODE, vref_channel_index)
+
+/**
  * @brief  The ADC trigger configuration.
  */
 static struct counter_top_cfg triggerConfig;
 
 /**
+ * @brief   The ADC device.
+ */
+static const struct device *adc;
+
+/**
+ * @brief   The ADC channel count.
+ */
+static size_t chanCount;
+
+/**
  * @brief   The ADC acquisition configuration.
  */
-static AdcConfig_t config = {
-  .adc = NULL,
-  .channels = NULL,
-  .chanCount = 0,
-  .timer = NULL,
-  .samplingRate = 0,
-  .tempCounter = NULL,
-  .filterTaus = NULL
-};
+static AdcConfig_t config;
 
 /**
  * @brief   The ADC subscription configuration.
@@ -114,7 +127,20 @@ AdcSubEntry_t;
 /**
  * @brief   The subscriptions.
  */
-AdcSubEntry_t *subscriptions = NULL;
+static AdcSubEntry_t *subscriptions = NULL;
+
+/**
+ * @brief   Helper macro for DT_FOREACH_PROP_ELEM to get ADC specs with commas.
+ */
+#define ADC_DT_SPEC_AND_COMMA(node_id, prop, idx) \
+  ADC_DT_SPEC_GET_BY_IDX(node_id, idx),
+
+/**
+ * @brief   The ADC channels from devicetree io-channels property.
+ */
+static const struct adc_dt_spec adcChannels[] = {
+  DT_FOREACH_PROP_ELEM(USER_NODE, io_channels, ADC_DT_SPEC_AND_COMMA)
+};
 
 /**
  * @brief   Allocate the ADC buffers.
@@ -140,21 +166,6 @@ static inline int allocateBuffers(size_t chanCount)
   {
     err = -ENOSPC;
     LOG_ERR("ERROR %d: unable to allocate the volt average array", err);
-  }
-
-  config.filterTaus = k_malloc(chanCount * sizeof(int32_t));
-  if(!config.filterTaus)
-  {
-    err = -ENOSPC;
-    LOG_ERR("ERROR %d: unable to allocate the filter tau array", err);
-    return err;
-  }
-
-  config.tempCounter = k_malloc(chanCount * sizeof(uint32_t));
-  if(!config.tempCounter)
-  {
-    err = -ENOSPC;
-    LOG_ERR("ERROR %d: unable to allocate the temporization counter array", err);
   }
 
   return err;
@@ -194,16 +205,23 @@ static inline int configureChannels(void)
 
   sequence.channels = 0;
 
-  for(size_t i = 0; i < config.chanCount; ++i)
+  for(size_t i = 0; i < ARRAY_SIZE(adcChannels); ++i)
   {
-    err = adc_channel_setup(config.adc, config.channels + i);
-    if(err < 0)
+    if(!adc_is_ready_dt(&adcChannels[i]))
     {
-      LOG_ERR("ERROR %d: unable to setup channel %d", err, config.channels[i].channel_id);
+      err = -EBUSY;
+      LOG_ERR("ERROR %d: ADC controller device %s not ready", err, adcChannels[i].dev->name);
       return err;
     }
 
-    sequence.channels |= BIT(config.channels[i].channel_id);
+    err = adc_channel_setup_dt(&adcChannels[i]);
+    if(err < 0)
+    {
+      LOG_ERR("ERROR %d: unable to setup channel %d", err, adcChannels[i].channel_id);
+      return err;
+    }
+
+    sequence.channels |= BIT(adcChannels[i].channel_id);
   }
 
   return 0;
@@ -227,7 +245,7 @@ static void triggerConversion(const struct device *dev, void *user_data)
   }
 
   adcBusy = true;
-  err = adc_read_async(config.adc, &sequence, NULL);
+  err = adc_read_async(adc, &sequence, NULL);
   if(err < 0)
   {
     LOG_ERR("ERROR %d: unable to start the ADC conversion", err);
@@ -272,9 +290,9 @@ static enum adc_action adcSeqCallback(const struct device *dev, const struct adc
 {
   int err;
 
-  for(size_t i = 0; i < config.chanCount; ++i)
+  for(size_t i = 0; i < chanCount; ++i)
   {
-    err = adcAcqFilterPushData(i, (int32_t)buffer[i], config.filterTaus[i]);
+    err = adcAcqFilterPushData(i, (int32_t)buffer[i], config.filterTau);
     if(err < 0)
       LOG_ERR("ERROR %d: unable to push data to the filter", err);
   }
@@ -295,7 +313,7 @@ static inline void setupSequence(void)
   sequence.calibrate = false;
   sequence.options = &seqOptions;
   sequence.buffer = buffer;
-  sequence.buffer_size = config.chanCount * sizeof(uint16_t);
+  sequence.buffer_size = chanCount * sizeof(uint16_t);
 
   seqOptions.extra_samplings = EXTRA_SAMPLINGS_SETTING;
   seqOptions.interval_us = CHANNEL_INTERVAL;
@@ -320,25 +338,15 @@ int adcAcqUtilInitAdc(AdcConfig_t *adcConfig)
 {
   int err;
 
-  config.adc = adcConfig->adc;
-  config.channels = adcConfig->channels;
-  config.chanCount = adcConfig->chanCount;
+  adc = adcChannels[0].dev;
+  chanCount = ARRAY_SIZE(adcChannels);
   config.timer = adcConfig->timer;
   config.samplingRate = adcConfig->samplingRate;
+  config.filterTau = adcConfig->filterTau;
 
-  err = allocateBuffers(config.chanCount);
+  err = allocateBuffers(chanCount);
   if(err < 0)
     return err;
-
-  memcpy(config.filterTaus, adcConfig->filterTaus, config.chanCount * sizeof(int32_t));
-  memcpy(config.tempCounter, adcConfig->tempCounter, config.chanCount * sizeof(uint32_t));
-
-  if(!device_is_ready(config.adc))
-  {
-    err = -EBUSY;
-    LOG_ERR("ERROR %d: ADC device busy", err);
-    return err;
-  }
 
   err = configureChannels();
   if(err < 0)
@@ -402,8 +410,8 @@ int adcAcqUtilProcessData(void)
   int32_t rawVref;
   float vdd;
 
-  /* Read Vref from channel 3 (index 3 = channel 13 in our sequence) */
-  err = adcAcqFilterGetThirdOrderData(config.chanCount - 1, &rawVref);
+  /* Read Vref from the configured vref channel index */
+  err = adcAcqFilterGetThirdOrderData(VREF_CHANNEL_INDEX, &rawVref);
   if(err < 0)
   {
     LOG_ERR("ERROR %d: unable to get vref data from ADC", err);
@@ -413,9 +421,12 @@ int adcAcqUtilProcessData(void)
   /* Calculate real VDD from internal Vref reading */
   vdd = calculateVdd(rawVref);
 
-  /* Convert first 3 channels (user channels) to voltage */
-  for(size_t i = 0; i < config.chanCount - 1; ++i)
+  /* Convert all channels except vref to voltage */
+  for(size_t i = 0; i < ARRAY_SIZE(adcChannels); ++i)
   {
+    if(i == VREF_CHANNEL_INDEX)
+      continue;
+
     err = adcAcqFilterGetThirdOrderData(i, &rawData);
     if(err < 0)
       return err;
@@ -434,7 +445,7 @@ int adcAcqUtilNotifySubscribers(void)
   {
     if(!subscriptions[i].isPaused)
     {
-      err = subscriptions[i].callback(voltValues, config.chanCount);
+      err = subscriptions[i].callback(voltValues, chanCount);
       if(err < 0)
         LOG_ERR("ERROR %d: unable to notify subscription %d", err, i);
     }
@@ -485,14 +496,14 @@ int adcAcqUtilSetSubPauseState(AdcSubCallback_t callback, bool isPaused)
 
 size_t adcAcqUtilGetChanCount(void)
 {
-  return config.chanCount;
+  return chanCount;
 }
 
 int adcAcqUtilGetRaw(size_t chanId, uint32_t *rawVal)
 {
   int err = 0;
 
-  if(chanId >= config.chanCount)
+  if(chanId >= chanCount)
   {
     err = -EINVAL;
     LOG_ERR("ERROR %d: invalid channel ID %d", err, chanId);
@@ -517,7 +528,7 @@ int adcAcqUtilGetVolt(size_t chanId, float *voltVal)
 {
   int err = 0;
 
-  if(chanId >= config.chanCount)
+  if(chanId >= chanCount)
   {
     err = -EINVAL;
     LOG_ERR("ERROR %d: invalid channel ID %d", err, chanId);

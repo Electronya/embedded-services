@@ -94,7 +94,7 @@ int adcAcqInit(AdcConfig_t *adcConfig, AdcSubConfig_t *adcSubConfig, uint32_t pr
   if(err < 0)
     return err;
 
-  err = adcAcqFilterInit(adcConfig->chanCount);
+  err = adcAcqFilterInit(adcAcqUtilGetChanCount());
   if(err < 0)
     return err;
 

@@ -27,22 +27,18 @@ typedef int (*AdcSubCallback_t)(float values[], size_t valCount);
 /**
  * @brief   The ADC configuration structure.
  *
+ *          The ADC device and channels are obtained from devicetree io-channels property.
  *          The sampling rate is in microseconds and will be used to set the timer period.
  *          The timer will trigger the ADC conversion.
- *          The temporization counters are used to modulate the frequency at which a sample is push in the filter stage.
- *          The filter tage is a simple RC in integer mathematics to make sure the calculations are fast.
- *          The Tau values are used in the filter stage to set the cut-off frequency of the filter.
+ *          The filter is a simple RC in integer mathematics to make sure the calculations are fast.
+ *          The Tau value is used in the filter stage to set the cut-off frequency of the filter.
  *          TODO: Add filter calculations description.
  */
 typedef struct
 {
-  const struct device *adc;                         /**< The ADC device. */
-  const struct adc_channel_cfg *channels;           /**< The ADC channel configurations. */
-  size_t chanCount;                                 /**< The ADC channel count. */
   const struct device *timer;                       /**< The timer device used to trigger the conversion. */
   uint32_t samplingRate;                            /**< The ADC sampling rate [usec]. */
-  uint32_t *tempCounter;                            /**< The ADC sampling temporization counter [multiple of sampling rate]. */
-  int32_t *filterTaus;                              /**< The ADC filter tau values. */
+  int32_t filterTau;                                /**< The ADC filter tau value. */
 } AdcConfig_t;
 
 /**
