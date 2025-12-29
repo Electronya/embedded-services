@@ -8,10 +8,8 @@ on:
 
 jobs:
   test-coverage:
-    runs-on: [self-hosted, linux, x64]
-    container:
-      image: ghcr.io/zephyrproject-rtos/ci:v0.26.13
-      options: --user root
+    runs-on: ubuntu-latest
+    container: zephyrprojectrtos/ci:latest
 
     steps:
     - name: Checkout repository
