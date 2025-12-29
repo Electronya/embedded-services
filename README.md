@@ -1,4 +1,8 @@
 # Embedded-Services
+
+[![Test and Coverage](https://github.com/Electronya/embedded-services/actions/workflows/test-and-coverage.yml/badge.svg)](https://github.com/Electronya/embedded-services/actions/workflows/test-and-coverage.yml)
+[![codecov](https://codecov.io/gh/Electronya/embedded-services/branch/main/graph/badge.svg)](https://codecov.io/gh/Electronya/embedded-services)
+
 Electronya embedded services for Zephyr RTOS based firmware
 
 ## ADC Acquisition Service
