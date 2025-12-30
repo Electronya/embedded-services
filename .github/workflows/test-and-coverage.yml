@@ -9,17 +9,27 @@ on:
 jobs:
   test-coverage:
     runs-on: ubuntu-latest
-    container:
-      image: zephyrprojectrtos/ci:v0.26.13
-      options: --cpus 2
 
     steps:
     - name: Free up disk space
       run: |
         df -h
-        rm -rf /opt/hostedtoolcache
-        docker system prune -af || true
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache
+        sudo docker system prune -af
+        sudo apt-get clean
         df -h
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          git cmake ninja-build gperf python3-pip python3-setuptools \
+          python3-wheel python3-venv gcc g++ lcov
+        pip3 install --user west
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -44,6 +54,7 @@ jobs:
         west init -l embedded-services
         west update --narrow --fetch-opt=--depth=1
         west zephyr-export
+        pip3 install --user -r zephyr/scripts/requirements.txt
 
     - name: Clean up west cache
       run: |
