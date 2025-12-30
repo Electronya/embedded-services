@@ -10,7 +10,7 @@ jobs:
   test-coverage:
     runs-on: ubuntu-latest
     container:
-      image: judebake/electronya-firm-builder:latest
+      image: judebake/electronya-firm-builder:4.3.0
       options: --cpus 2
 
     steps:
