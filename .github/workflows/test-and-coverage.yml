@@ -62,9 +62,10 @@ jobs:
     - name: Build tests with coverage
       run: |
         cd tests/adcAcquisition/filter
-        west build -b unit_testing -p auto -- \
+        cmake -B build -G Ninja -DBOARD=unit_testing \
           -DCOVERAGE=ON \
           -DCMAKE_BUILD_TYPE=MinSizeRel
+        cmake --build build
 
     - name: Run tests
       run: |
