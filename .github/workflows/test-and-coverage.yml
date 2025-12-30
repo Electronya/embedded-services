@@ -28,55 +28,50 @@ jobs:
         sudo apt-get install -y --no-install-recommends \
           git cmake ninja-build gperf python3-pip python3-setuptools \
           python3-wheel python3-venv gcc g++ lcov
-        pip3 install --user west
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        pip3 install --user PyYAML west
 
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        path: embedded-services
         fetch-depth: 1
 
-    - name: Cache west modules
+    - name: Cache Zephyr
       uses: actions/cache@v4
+      id: cache-zephyr
       with:
         path: |
-          bootloader
-          modules
-          tools
           zephyr
-        key: ${{ runner.os }}-west-${{ hashFiles('embedded-services/west.yml') }}
+          modules
+        key: ${{ runner.os }}-zephyr-v4.3.0
         restore-keys: |
-          ${{ runner.os }}-west-
+          ${{ runner.os }}-zephyr-
 
-    - name: Initialize west workspace
+    - name: Clone Zephyr (if not cached)
+      if: steps.cache-zephyr.outputs.cache-hit != 'true'
       run: |
-        west init -l embedded-services
-        west update --narrow --fetch-opt=--depth=1
-        west zephyr-export
+        git clone --depth 1 --branch v4.3.0 https://github.com/zephyrproject-rtos/zephyr.git
         pip3 install --user -r zephyr/scripts/requirements.txt
 
-    - name: Clean up west cache
+    - name: Setup Zephyr environment
       run: |
-        rm -rf ~/.west/downloads
+        echo "ZEPHYR_BASE=$PWD/zephyr" >> $GITHUB_ENV
+        pip3 install --user -r zephyr/scripts/requirements.txt || true
         df -h
 
     - name: Build tests with coverage
       run: |
-        cd embedded-services/tests/adcAcquisition/filter
+        cd tests/adcAcquisition/filter
         west build -b unit_testing -p auto -- \
           -DCOVERAGE=ON \
           -DCMAKE_BUILD_TYPE=MinSizeRel
 
     - name: Run tests
       run: |
-        cd embedded-services/tests/adcAcquisition/filter
+        cd tests/adcAcquisition/filter
         ./build/testbinary
 
     - name: Generate coverage report
       run: |
-        cd embedded-services
-
         # Capture coverage
         lcov --capture --directory tests/adcAcquisition/filter/build \
           --output-file coverage.info \
@@ -103,7 +98,7 @@ jobs:
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: ./embedded-services/coverage.info
+        files: ./coverage.info
         flags: unittests
         name: codecov-umbrella
         fail_ci_if_error: true
