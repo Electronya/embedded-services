@@ -9,22 +9,63 @@ on:
 jobs:
   test-coverage:
     runs-on: ubuntu-latest
-    container:
-      image: judebake/electronya-firm-builder:4.3.0
-      options: --cpus 2
 
     steps:
+    - name: Free up disk space
+      run: |
+        df -h
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache
+        sudo docker system prune -af
+        sudo apt-get clean
+        df -h
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          git cmake ninja-build gperf python3-pip python3-setuptools \
+          python3-wheel python3-venv gcc g++ lcov
+        pip3 install --user PyYAML west
+
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
         fetch-depth: 1
 
+    - name: Cache Zephyr
+      uses: actions/cache@v4
+      id: cache-zephyr
+      with:
+        path: |
+          zephyr
+          modules
+        key: ${{ runner.os }}-zephyr-v4.3.0
+        restore-keys: |
+          ${{ runner.os }}-zephyr-
+
+    - name: Clone Zephyr (if not cached)
+      if: steps.cache-zephyr.outputs.cache-hit != 'true'
+      run: |
+        rm -rf zephyr modules
+        git clone --depth 1 --branch v4.3.0 https://github.com/zephyrproject-rtos/zephyr.git
+        pip3 install --user -r zephyr/scripts/requirements.txt
+
+    - name: Setup Zephyr environment
+      run: |
+        echo "ZEPHYR_BASE=$PWD/zephyr" >> $GITHUB_ENV
+        pip3 install --user -r zephyr/scripts/requirements.txt || true
+        df -h
+
     - name: Build tests with coverage
       run: |
         cd tests/adcAcquisition/filter
-        west build -b unit_testing -p auto -- \
+        cmake -B build -G Ninja -DBOARD=unit_testing \
           -DCOVERAGE=ON \
           -DCMAKE_BUILD_TYPE=MinSizeRel
+        cmake --build build
 
     - name: Run tests
       run: |
