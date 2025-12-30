@@ -49,6 +49,7 @@ jobs:
     - name: Clone Zephyr (if not cached)
       if: steps.cache-zephyr.outputs.cache-hit != 'true'
       run: |
+        rm -rf zephyr modules
         git clone --depth 1 --branch v4.3.0 https://github.com/zephyrproject-rtos/zephyr.git
         pip3 install --user -r zephyr/scripts/requirements.txt
 
