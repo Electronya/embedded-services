@@ -63,6 +63,7 @@ jobs:
       run: |
         cd tests/adcAcquisition/filter
         cmake -B build -G Ninja -DBOARD=unit_testing \
+          -DZEPHYR_TOOLCHAIN_VARIANT=host \
           -DCOVERAGE=ON \
           -DCMAKE_BUILD_TYPE=MinSizeRel
         cmake --build build
