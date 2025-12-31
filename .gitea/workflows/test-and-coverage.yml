@@ -13,6 +13,8 @@ jobs:
       image: judebake/electronya-firm-builder:4.3.0
 
     steps:
+    - name: Checkout
+      uses: actions/checkout@v4
     - name: Verify workspace
       run: |
         pwd
