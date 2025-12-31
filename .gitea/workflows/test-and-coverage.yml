@@ -8,7 +8,7 @@ on:
 
 jobs:
   test-coverage:
-    runs-on: ubuntu-latest
+    runs-on: [homelab]
     container:
       image: judebake/electronya-firm-builder:4.3.0
 
