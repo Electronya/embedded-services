@@ -10,12 +10,18 @@ jobs:
   test-coverage:
     runs-on: [homelab]
     container:
-      image: judebake/electronya-firm-builder:4.3.0
+      image: gitea.main-server.home/electronya/electronya-firm-builder:latest
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-    - name: Verify workspace
+
+    - name: Setup West workspace
+      run: |
+        west update
+        west zephyr-export
+
+    - name: Verify environment
       run: |
         pwd
         ls -la
@@ -23,7 +29,7 @@ jobs:
         which gcc
         gcc --version
         which ninja
-        df -h
+        west --version
 
     - name: Build tests with coverage
       run: |
@@ -31,7 +37,6 @@ jobs:
         rm -rf build
         cmake -B build -G Ninja \
           -DBOARD=unit_testing \
-          -DZEPHYR_TOOLCHAIN_VARIANT=host \
           -DCOVERAGE=ON \
           || { cat build/CMakeFiles/CMakeOutput.log; cat build/CMakeFiles/CMakeError.log; exit 1; }
         cmake --build build --verbose
