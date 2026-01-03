@@ -14,6 +14,20 @@ jobs:
       options: --network srv-network
 
     steps:
+    - name: Debug network connectivity
+      run: |
+        echo "=== Checking DNS resolution ==="
+        cat /etc/resolv.conf
+        echo "=== Checking hosts file ==="
+        cat /etc/hosts
+        echo "=== Testing gitea hostname ==="
+        nslookup gitea || true
+        ping -c 1 gitea || true
+        echo "=== Testing gitea.main-server.home ==="
+        ping -c 1 gitea.main-server.home || true
+        echo "=== Docker network info ==="
+        ip addr || true
+
     - name: Checkout
       uses: actions/checkout@v4
 
