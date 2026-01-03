@@ -11,6 +11,7 @@ jobs:
     runs-on: [homelab]
     container:
       image: gitea.main-server.home/electronya/electronya-firm-builder:latest
+      options: --network srv-network
 
     steps:
     - name: Checkout
