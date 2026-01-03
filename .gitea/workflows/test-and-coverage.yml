@@ -8,7 +8,7 @@ on:
 
 jobs:
   test-coverage:
-    runs-on: [homelab]
+    runs-on: homelab-amd-64
     container:
       image: gitea.main-server.home/electronya/electronya-firm-builder:latest
       options: --network srv-network
