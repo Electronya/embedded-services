@@ -394,7 +394,7 @@ int adcAcqUtilInitSubscriptions(AdcSubConfig_t *adcSubConfig)
   subConfig.activeSubCount = 0;
 
   /* Calculate memory pool parameters */
-  blockSize = sizeof(AdcSubData_t) + (chanCount * sizeof(float));
+  blockSize = sizeof(SrvMsgPayload_t) + (chanCount * sizeof(float));
   blockCount = 2 * subConfig.maxSubCount;
 
   LOG_INF("attempting to create pool: chanCount=%zu, blockSize=%zu, blockCount=%zu",
@@ -466,14 +466,14 @@ int adcAcqUtilProcessData(void)
 int adcAcqUtilNotifySubscribers(void)
 {
   int err;
-  AdcSubData_t *data;
+  SrvMsgPayload_t *data;
 
   for(size_t i = 0; i < subConfig.activeSubCount; ++i)
   {
     if(!subscriptions[i].isPaused)
     {
       /* Allocate buffer from pool */
-      data = (AdcSubData_t *)osMemoryPoolAlloc(subDataPool, 0);
+      data = (SrvMsgPayload_t *)osMemoryPoolAlloc(subDataPool, 0);
       if(data == NULL)
       {
         err = -ENOSPC;
@@ -482,9 +482,9 @@ int adcAcqUtilNotifySubscribers(void)
       }
 
       /* Fill in data */
-      data->pool = subDataPool;
-      data->valCount = chanCount;
-      memcpy(data->values, voltValues, chanCount * sizeof(float));
+      data->poolId = subDataPool;
+      data->dataLen = chanCount * sizeof(float);
+      memcpy(data->data, voltValues, chanCount * sizeof(float));
 
       /* Call subscriber callback */
       err = subscriptions[i].callback(data);
