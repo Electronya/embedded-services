@@ -1,0 +1,9 @@
+tests:
+  electronya.embedded_services.adc_acquisition.cmd:
+    tags:
+      - unit_test
+      - adc
+    platform_allow:
+      - native_sim
+      - native_sim/native/64
+      - unit_testing

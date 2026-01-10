@@ -54,6 +54,8 @@ dkms.conf
 # Build directories
 build/
 **/build/
+twister-out/
+twister-out.*/
 
 # Coverage files
 *.gcno

@@ -34,7 +34,7 @@ static int execGetChanCount(const struct shell *shell, size_t argc, char **argv)
 
   chanCount = adcAcqUtilGetChanCount();
 
-  shell_print(shell, "SUCCESS: channel count: %d", chanCount);
+  shell_info(shell, "SUCCESS: channel count: %d", chanCount);
 
   return 0;
 }
@@ -57,7 +57,7 @@ static int execGetRaw(const struct shell *shell, size_t argc, char **argv)
   chanId = shell_strtoul(argv[1], 10, &err);
   if(err < 0)
   {
-    shell_print(shell, "FAIL %d: invalid channel ID argument", err);
+    shell_error(shell, "FAIL %d: invalid channel ID argument", err);
     shell_help(shell);
     return err;
   }
@@ -65,11 +65,11 @@ static int execGetRaw(const struct shell *shell, size_t argc, char **argv)
   err = adcAcqUtilGetRaw(chanId, &rawVal);
   if(err < 0)
   {
-    shell_print(shell, "FAIL %d: unable to get the raw value of channel %d", err, chanId);
+    shell_error(shell, "FAIL %d: unable to get the raw value of channel %d", err, chanId);
     return err;
   }
 
-  shell_print(shell, "SUCCESS: channel %d raw value: %d", chanId, rawVal);
+  shell_info(shell, "SUCCESS: channel %d raw value: %d", chanId, rawVal);
 
   return 0;
 }
@@ -93,7 +93,7 @@ static int execGetVolt(const struct shell *shell, size_t argc, char **argv)
   chanId = shell_strtoul(argv[1], 10, &err);
   if(err < 0)
   {
-    shell_print(shell, "FAIL %d: invalid channel ID argument", err);
+    shell_error(shell, "FAIL %d: invalid channel ID argument", err);
     shell_help(shell);
     return err;
   }
@@ -101,12 +101,12 @@ static int execGetVolt(const struct shell *shell, size_t argc, char **argv)
   err = adcAcqUtilGetVolt(chanId, &voltVal);
   if(err < 0)
   {
-    shell_print(shell, "FAIL %d: unable to get the volt value of channel %d", err, chanId);
+    shell_error(shell, "FAIL %d: unable to get the volt value of channel %d", err, chanId);
     return err;
   }
 
   sprintf(valStr, "%.3f", (double)voltVal);
-  shell_print(shell, "SUCCESS: channel %d volt value: %s V", chanId, valStr);
+  shell_info(shell, "SUCCESS: channel %d volt value: %s V", chanId, valStr);
 
   return 0;
 }
