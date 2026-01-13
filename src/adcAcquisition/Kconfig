@@ -28,6 +28,19 @@ config ENYA_ADC_ACQUISITION_STACK_SIZE
   help
     The Electronya ADC acquisition service thread stack size in bytes.
 
+config ENYA_ADC_ACQUISITION_SHELL
+  bool "Electronya ADC Acquisition Shell Commands"
+  default y
+  depends on SHELL
+  help
+    Enable shell commands for ADC acquisition service.
+    Provides commands to get channel count, raw values, and voltage values.
+
+    Commands:
+      adc_acq get_chan_count - Get the number of ADC channels
+      adc_acq get_raw <chan>  - Get raw ADC value for a channel
+      adc_acq get_volt <chan> - Get voltage value for a channel
+
 choice ENYA_ADC_VREF_METHOD
   prompt "ADC Internal Vref Enable Method"
   default ENYA_ADC_VREF_STM32_CCR if SOC_FAMILY_STM32
