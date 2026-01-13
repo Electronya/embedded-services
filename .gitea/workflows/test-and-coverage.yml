@@ -73,24 +73,38 @@ jobs:
           fi
         done
 
+    - name: Prepare artifacts
+      if: always()
+      run: |
+        mkdir -p artifacts/test-results
+        mkdir -p artifacts/coverage-report
+
+        # Copy test results
+        cp workspace/apps/embedded-services/twister-out/twister.json artifacts/test-results/ || true
+        cp workspace/apps/embedded-services/twister-out/twister.xml artifacts/test-results/ || true
+        cp workspace/apps/embedded-services/twister-out/twister_report.xml artifacts/test-results/ || true
+
+        # Copy coverage report
+        cp -r workspace/apps/embedded-services/twister-out/coverage/* artifacts/coverage-report/ || true
+
+        echo "Artifacts prepared:"
+        ls -la artifacts/test-results/
+        ls -la artifacts/coverage-report/
+
     - name: Upload test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       if: always()
       with:
         name: test-results
-        path: |
-          workspace/apps/embedded-services/twister-out/twister.json
-          workspace/apps/embedded-services/twister-out/twister.xml
-          workspace/apps/embedded-services/twister-out/twister_report.xml
+        path: artifacts/test-results/
         retention-days: 30
 
     - name: Upload coverage report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       if: always()
       with:
         name: coverage-report
-        path: |
-          workspace/apps/embedded-services/twister-out/coverage/
+        path: artifacts/coverage-report/
         retention-days: 30
 
     # - name: SonarQube Scan
