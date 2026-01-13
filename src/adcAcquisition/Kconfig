@@ -28,4 +28,56 @@ config ENYA_ADC_ACQUISITION_STACK_SIZE
   help
     The Electronya ADC acquisition service thread stack size in bytes.
 
+choice ENYA_ADC_VREF_METHOD
+  prompt "ADC Internal Vref Enable Method"
+  default ENYA_ADC_VREF_STM32_CCR if SOC_FAMILY_STM32
+  default ENYA_ADC_VREF_NONE
+  help
+    Select the method to enable the internal voltage reference (VREFINT).
+    Different STM32 families use different register layouts and bit positions.
+
+config ENYA_ADC_VREF_STM32_CCR
+  bool "STM32 ADC Common CCR Register (ADC_CCR_VREFEN)"
+  help
+    Enable VREFINT using ADC_CCR_VREFEN bit in ADC Common Control Register.
+    Used by: STM32G0, STM32G4, STM32L4, STM32L5, STM32H7, STM32WB, STM32WL.
+    Register: ADC1_COMMON->CCR or ADC12_COMMON->CCR or ADC_COMMON->CCR.
+
+config ENYA_ADC_VREF_STM32_CCR_TSVREFE
+  bool "STM32 ADC Common CCR Register (ADC_CCR_TSVREFE)"
+  help
+    Enable VREFINT using ADC_CCR_TSVREFE bit in ADC Common Control Register.
+    Used by: STM32F3 family.
+    Register: ADC1_COMMON->CCR.
+
+config ENYA_ADC_VREF_STM32_CR2
+  bool "STM32 Legacy ADC CR2 Register (ADC_CR2_TSVREFE)"
+  help
+    Enable VREFINT using TSVREFE bit in ADC Control Register 2.
+    Used by: STM32F1, STM32F2, STM32F4 (older families).
+    Register: ADC1->CR2.
+
+config ENYA_ADC_VREF_DEVICETREE
+  bool "Devicetree/Zephyr HAL"
+  help
+    Use Zephyr's devicetree bindings to configure vref channel.
+    The vref channel is configured through standard Zephyr ADC API.
+    No special register manipulation needed.
+
+config ENYA_ADC_VREF_NONE
+  bool "No special enabling required"
+  help
+    Internal voltage reference doesn't require special enabling,
+    or is always enabled by hardware/bootloader.
+
+endchoice
+
+config ENYA_ADC_VREF_STABILIZATION_US
+  int "Vref stabilization time (microseconds)"
+  default 15
+  depends on !ENYA_ADC_VREF_NONE && !ENYA_ADC_VREF_DEVICETREE
+  help
+    Time to wait after enabling VREFINT for it to stabilize.
+    STM32 datasheets specify minimum 12μs, default 15μs for safety margin.
+
 endif
