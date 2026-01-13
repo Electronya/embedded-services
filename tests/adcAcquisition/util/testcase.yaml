@@ -1,5 +1,5 @@
 tests:
-  electronya.embedded_services.adc_acquisition.cmd:
+  electronya.embedded_services.adc_acquisition.util:
     tags:
       - unit_test
       - adc

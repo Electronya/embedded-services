@@ -14,30 +14,36 @@ jobs:
       options: --network srv-network
 
     steps:
-    - name: Debug network connectivity
-      run: |
-        echo "=== Checking DNS resolution ==="
-        cat /etc/resolv.conf
-        echo "=== Checking hosts file ==="
-        cat /etc/hosts
-        echo "=== Testing gitea hostname ==="
-        nslookup gitea || true
-        ping -c 1 gitea || true
-        echo "=== Testing gitea.main-server.home ==="
-        ping -c 1 gitea.main-server.home || true
-        echo "=== Docker network info ==="
-        ip addr || true
-
     - name: Checkout
       uses: actions/checkout@v4
+      with:
+        path: embedded-services
 
     - name: Setup West workspace
       run: |
+        # Create west workspace
+        mkdir -p workspace
+        cd workspace
+
+        # Initialize west with Zephyr
+        west init -m https://github.com/zephyrproject-rtos/zephyr --mr v4.3-branch
+
+        # Update to get all modules
         west update
+
+        # Copy embedded-services into the workspace as a module
+        mkdir -p apps
+        cp -r ../embedded-services apps/
+
+        # Export Zephyr environment
         west zephyr-export
+
+        # Set working directory for subsequent steps
+        echo "WORKSPACE_DIR=$PWD" >> $GITHUB_ENV
 
     - name: Verify environment
       run: |
+        cd workspace
         pwd
         ls -la
         echo "ZEPHYR_BASE: $ZEPHYR_BASE"
@@ -45,37 +51,69 @@ jobs:
         gcc --version
         which ninja
         west --version
+        ls -la apps/embedded-services
 
-    - name: Build tests with coverage
+    - name: Run tests with Twister
       run: |
-        cd tests/adcAcquisition/filter
-        rm -rf build
-        cmake -B build -G Ninja \
-          -DBOARD=unit_testing \
-          -DCOVERAGE=ON \
-          || { cat build/CMakeFiles/CMakeOutput.log; cat build/CMakeFiles/CMakeError.log; exit 1; }
-        cmake --build build --verbose
+        cd workspace/apps/embedded-services
+        west twister -T tests --coverage --gcov-tool /usr/bin/gcov
 
-    - name: Run tests
+    - name: Display coverage summary
       run: |
-        cd tests/adcAcquisition/filter
-        ./build/testbinary
+        cd workspace/apps/embedded-services
 
-    - name: Generate coverage report
+        echo "=== Coverage Report ==="
+        echo "HTML report available at: twister-out/coverage/index.html"
+
+        # Find and display coverage summary from all test suites
+        for coverage_file in twister-out/*/native_sim*/*/coverage.info; do
+          if [ -f "$coverage_file" ]; then
+            echo "Coverage for $(dirname $coverage_file):"
+            lcov --summary "$coverage_file" --rc lcov_branch_coverage=1 || true
+          fi
+        done
+
+    - name: Prepare coverage for SonarQube
       run: |
-        # Capture coverage
-        lcov --capture --directory tests/adcAcquisition/filter/build \
-          --output-file coverage.info \
-          --rc lcov_branch_coverage=1 \
-          --ignore-errors mismatch
+        cd workspace/apps/embedded-services
 
-        # Filter out test files and system includes
-        lcov --remove coverage.info \
-          '*/tests/*' \
-          '*/zephyr/*' \
-          '/usr/*' \
-          --output-file coverage.info \
-          --rc lcov_branch_coverage=1
+        # Merge all coverage files into one
+        find twister-out -name "coverage.info" -type f > coverage_files.txt
+        if [ -s coverage_files.txt ]; then
+          lcov --add-tracefile $(head -1 coverage_files.txt) --output-file merged_coverage.info
+          tail -n +2 coverage_files.txt | while read file; do
+            lcov --add-tracefile "$file" --output-file temp_coverage.info
+            lcov --add-tracefile merged_coverage.info --add-tracefile temp_coverage.info --output-file merged_coverage.info
+          done
 
-        # List coverage summary
-        lcov --list coverage.info --rc lcov_branch_coverage=1
+          # Copy merged coverage to expected location
+          mkdir -p twister-out/coverage
+          cp merged_coverage.info twister-out/coverage/coverage.info
+
+          echo "Merged coverage report created at twister-out/coverage/coverage.info"
+        fi
+
+    - name: SonarQube Scan
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      run: |
+        cd workspace/apps/embedded-services
+
+        # Download and install sonar-scanner if not available
+        if ! command -v sonar-scanner &> /dev/null; then
+          echo "Installing sonar-scanner..."
+          wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+          unzip -q sonar-scanner-cli-5.0.1.3006-linux.zip
+          export PATH=$PWD/sonar-scanner-5.0.1.3006-linux/bin:$PATH
+        fi
+
+        # Run SonarQube analysis
+        sonar-scanner \
+          -Dsonar.projectKey=embedded-services \
+          -Dsonar.sources=src \
+          -Dsonar.tests=tests \
+          -Dsonar.host.url=$SONAR_HOST_URL \
+          -Dsonar.token=$SONAR_TOKEN \
+          -Dsonar.c.coverage.reportPaths=twister-out/coverage/coverage.info \
+          -Dsonar.coverageReportPaths=twister-out/coverage/coverage.info
