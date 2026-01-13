@@ -73,47 +73,36 @@ jobs:
           fi
         done
 
-    - name: Prepare coverage for SonarQube
-      run: |
-        cd workspace/apps/embedded-services
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: |
+          workspace/apps/embedded-services/twister-out/twister.json
+          workspace/apps/embedded-services/twister-out/twister.xml
+          workspace/apps/embedded-services/twister-out/twister_report.xml
+        retention-days: 30
 
-        # Merge all coverage files into one
-        find twister-out -name "coverage.info" -type f > coverage_files.txt
-        if [ -s coverage_files.txt ]; then
-          lcov --add-tracefile $(head -1 coverage_files.txt) --output-file merged_coverage.info
-          tail -n +2 coverage_files.txt | while read file; do
-            lcov --add-tracefile "$file" --output-file temp_coverage.info
-            lcov --add-tracefile merged_coverage.info --add-tracefile temp_coverage.info --output-file merged_coverage.info
-          done
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: coverage-report
+        path: |
+          workspace/apps/embedded-services/twister-out/coverage/
+        retention-days: 30
 
-          # Copy merged coverage to expected location
-          mkdir -p twister-out/coverage
-          cp merged_coverage.info twister-out/coverage/coverage.info
-
-          echo "Merged coverage report created at twister-out/coverage/coverage.info"
-        fi
-
-    - name: SonarQube Scan
-      env:
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-      run: |
-        cd workspace/apps/embedded-services
-
-        # Download and install sonar-scanner if not available
-        if ! command -v sonar-scanner &> /dev/null; then
-          echo "Installing sonar-scanner..."
-          wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
-          unzip -q sonar-scanner-cli-5.0.1.3006-linux.zip
-          export PATH=$PWD/sonar-scanner-5.0.1.3006-linux/bin:$PATH
-        fi
-
-        # Run SonarQube analysis
-        sonar-scanner \
-          -Dsonar.projectKey=embedded-services \
-          -Dsonar.sources=src \
-          -Dsonar.tests=tests \
-          -Dsonar.host.url=$SONAR_HOST_URL \
-          -Dsonar.token=$SONAR_TOKEN \
-          -Dsonar.c.coverage.reportPaths=twister-out/coverage/coverage.info \
-          -Dsonar.coverageReportPaths=twister-out/coverage/coverage.info
+    # - name: SonarQube Scan
+    #   env:
+    #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    #     SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+    #   run: |
+    #     cd workspace/apps/embedded-services
+    #     sonar-scanner \
+    #       -Dsonar.projectKey=embedded-services \
+    #       -Dsonar.sources=src \
+    #       -Dsonar.tests=tests \
+    #       -Dsonar.host.url=$SONAR_HOST_URL \
+    #       -Dsonar.token=$SONAR_TOKEN \
+    #       -Dsonar.c.coverage.reportPaths=twister-out/coverage/coverage.info
