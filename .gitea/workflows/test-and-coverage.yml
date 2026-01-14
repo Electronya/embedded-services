@@ -128,15 +128,6 @@ jobs:
       run: |
         cd workspace/apps/embedded-services
 
-        # Debug: show what files exist
-        echo "=== Debug: Checking files ==="
-        ls -la twister-out/ || echo "twister-out not found"
-        ls -la twister-out/coverage/ || echo "coverage dir not found"
-        echo "=== twister.json structure ==="
-        cat twister-out/twister.json | jq '.' | head -50 || echo "No twister.json"
-        echo "=== GIST_ID value ==="
-        echo "GIST_ID is set: ${GIST_ID:+yes}"
-
         # === Build Status ===
         if [ -f twister-out/twister.json ]; then
           BUILD_STATUS="passing"
@@ -146,11 +137,11 @@ jobs:
           BUILD_COLOR="red"
         fi
 
-        # === Test Results ===
-        if [ -f twister-out/twister.json ]; then
-          TOTAL=$(jq '.testsuites[0].testcases | length' twister-out/twister.json 2>/dev/null || echo "0")
-          PASSED=$(jq '[.testsuites[0].testcases[] | select(.status == "passed")] | length' twister-out/twister.json 2>/dev/null || echo "0")
-          FAILED=$((TOTAL - PASSED))
+        # === Test Results (parse XML instead of JSON) ===
+        if [ -f twister-out/twister.xml ]; then
+          TOTAL=$(grep -c '<testcase' twister-out/twister.xml || echo "0")
+          FAILED=$(grep -c '<failure' twister-out/twister.xml || echo "0")
+          PASSED=$((TOTAL - FAILED))
 
           if [ "$FAILED" -eq 0 ] && [ "$TOTAL" -gt 0 ]; then
             TESTS_MSG="${PASSED} passed"
@@ -167,10 +158,17 @@ jobs:
           TESTS_COLOR="red"
         fi
 
-        # === Coverage ===
-        if [ -f twister-out/coverage/coverage.info ]; then
-          COVERAGE=$(lcov --summary twister-out/coverage/coverage.info 2>&1 | grep "lines" | grep -oP '\d+\.\d+' | head -1)
+        # === Coverage (parse from coverage_summary.json or find coverage.info) ===
+        COVERAGE_FILE=$(find twister-out -name "coverage.info" -type f 2>/dev/null | head -1)
 
+        if [ -n "$COVERAGE_FILE" ] && [ -f "$COVERAGE_FILE" ]; then
+          COVERAGE=$(lcov --summary "$COVERAGE_FILE" 2>&1 | grep "lines" | grep -oP '\d+\.\d+' | head -1)
+        elif [ -f twister-out/coverage_summary.json ]; then
+          # Extract from coverage_summary.json using grep/sed
+          COVERAGE=$(grep -oP '"line_coverage":\s*\K[\d.]+' twister-out/coverage_summary.json | head -1)
+        fi
+
+        if [ -n "$COVERAGE" ]; then
           if (( $(echo "$COVERAGE >= 80" | bc -l) )); then
             COV_COLOR="brightgreen"
           elif (( $(echo "$COVERAGE >= 60" | bc -l) )); then
