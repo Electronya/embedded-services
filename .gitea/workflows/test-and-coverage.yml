@@ -11,9 +11,18 @@ jobs:
     runs-on: homelab-amd64
     container:
       image: gitea.main-server.home/electronya/electronya-firm-builder:latest
-      options: --add-host=gitea.main-server.home:gitea
 
     steps:
+    - name: Fix DNS for artifact upload
+      run: |
+        GITEA_IP=$(getent hosts gitea | awk '{print $1}')
+        if [ -n "$GITEA_IP" ]; then
+          echo "$GITEA_IP gitea.main-server.home" >> /etc/hosts
+          echo "Added gitea.main-server.home -> $GITEA_IP"
+        else
+          echo "Warning: Could not resolve gitea hostname"
+        fi
+
     - name: Checkout
       uses: actions/checkout@v4
       with:
