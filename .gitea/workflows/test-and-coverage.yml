@@ -158,26 +158,19 @@ jobs:
         # === Coverage ===
         COVERAGE=""
 
-        # Debug: show what coverage files exist
-        echo "Looking for coverage files..."
-        find twister-out -name "*.info" -type f 2>/dev/null
-        echo "coverage_summary.json contents (first 10 lines):"
-        head -10 twister-out/coverage_summary.json 2>/dev/null || echo "not found"
-
         # Try coverage.info first
         COVERAGE_FILE=$(find twister-out -name "*.info" -type f 2>/dev/null | head -1)
         if [ -n "$COVERAGE_FILE" ]; then
-          echo "Found coverage file: $COVERAGE_FILE"
-          COVERAGE=$(lcov --summary "$COVERAGE_FILE" 2>&1 | grep -oE '[0-9]+\.[0-9]+%' | head -1 | tr -d '%')
+          COVERAGE=$(lcov --summary "$COVERAGE_FILE" 2>&1 | grep -oE '[0-9]+\.[0-9]+%' | head -1 | tr -d '%') || true
         fi
 
-        # Fallback to coverage_summary.json
+        # Fallback to coverage_summary.json (gcovr format - summary at end of file)
         if [ -z "$COVERAGE" ] && [ -f twister-out/coverage_summary.json ]; then
-          echo "Trying coverage_summary.json..."
-          COVERAGE=$(grep -o '"line_coverage"[^,]*' twister-out/coverage_summary.json | grep -oE '[0-9]+\.[0-9]+' | head -1)
+          # Look for root-level line_percent (gcovr summary format)
+          COVERAGE=$(tail -50 twister-out/coverage_summary.json | grep -o '"line_percent"[^,}]*' | tail -1 | grep -oE '[0-9]+\.[0-9]+') || true
         fi
 
-        echo "Extracted coverage: $COVERAGE"
+        echo "Extracted coverage: ${COVERAGE:-none}"
 
         if [ -n "$COVERAGE" ]; then
           COV_INT=${COVERAGE%.*}
