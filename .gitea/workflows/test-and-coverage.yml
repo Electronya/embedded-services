@@ -138,38 +138,46 @@ jobs:
           BUILD_COLOR="red"
         fi
 
-        # === Test Results (parse XML) ===
+        # === Test Results (pass/fail only) ===
         if [ -f twister-out/twister.xml ]; then
-          TOTAL=$(grep -c '<testcase' twister-out/twister.xml 2>/dev/null || true)
-          TOTAL=${TOTAL:-0}
           FAILED=$(grep -c '<failure' twister-out/twister.xml 2>/dev/null || true)
           FAILED=${FAILED:-0}
-          PASSED=$((TOTAL - FAILED))
 
-          if [ "$FAILED" -eq 0 ] && [ "$TOTAL" -gt 0 ]; then
-            TESTS_MSG="${PASSED} passed"
+          if [ "$FAILED" -eq 0 ]; then
+            TESTS_MSG="passing"
             TESTS_COLOR="brightgreen"
-          elif [ "$FAILED" -gt 0 ]; then
-            TESTS_MSG="${PASSED}/${TOTAL} passed"
-            TESTS_COLOR="red"
           else
-            TESTS_MSG="no tests"
-            TESTS_COLOR="gray"
+            TESTS_MSG="failing"
+            TESTS_COLOR="red"
           fi
         else
-          TESTS_MSG="failed"
+          TESTS_MSG="failing"
           TESTS_COLOR="red"
         fi
 
         # === Coverage ===
         COVERAGE=""
-        COVERAGE_FILE=$(find twister-out -name "coverage.info" -type f 2>/dev/null | head -1)
 
-        if [ -n "$COVERAGE_FILE" ] && [ -f "$COVERAGE_FILE" ]; then
+        # Debug: show what coverage files exist
+        echo "Looking for coverage files..."
+        find twister-out -name "*.info" -type f 2>/dev/null
+        echo "coverage_summary.json contents (first 10 lines):"
+        head -10 twister-out/coverage_summary.json 2>/dev/null || echo "not found"
+
+        # Try coverage.info first
+        COVERAGE_FILE=$(find twister-out -name "*.info" -type f 2>/dev/null | head -1)
+        if [ -n "$COVERAGE_FILE" ]; then
+          echo "Found coverage file: $COVERAGE_FILE"
           COVERAGE=$(lcov --summary "$COVERAGE_FILE" 2>&1 | grep -oE '[0-9]+\.[0-9]+%' | head -1 | tr -d '%')
-        elif [ -f twister-out/coverage_summary.json ]; then
-          COVERAGE=$(sed -n 's/.*"line_coverage":\s*\([0-9.]*\).*/\1/p' twister-out/coverage_summary.json | head -1)
         fi
+
+        # Fallback to coverage_summary.json
+        if [ -z "$COVERAGE" ] && [ -f twister-out/coverage_summary.json ]; then
+          echo "Trying coverage_summary.json..."
+          COVERAGE=$(grep -o '"line_coverage"[^,]*' twister-out/coverage_summary.json | grep -oE '[0-9]+\.[0-9]+' | head -1)
+        fi
+
+        echo "Extracted coverage: $COVERAGE"
 
         if [ -n "$COVERAGE" ]; then
           COV_INT=${COVERAGE%.*}
