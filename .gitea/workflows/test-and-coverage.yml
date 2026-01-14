@@ -125,6 +125,7 @@ jobs:
       env:
         GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
         GIST_ID: ${{ secrets.GIST_ID }}
+      shell: bash
       run: |
         cd workspace/apps/embedded-services
 
@@ -137,10 +138,12 @@ jobs:
           BUILD_COLOR="red"
         fi
 
-        # === Test Results (parse XML instead of JSON) ===
+        # === Test Results (parse XML) ===
         if [ -f twister-out/twister.xml ]; then
-          TOTAL=$(grep -c '<testcase' twister-out/twister.xml || echo "0")
-          FAILED=$(grep -c '<failure' twister-out/twister.xml || echo "0")
+          TOTAL=$(grep -c '<testcase' twister-out/twister.xml 2>/dev/null || true)
+          TOTAL=${TOTAL:-0}
+          FAILED=$(grep -c '<failure' twister-out/twister.xml 2>/dev/null || true)
+          FAILED=${FAILED:-0}
           PASSED=$((TOTAL - FAILED))
 
           if [ "$FAILED" -eq 0 ] && [ "$TOTAL" -gt 0 ]; then
@@ -158,22 +161,24 @@ jobs:
           TESTS_COLOR="red"
         fi
 
-        # === Coverage (parse from coverage_summary.json or find coverage.info) ===
+        # === Coverage ===
+        COVERAGE=""
         COVERAGE_FILE=$(find twister-out -name "coverage.info" -type f 2>/dev/null | head -1)
 
         if [ -n "$COVERAGE_FILE" ] && [ -f "$COVERAGE_FILE" ]; then
-          COVERAGE=$(lcov --summary "$COVERAGE_FILE" 2>&1 | grep "lines" | grep -oP '\d+\.\d+' | head -1)
+          COVERAGE=$(lcov --summary "$COVERAGE_FILE" 2>&1 | grep -oE '[0-9]+\.[0-9]+%' | head -1 | tr -d '%')
         elif [ -f twister-out/coverage_summary.json ]; then
-          # Extract from coverage_summary.json using grep/sed
-          COVERAGE=$(grep -oP '"line_coverage":\s*\K[\d.]+' twister-out/coverage_summary.json | head -1)
+          COVERAGE=$(sed -n 's/.*"line_coverage":\s*\([0-9.]*\).*/\1/p' twister-out/coverage_summary.json | head -1)
         fi
 
         if [ -n "$COVERAGE" ]; then
-          if (( $(echo "$COVERAGE >= 80" | bc -l) )); then
+          COV_INT=${COVERAGE%.*}
+          COV_INT=${COV_INT:-0}
+          if [ "$COV_INT" -ge 80 ]; then
             COV_COLOR="brightgreen"
-          elif (( $(echo "$COVERAGE >= 60" | bc -l) )); then
+          elif [ "$COV_INT" -ge 60 ]; then
             COV_COLOR="yellow"
-          elif (( $(echo "$COVERAGE >= 40" | bc -l) )); then
+          elif [ "$COV_INT" -ge 40 ]; then
             COV_COLOR="orange"
           else
             COV_COLOR="red"
@@ -190,7 +195,7 @@ jobs:
         curl -s -X PATCH \
           -H "Authorization: token ${GIST_TOKEN}" \
           -H "Accept: application/vnd.github.v3+json" \
-          https://api.github.com/gists/${GIST_ID} \
+          "https://api.github.com/gists/${GIST_ID}" \
           -d @- << EOF
         {
           "files": {
