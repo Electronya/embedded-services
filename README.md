@@ -1,7 +1,8 @@
 # Embedded-Services
 
-[![Test and Coverage](https://github.com/Electronya/embedded-services/actions/workflows/test-and-coverage.yml/badge.svg)](https://github.com/Electronya/embedded-services/actions/workflows/test-and-coverage.yml)
-[![codecov](https://codecov.io/gh/Electronya/embedded-services/branch/main/graph/badge.svg)](https://codecov.io/gh/Electronya/embedded-services)
+![Build](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JudeBake/6aa3080953d92cad7d9ec93b8606c348/raw/build.json)
+![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JudeBake/6aa3080953d92cad7d9ec93b8606c348/raw/tests.json)
+![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JudeBake/6aa3080953d92cad7d9ec93b8606c348/raw/coverage.json)
 
 Electronya embedded services for Zephyr RTOS based firmware
 

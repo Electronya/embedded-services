@@ -120,16 +120,82 @@ jobs:
         path: artifacts/coverage-report/
         retention-days: 30
 
-    - name: SonarQube Scan
+    - name: Update badges gist
+      if: always()
       env:
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+        GIST_ID: ${{ secrets.GIST_ID }}
       run: |
         cd workspace/apps/embedded-services
-        sonar-scanner \
-          -Dsonar.projectKey=embedded-services \
-          -Dsonar.sources=src \
-          -Dsonar.tests=tests \
-          -Dsonar.host.url=$SONAR_HOST_URL \
-          -Dsonar.token=$SONAR_TOKEN \
-          -Dsonar.c.coverage.reportPaths=twister-out/coverage/coverage.info
+
+        # === Build Status ===
+        if [ -f twister-out/twister.json ]; then
+          BUILD_STATUS="passing"
+          BUILD_COLOR="brightgreen"
+        else
+          BUILD_STATUS="failing"
+          BUILD_COLOR="red"
+        fi
+
+        # === Test Results ===
+        if [ -f twister-out/twister.json ]; then
+          TOTAL=$(jq '.testsuites[0].testcases | length' twister-out/twister.json 2>/dev/null || echo "0")
+          PASSED=$(jq '[.testsuites[0].testcases[] | select(.status == "passed")] | length' twister-out/twister.json 2>/dev/null || echo "0")
+          FAILED=$((TOTAL - PASSED))
+
+          if [ "$FAILED" -eq 0 ] && [ "$TOTAL" -gt 0 ]; then
+            TESTS_MSG="${PASSED} passed"
+            TESTS_COLOR="brightgreen"
+          elif [ "$FAILED" -gt 0 ]; then
+            TESTS_MSG="${PASSED}/${TOTAL} passed"
+            TESTS_COLOR="red"
+          else
+            TESTS_MSG="no tests"
+            TESTS_COLOR="gray"
+          fi
+        else
+          TESTS_MSG="failed"
+          TESTS_COLOR="red"
+        fi
+
+        # === Coverage ===
+        if [ -f twister-out/coverage/coverage.info ]; then
+          COVERAGE=$(lcov --summary twister-out/coverage/coverage.info 2>&1 | grep "lines" | grep -oP '\d+\.\d+' | head -1)
+
+          if (( $(echo "$COVERAGE >= 80" | bc -l) )); then
+            COV_COLOR="brightgreen"
+          elif (( $(echo "$COVERAGE >= 60" | bc -l) )); then
+            COV_COLOR="yellow"
+          elif (( $(echo "$COVERAGE >= 40" | bc -l) )); then
+            COV_COLOR="orange"
+          else
+            COV_COLOR="red"
+          fi
+          COV_MSG="${COVERAGE}%"
+        else
+          COV_MSG="unavailable"
+          COV_COLOR="gray"
+        fi
+
+        echo "Build: ${BUILD_STATUS} | Tests: ${TESTS_MSG} | Coverage: ${COV_MSG}"
+
+        # Update GitHub Gist with all badges
+        curl -s -X PATCH \
+          -H "Authorization: token ${GIST_TOKEN}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/gists/${GIST_ID} \
+          -d @- << EOF
+        {
+          "files": {
+            "build.json": {
+              "content": "{\n  \"schemaVersion\": 1,\n  \"label\": \"build\",\n  \"message\": \"${BUILD_STATUS}\",\n  \"color\": \"${BUILD_COLOR}\"\n}"
+            },
+            "tests.json": {
+              "content": "{\n  \"schemaVersion\": 1,\n  \"label\": \"tests\",\n  \"message\": \"${TESTS_MSG}\",\n  \"color\": \"${TESTS_COLOR}\"\n}"
+            },
+            "coverage.json": {
+              "content": "{\n  \"schemaVersion\": 1,\n  \"label\": \"coverage\",\n  \"message\": \"${COV_MSG}\",\n  \"color\": \"${COV_COLOR}\"\n}"
+            }
+          }
+        }
+        EOF
