@@ -272,6 +272,7 @@ ZTEST(adc_util_tests, test_configure_channels_success)
 {
   extern int configureChannels(void);
   extern struct adc_sequence sequence;
+  extern const struct adc_dt_spec adcChannels[];
   int result;
 
   /* Configure mocks - ADC is ready and setup succeeds */
@@ -285,8 +286,16 @@ ZTEST(adc_util_tests, test_configure_channels_success)
                 "configureChannels should return 0 on success");
   zassert_equal(adc_is_ready_dt_fake.call_count, 2,
                 "adc_is_ready_dt should be called exactly twice for 2 channels");
+  zassert_equal(adc_is_ready_dt_fake.arg0_history[0], &adcChannels[0],
+                "adc_is_ready_dt first call should be with adcChannels[0]");
+  zassert_equal(adc_is_ready_dt_fake.arg0_history[1], &adcChannels[1],
+                "adc_is_ready_dt second call should be with adcChannels[1]");
   zassert_equal(adc_channel_setup_dt_fake.call_count, 2,
                 "adc_channel_setup_dt should be called exactly twice for 2 channels");
+  zassert_equal(adc_channel_setup_dt_fake.arg0_history[0], &adcChannels[0],
+                "adc_channel_setup_dt first call should be with adcChannels[0]");
+  zassert_equal(adc_channel_setup_dt_fake.arg0_history[1], &adcChannels[1],
+                "adc_channel_setup_dt second call should be with adcChannels[1]");
   zassert_equal(sequence.channels, (BIT(0) | BIT(1)),
                 "sequence.channels should be set to 0x03 (BIT(0) | BIT(1))");
 }
@@ -350,6 +359,11 @@ ZTEST(adc_util_tests, test_trigger_conversion_success)
 {
   extern void triggerConversion(const struct device *dev, void *user_data);
   extern volatile bool adcBusy;
+  extern const struct device *adc;
+  extern struct adc_sequence sequence;
+
+  /* Set up adc device pointer (matches ADC_DT_SPEC_GET_BY_IDX mock) */
+  adc = (const struct device *)0x1000;
 
   /* Configure mock to return success from adc_read_async */
   adc_read_async_fake.return_val = 0;
@@ -363,6 +377,12 @@ ZTEST(adc_util_tests, test_trigger_conversion_success)
   /* Verify adc_read_async was called once */
   zassert_equal(adc_read_async_fake.call_count, 1,
                 "adc_read_async should be called once");
+  zassert_equal(adc_read_async_fake.arg0_val, adc,
+                "adc_read_async should be called with adc device");
+  zassert_equal(adc_read_async_fake.arg1_val, &sequence,
+                "adc_read_async should be called with sequence pointer");
+  zassert_is_null(adc_read_async_fake.arg2_val,
+                  "adc_read_async should be called with NULL signal");
 
   /* Verify adcBusy is set to true */
   zassert_true(adcBusy,
@@ -399,8 +419,13 @@ ZTEST(adc_util_tests, test_configure_timer_success)
   extern int configureTimer(void);
   extern struct counter_top_cfg triggerConfig;
   extern void triggerConversion(const struct device *dev, void *user_data);
+  extern AdcConfig_t config;
   int result;
   const uint32_t expected_ticks = 1000;
+  const uint32_t expected_sampling_rate = 500;
+
+  /* Set config.samplingRate for counter_us_to_ticks call */
+  config.samplingRate = expected_sampling_rate;
 
   /* Configure mocks - device is ready and counter_us_to_ticks returns expected value */
   device_is_ready_mock_fake.return_val = true;
@@ -413,8 +438,14 @@ ZTEST(adc_util_tests, test_configure_timer_success)
                 "configureTimer should return 0 on success");
   zassert_equal(device_is_ready_mock_fake.call_count, 1,
                 "device_is_ready should be called once");
+  zassert_equal(device_is_ready_mock_fake.arg0_val, &mock_timer_device,
+                "device_is_ready should be called with trigger timer device");
   zassert_equal(counter_us_to_ticks_fake.call_count, 1,
                 "counter_us_to_ticks should be called once");
+  zassert_equal(counter_us_to_ticks_fake.arg0_val, &mock_timer_device,
+                "counter_us_to_ticks should be called with trigger timer device");
+  zassert_equal(counter_us_to_ticks_fake.arg1_val, expected_sampling_rate,
+                "counter_us_to_ticks should be called with config.samplingRate");
   zassert_equal(triggerConfig.flags, 0,
                 "triggerConfig.flags should be set to 0");
   zassert_equal(triggerConfig.ticks, expected_ticks,
@@ -832,6 +863,7 @@ ZTEST(adc_util_tests, test_init_subscriptions_pool_creation_failure)
  */
 ZTEST(adc_util_tests, test_init_subscriptions_success)
 {
+  extern size_t chanCount;
   AdcSubConfig_t subConfigInput = {
     .maxSubCount = 4,
     .activeSubCount = 0
@@ -839,6 +871,15 @@ ZTEST(adc_util_tests, test_init_subscriptions_success)
   static uint8_t fake_subscriptions[64];
   static uint8_t fake_pool[1];
   int result;
+  size_t expectedBlockCount;
+  size_t expectedBlockSize;
+
+  /* Set chanCount for block size calculation */
+  chanCount = 2;
+
+  /* Calculate expected parameters for osMemoryPoolNew */
+  expectedBlockCount = 2 * subConfigInput.maxSubCount;  /* 2 * 4 = 8 */
+  expectedBlockSize = sizeof(SrvMsgPayload_t) + (chanCount * sizeof(float));
 
   /* Configure k_malloc to succeed (return valid pointer) */
   k_malloc_fake.return_val = fake_subscriptions;
@@ -855,6 +896,14 @@ ZTEST(adc_util_tests, test_init_subscriptions_success)
                 "k_malloc should be called once for subscriptions");
   zassert_equal(osMemoryPoolNew_fake.call_count, 1,
                 "osMemoryPoolNew should be called once");
+  zassert_equal(osMemoryPoolNew_fake.arg0_val, expectedBlockCount,
+                "osMemoryPoolNew should be called with correct block count");
+  zassert_equal(osMemoryPoolNew_fake.arg1_val, expectedBlockSize,
+                "osMemoryPoolNew should be called with correct block size");
+  zassert_is_null(osMemoryPoolNew_fake.arg2_val,
+                  "osMemoryPoolNew should be called with NULL attr");
+}
+
 }
 
 /**
