@@ -773,6 +773,91 @@ ZTEST(adc_util_tests, test_init_adc_success)
 }
 
 /**
+ * Requirement: The adcAcqUtilInitSubscriptions function must return -ENOSPC
+ * when subscription allocation fails.
+ */
+ZTEST(adc_util_tests, test_init_subscriptions_allocation_failure)
+{
+  AdcSubConfig_t subConfig = {
+    .maxSubCount = 4,
+    .activeSubCount = 0
+  };
+  int result;
+
+  /* Configure k_malloc to return NULL (allocation failure) */
+  k_malloc_fake.return_val = NULL;
+
+  /* Call adcAcqUtilInitSubscriptions - should fail due to allocation failure */
+  result = adcAcqUtilInitSubscriptions(&subConfig);
+
+  zassert_equal(result, -ENOSPC,
+                "adcAcqUtilInitSubscriptions should return -ENOSPC when allocation fails");
+  zassert_equal(k_malloc_fake.call_count, 1,
+                "k_malloc should be called once before failing");
+}
+
+/**
+ * Requirement: The adcAcqUtilInitSubscriptions function must return -ENOMEM
+ * when memory pool creation fails.
+ */
+ZTEST(adc_util_tests, test_init_subscriptions_pool_creation_failure)
+{
+  AdcSubConfig_t subConfig = {
+    .maxSubCount = 4,
+    .activeSubCount = 0
+  };
+  static uint8_t fake_subscriptions[64];
+  int result;
+
+  /* Configure k_malloc to succeed (return valid pointer) */
+  k_malloc_fake.return_val = fake_subscriptions;
+
+  /* Configure osMemoryPoolNew to return NULL (pool creation failure) */
+  osMemoryPoolNew_fake.return_val = NULL;
+
+  /* Call adcAcqUtilInitSubscriptions - should fail due to pool creation failure */
+  result = adcAcqUtilInitSubscriptions(&subConfig);
+
+  zassert_equal(result, -ENOMEM,
+                "adcAcqUtilInitSubscriptions should return -ENOMEM when pool creation fails");
+  zassert_equal(k_malloc_fake.call_count, 1,
+                "k_malloc should be called once for subscriptions");
+  zassert_equal(osMemoryPoolNew_fake.call_count, 1,
+                "osMemoryPoolNew should be called once before failing");
+}
+
+/**
+ * Requirement: The adcAcqUtilInitSubscriptions function must successfully
+ * initialize subscriptions when all operations succeed.
+ */
+ZTEST(adc_util_tests, test_init_subscriptions_success)
+{
+  AdcSubConfig_t subConfigInput = {
+    .maxSubCount = 4,
+    .activeSubCount = 0
+  };
+  static uint8_t fake_subscriptions[64];
+  static uint8_t fake_pool[1];
+  int result;
+
+  /* Configure k_malloc to succeed (return valid pointer) */
+  k_malloc_fake.return_val = fake_subscriptions;
+
+  /* Configure osMemoryPoolNew to succeed (return non-NULL) */
+  osMemoryPoolNew_fake.return_val = fake_pool;
+
+  /* Call adcAcqUtilInitSubscriptions - should succeed */
+  result = adcAcqUtilInitSubscriptions(&subConfigInput);
+
+  zassert_equal(result, 0,
+                "adcAcqUtilInitSubscriptions should return 0 on success");
+  zassert_equal(k_malloc_fake.call_count, 1,
+                "k_malloc should be called once for subscriptions");
+  zassert_equal(osMemoryPoolNew_fake.call_count, 1,
+                "osMemoryPoolNew should be called once");
+}
+
+/**
  * Requirement: The adcAcqUtilGetChanCount function must return the number
  * of configured ADC channels.
  */
