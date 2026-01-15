@@ -577,6 +577,202 @@ ZTEST(adc_util_tests, test_setup_sequence)
 }
 
 /**
+ * Requirement: The calculateVdd function must correctly calculate VDD
+ * when vrefVal equals the calibration value (VDD = 3.0V).
+ */
+ZTEST(adc_util_tests, test_calculate_vdd_at_calibration_voltage)
+{
+  extern float calculateVdd(int32_t vrefVal);
+  float vdd;
+
+  /* When vrefVal equals the calibration value (1500), VDD should be 3.0V
+   * Formula: VDD = VREFINT_CAL_VOLTAGE * vrefCal / vrefVal
+   *        = 3.0 * 1500 / 1500 = 3.0V
+   */
+  vdd = calculateVdd(1500);
+
+  zassert_within(vdd, 3.0f, 0.001f,
+                 "VDD should be 3.0V when vrefVal equals calibration value");
+}
+
+/**
+ * Requirement: The calculateVdd function must correctly calculate VDD
+ * when vrefVal is lower than calibration (indicating higher VDD).
+ */
+ZTEST(adc_util_tests, test_calculate_vdd_higher_voltage)
+{
+  extern float calculateVdd(int32_t vrefVal);
+  float vdd;
+
+  /* When vrefVal is lower than calibration, VDD is higher
+   * Formula: VDD = VREFINT_CAL_VOLTAGE * vrefCal / vrefVal
+   *        = 3.0 * 1500 / 1364 = 3.3V (approximately)
+   */
+  vdd = calculateVdd(1364);
+
+  zassert_within(vdd, 3.3f, 0.01f,
+                 "VDD should be approximately 3.3V when vrefVal is 1364");
+}
+
+/**
+ * Requirement: The calculateVdd function must correctly calculate VDD
+ * when vrefVal is higher than calibration (indicating lower VDD).
+ */
+ZTEST(adc_util_tests, test_calculate_vdd_lower_voltage)
+{
+  extern float calculateVdd(int32_t vrefVal);
+  float vdd;
+
+  /* When vrefVal is higher than calibration, VDD is lower
+   * Formula: VDD = VREFINT_CAL_VOLTAGE * vrefCal / vrefVal
+   *        = 3.0 * 1500 / 1667 = 2.7V (approximately)
+   */
+  vdd = calculateVdd(1667);
+
+  zassert_within(vdd, 2.7f, 0.01f,
+                 "VDD should be approximately 2.7V when vrefVal is 1667");
+}
+
+/**
+ * Requirement: The adcAcqUtilInitAdc function must return -ENOSPC when
+ * buffer allocation fails.
+ */
+ZTEST(adc_util_tests, test_init_adc_buffer_allocation_failure)
+{
+  AdcConfig_t adcConfig = {
+    .samplingRate = 500,
+    .filterTau = 100
+  };
+  int result;
+
+  /* Configure k_malloc to return NULL (allocation failure) */
+  k_malloc_fake.return_val = NULL;
+
+  /* Call adcAcqUtilInitAdc - should fail due to buffer allocation failure */
+  result = adcAcqUtilInitAdc(&adcConfig);
+
+  zassert_equal(result, -ENOSPC,
+                "adcAcqUtilInitAdc should return -ENOSPC when buffer allocation fails");
+  zassert_equal(k_malloc_fake.call_count, 1,
+                "k_malloc should be called once before failing");
+}
+
+/**
+ * Requirement: The adcAcqUtilInitAdc function must return -EBUSY when
+ * channel configuration fails due to ADC not ready.
+ */
+ZTEST(adc_util_tests, test_init_adc_configure_channels_failure)
+{
+  AdcConfig_t adcConfig = {
+    .samplingRate = 500,
+    .filterTau = 100
+  };
+  static uint16_t fake_buffer[2];
+  static float fake_volt_values[2];
+  int result;
+
+  /* Configure k_malloc to succeed (return valid pointers) */
+  void *malloc_returns[] = {fake_buffer, fake_volt_values};
+  SET_RETURN_SEQ(k_malloc, malloc_returns, 2);
+
+  /* Configure adc_is_ready_dt to return false (ADC not ready) */
+  adc_is_ready_dt_fake.return_val = false;
+
+  /* Call adcAcqUtilInitAdc - should fail due to channel configuration failure */
+  result = adcAcqUtilInitAdc(&adcConfig);
+
+  zassert_equal(result, -EBUSY,
+                "adcAcqUtilInitAdc should return -EBUSY when ADC is not ready");
+  zassert_equal(k_malloc_fake.call_count, 2,
+                "k_malloc should be called twice for buffer and voltValues");
+  zassert_equal(adc_is_ready_dt_fake.call_count, 1,
+                "adc_is_ready_dt should be called exactly once before failing");
+}
+
+/**
+ * Requirement: The adcAcqUtilInitAdc function must return -EBUSY when
+ * timer configuration fails due to timer device not ready.
+ */
+ZTEST(adc_util_tests, test_init_adc_configure_timer_failure)
+{
+  AdcConfig_t adcConfig = {
+    .samplingRate = 500,
+    .filterTau = 100
+  };
+  static uint16_t fake_buffer[2];
+  static float fake_volt_values[2];
+  int result;
+
+  /* Configure k_malloc to succeed (return valid pointers) */
+  void *malloc_returns[] = {fake_buffer, fake_volt_values};
+  SET_RETURN_SEQ(k_malloc, malloc_returns, 2);
+
+  /* Configure ADC channel setup to succeed */
+  adc_is_ready_dt_fake.return_val = true;
+  adc_channel_setup_dt_fake.return_val = 0;
+
+  /* Configure timer device_is_ready to return false (timer not ready) */
+  device_is_ready_mock_fake.return_val = false;
+
+  /* Call adcAcqUtilInitAdc - should fail due to timer configuration failure */
+  result = adcAcqUtilInitAdc(&adcConfig);
+
+  zassert_equal(result, -EBUSY,
+                "adcAcqUtilInitAdc should return -EBUSY when timer is not ready");
+  zassert_equal(k_malloc_fake.call_count, 2,
+                "k_malloc should be called twice for buffer and voltValues");
+  zassert_equal(adc_is_ready_dt_fake.call_count, 2,
+                "adc_is_ready_dt should be called twice for 2 channels");
+  zassert_equal(adc_channel_setup_dt_fake.call_count, 2,
+                "adc_channel_setup_dt should be called twice for 2 channels");
+  zassert_equal(device_is_ready_mock_fake.call_count, 1,
+                "device_is_ready should be called once for timer");
+}
+
+/**
+ * Requirement: The adcAcqUtilInitAdc function must successfully initialize
+ * the ADC when all operations succeed.
+ */
+ZTEST(adc_util_tests, test_init_adc_success)
+{
+  AdcConfig_t adcConfig = {
+    .samplingRate = 500,
+    .filterTau = 100
+  };
+  static uint16_t fake_buffer[2];
+  static float fake_volt_values[2];
+  int result;
+
+  /* Configure k_malloc to succeed (return valid pointers) */
+  void *malloc_returns[] = {fake_buffer, fake_volt_values};
+  SET_RETURN_SEQ(k_malloc, malloc_returns, 2);
+
+  /* Configure ADC channel setup to succeed */
+  adc_is_ready_dt_fake.return_val = true;
+  adc_channel_setup_dt_fake.return_val = 0;
+
+  /* Configure timer to succeed */
+  device_is_ready_mock_fake.return_val = true;
+  counter_us_to_ticks_fake.return_val = 1000;
+
+  /* Call adcAcqUtilInitAdc - should succeed */
+  result = adcAcqUtilInitAdc(&adcConfig);
+
+  zassert_equal(result, 0,
+                "adcAcqUtilInitAdc should return 0 on success");
+  zassert_equal(k_malloc_fake.call_count, 2,
+                "k_malloc should be called twice for buffer and voltValues");
+  zassert_equal(adc_is_ready_dt_fake.call_count, 2,
+                "adc_is_ready_dt should be called twice for 2 channels");
+  zassert_equal(adc_channel_setup_dt_fake.call_count, 2,
+                "adc_channel_setup_dt should be called twice for 2 channels");
+  zassert_equal(device_is_ready_mock_fake.call_count, 1,
+                "device_is_ready should be called once for timer");
+  zassert_equal(counter_us_to_ticks_fake.call_count, 1,
+                "counter_us_to_ticks should be called once");
+}
+
+/**
  * Requirement: The adcAcqUtilGetChanCount function must return the number
  * of configured ADC channels.
  */
