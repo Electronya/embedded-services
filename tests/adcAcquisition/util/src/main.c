@@ -904,6 +904,51 @@ ZTEST(adc_util_tests, test_init_subscriptions_success)
                   "osMemoryPoolNew should be called with NULL attr");
 }
 
+/**
+ * Requirement: The adcAcqUtilStartTrigger function must return an error when
+ * counter_set_top_value fails.
+ */
+ZTEST(adc_util_tests, test_start_trigger_set_top_value_failure)
+{
+  int result;
+
+  /* Configure counter_set_top_value to return error */
+  counter_set_top_value_fake.return_val = -EIO;
+
+  /* Call adcAcqUtilStartTrigger - should fail */
+  result = adcAcqUtilStartTrigger();
+
+  zassert_equal(result, -EIO,
+                "adcAcqUtilStartTrigger should return -EIO when counter_set_top_value fails");
+  zassert_equal(counter_set_top_value_fake.call_count, 1,
+                "counter_set_top_value should be called once");
+  zassert_equal(counter_start_fake.call_count, 0,
+                "counter_start should not be called when set_top_value fails");
+}
+
+/**
+ * Requirement: The adcAcqUtilStartTrigger function must return an error when
+ * counter_start fails.
+ */
+ZTEST(adc_util_tests, test_start_trigger_counter_start_failure)
+{
+  int result;
+
+  /* Configure counter_set_top_value to succeed */
+  counter_set_top_value_fake.return_val = 0;
+
+  /* Configure counter_start to return error */
+  counter_start_fake.return_val = -EIO;
+
+  /* Call adcAcqUtilStartTrigger - should fail */
+  result = adcAcqUtilStartTrigger();
+
+  zassert_equal(result, -EIO,
+                "adcAcqUtilStartTrigger should return -EIO when counter_start fails");
+  zassert_equal(counter_set_top_value_fake.call_count, 1,
+                "counter_set_top_value should be called once");
+  zassert_equal(counter_start_fake.call_count, 1,
+                "counter_start should be called once");
 }
 
 /**
