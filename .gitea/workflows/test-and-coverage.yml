@@ -155,19 +155,13 @@ jobs:
           TESTS_COLOR="red"
         fi
 
-        # === Coverage ===
+        # === Coverage (filtered for project source files only) ===
         COVERAGE=""
 
-        # Try coverage.info first
-        COVERAGE_FILE=$(find twister-out -name "*.info" -type f 2>/dev/null | head -1)
-        if [ -n "$COVERAGE_FILE" ]; then
-          COVERAGE=$(lcov --summary "$COVERAGE_FILE" 2>&1 | grep -oE '[0-9]+\.[0-9]+%' | head -1 | tr -d '%') || true
-        fi
-
-        # Fallback to coverage_summary.json (gcovr format - summary at end of file)
-        if [ -z "$COVERAGE" ] && [ -f twister-out/coverage_summary.json ]; then
-          # Look for root-level line_percent (gcovr summary format)
-          COVERAGE=$(tail -50 twister-out/coverage_summary.json | grep -o '"line_percent"[^,}]*' | tail -1 | grep -oE '[0-9]+\.[0-9]+') || true
+        # Use calculate_coverage.py with gcov-dir mode to get accurate source file coverage
+        # This handles source files that are #include'd directly into test files
+        if [ -d twister-out ]; then
+          COVERAGE=$(python3 scripts/calculate_coverage.py --gcov-dir twister-out -f 'src/' 2>/dev/null) || true
         fi
 
         echo "Extracted coverage: ${COVERAGE:-none}"
