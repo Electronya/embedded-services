@@ -984,6 +984,113 @@ ZTEST(adc_util_tests, test_start_trigger_success)
 }
 
 /**
+ * Requirement: The adcAcqUtilProcessData function must return an error when
+ * reading the Vref channel data fails.
+ */
+ZTEST(adc_util_tests, test_process_data_vref_read_failure)
+{
+  int result;
+
+  /* Configure adcAcqFilterGetThirdOrderData to return error for Vref channel */
+  adcAcqFilterGetThirdOrderData_fake.return_val = -EIO;
+
+  /* Call adcAcqUtilProcessData - should fail */
+  result = adcAcqUtilProcessData();
+
+  zassert_equal(result, -EIO,
+                "adcAcqUtilProcessData should return -EIO when Vref read fails");
+  zassert_equal(adcAcqFilterGetThirdOrderData_fake.call_count, 1,
+                "adcAcqFilterGetThirdOrderData should be called once for Vref");
+  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_val, VREF_CHANNEL_INDEX,
+                "adcAcqFilterGetThirdOrderData should be called with VREF_CHANNEL_INDEX");
+}
+
+/**
+ * Requirement: The adcAcqUtilProcessData function must return an error when
+ * reading channel data in the conversion loop fails.
+ */
+ZTEST(adc_util_tests, test_process_data_channel_read_failure)
+{
+  int result;
+  int return_vals[] = {0, -EIO};  /* Vref succeeds, first channel fails */
+
+  /* Configure adcAcqFilterGetThirdOrderData to succeed for Vref, then fail */
+  SET_RETURN_SEQ(adcAcqFilterGetThirdOrderData, return_vals, 2);
+
+  /* Call adcAcqUtilProcessData - should fail on channel read */
+  result = adcAcqUtilProcessData();
+
+  zassert_equal(result, -EIO,
+                "adcAcqUtilProcessData should return -EIO when channel read fails");
+  zassert_equal(adcAcqFilterGetThirdOrderData_fake.call_count, 2,
+                "adcAcqFilterGetThirdOrderData should be called twice (Vref + first channel)");
+  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_history[0], VREF_CHANNEL_INDEX,
+                "First call should be with VREF_CHANNEL_INDEX");
+  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_history[1], 0,
+                "Second call should be with channel 0");
+}
+
+/**
+ * Custom fake for adcAcqFilterGetThirdOrderData that provides test data.
+ * Call 0 (Vref): returns 1500 -> VDD = 3.0V
+ * Call 1 (channel 0): returns 8192 -> voltage = 8192 * 3.0 / 16383 ≈ 1.5V
+ * Call 2 (channel 1): returns 16383 -> voltage = 16383 * 3.0 / 16383 = 3.0V
+ */
+static int process_data_test_values[] = {1500, 8192, 16383};
+static size_t process_data_call_idx = 0;
+
+static int adcAcqFilterGetThirdOrderData_process_success(size_t chanId, int32_t *data)
+{
+  *data = process_data_test_values[process_data_call_idx];
+  process_data_call_idx++;
+  return 0;
+}
+
+/**
+ * Requirement: The adcAcqUtilProcessData function must successfully process
+ * all channel data and calculate voltages when all operations succeed.
+ */
+ZTEST(adc_util_tests, test_process_data_success)
+{
+  extern float *voltValues;
+  float test_volt_values[2];
+  int result;
+  const float expected_vdd = 3.0f;
+  const float expected_volt0 = (8192.0f * expected_vdd) / 16383.0f;   /* ≈ 1.5V */
+  const float expected_volt1 = (16383.0f * expected_vdd) / 16383.0f; /* = 3.0V */
+
+  /* Set up voltValues array */
+  voltValues = test_volt_values;
+
+  /* Reset custom fake call index */
+  process_data_call_idx = 0;
+
+  /* Configure adcAcqFilterGetThirdOrderData with custom fake */
+  adcAcqFilterGetThirdOrderData_fake.custom_fake = adcAcqFilterGetThirdOrderData_process_success;
+
+  /* Call adcAcqUtilProcessData - should succeed */
+  result = adcAcqUtilProcessData();
+
+  zassert_equal(result, 0,
+                "adcAcqUtilProcessData should return 0 on success");
+  zassert_equal(adcAcqFilterGetThirdOrderData_fake.call_count, 3,
+                "adcAcqFilterGetThirdOrderData should be called 3 times (Vref + 2 channels)");
+  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_history[0], VREF_CHANNEL_INDEX,
+                "First call should be with VREF_CHANNEL_INDEX");
+  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_history[1], 0,
+                "Second call should be with channel 0");
+  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_history[2], 1,
+                "Third call should be with channel 1");
+  zassert_within(voltValues[0], expected_volt0, 0.01f,
+                 "voltValues[0] should be approximately 1.5V");
+  zassert_within(voltValues[1], expected_volt1, 0.01f,
+                 "voltValues[1] should be approximately 3.0V");
+
+  /* Clean up */
+  voltValues = NULL;
+}
+
+/**
  * Requirement: The adcAcqUtilGetChanCount function must return the number
  * of configured ADC channels.
  */
