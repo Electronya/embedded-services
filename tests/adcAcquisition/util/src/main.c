@@ -1403,6 +1403,120 @@ ZTEST(adc_util_tests, test_remove_subscription_success)
 }
 
 /**
+ * Requirement: The adcAcqUtilSetSubPauseState function must return -ESRCH
+ * when the subscription callback is not found.
+ *
+ * Note: This function does not call any external functions - it only
+ * manipulates internal state (subscriptions array and subConfig).
+ */
+ZTEST(adc_util_tests, test_set_sub_pause_state_not_found)
+{
+  extern AdcSubConfig_t subConfig;
+  extern AdcSubEntry_t *subscriptions;
+  AdcSubEntry_t test_subscriptions[4];
+  int result;
+
+  /* Initialize subscriptions array with a different callback */
+  memset(test_subscriptions, 0, sizeof(test_subscriptions));
+  test_subscriptions[0].callback = (AdcSubCallback_t)0xDEADBEEF;
+  test_subscriptions[0].isPaused = false;
+  subscriptions = test_subscriptions;
+
+  /* Set maxSubCount to 4 and activeSubCount to 1 */
+  subConfig.maxSubCount = 4;
+  subConfig.activeSubCount = 1;
+
+  /* Try to set pause state for a subscription that doesn't exist */
+  result = adcAcqUtilSetSubPauseState(mock_subscription_callback, true);
+
+  zassert_equal(result, -ESRCH,
+                "adcAcqUtilSetSubPauseState should return -ESRCH when not found");
+  zassert_false(test_subscriptions[0].isPaused,
+                "existing subscription isPaused should remain unchanged");
+
+  /* Clean up */
+  subscriptions = NULL;
+  subConfig.activeSubCount = 0;
+  subConfig.maxSubCount = 0;
+}
+
+/**
+ * Requirement: The adcAcqUtilSetSubPauseState function must successfully
+ * pause a subscription when setting isPaused to true.
+ *
+ * Note: This function does not call any external functions - it only
+ * manipulates internal state (subscriptions array and subConfig).
+ */
+ZTEST(adc_util_tests, test_set_sub_pause_state_pause_success)
+{
+  extern AdcSubConfig_t subConfig;
+  extern AdcSubEntry_t *subscriptions;
+  AdcSubEntry_t test_subscriptions[4];
+  int result;
+
+  /* Initialize subscriptions array with our callback, initially not paused */
+  memset(test_subscriptions, 0, sizeof(test_subscriptions));
+  test_subscriptions[0].callback = mock_subscription_callback;
+  test_subscriptions[0].isPaused = false;
+  subscriptions = test_subscriptions;
+
+  /* Set maxSubCount to 4 and activeSubCount to 1 */
+  subConfig.maxSubCount = 4;
+  subConfig.activeSubCount = 1;
+
+  /* Pause the subscription */
+  result = adcAcqUtilSetSubPauseState(mock_subscription_callback, true);
+
+  zassert_equal(result, 0,
+                "adcAcqUtilSetSubPauseState should return 0 on success");
+  zassert_true(test_subscriptions[0].isPaused,
+               "subscription isPaused should be set to true");
+
+  /* Clean up */
+  subscriptions = NULL;
+  subConfig.activeSubCount = 0;
+  subConfig.maxSubCount = 0;
+}
+
+/**
+ * Requirement: The adcAcqUtilSetSubPauseState function must successfully
+ * unpause a subscription when setting isPaused to false.
+ *
+ * Note: This function does not call any external functions - it only
+ * manipulates internal state (subscriptions array and subConfig).
+ */
+ZTEST(adc_util_tests, test_set_sub_pause_state_unpause_success)
+{
+  extern AdcSubConfig_t subConfig;
+  extern AdcSubEntry_t *subscriptions;
+  AdcSubEntry_t test_subscriptions[4];
+  int result;
+
+  /* Initialize subscriptions array with our callback, initially paused */
+  memset(test_subscriptions, 0, sizeof(test_subscriptions));
+  test_subscriptions[0].callback = mock_subscription_callback;
+  test_subscriptions[0].isPaused = true;
+  subscriptions = test_subscriptions;
+
+  /* Set maxSubCount to 4 and activeSubCount to 1 */
+  subConfig.maxSubCount = 4;
+  subConfig.activeSubCount = 1;
+
+  /* Unpause the subscription */
+  result = adcAcqUtilSetSubPauseState(mock_subscription_callback, false);
+
+  zassert_equal(result, 0,
+                "adcAcqUtilSetSubPauseState should return 0 on success");
+  zassert_false(test_subscriptions[0].isPaused,
+                "subscription isPaused should be set to false");
+
+  /* Clean up */
+  subscriptions = NULL;
+  subConfig.activeSubCount = 0;
+  subConfig.maxSubCount = 0;
+}
+
+/**
  * Requirement: The adcAcqUtilGetChanCount function must return the number
  * of configured ADC channels.
  */
