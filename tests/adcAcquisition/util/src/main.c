@@ -21,32 +21,11 @@ struct adc_dt_spec;
 struct adc_sequence;
 struct counter_top_cfg;
 
-/* Mock ADC functions */
-FAKE_VALUE_FUNC(bool, adc_is_ready_dt, const struct adc_dt_spec *);
-FAKE_VALUE_FUNC(int, adc_channel_setup_dt, const struct adc_dt_spec *);
-FAKE_VALUE_FUNC(int, adc_read_async, const struct device *, const struct adc_sequence *, struct k_poll_signal *);
-
-/* Mock counter/timer functions */
-FAKE_VALUE_FUNC(uint32_t, counter_us_to_ticks, const struct device *, uint64_t);
-FAKE_VALUE_FUNC(int, counter_set_top_value, const struct device *, const struct counter_top_cfg *);
-FAKE_VALUE_FUNC(int, counter_start, const struct device *);
-
-/* Mock device functions - use a wrapper since device_is_ready is defined by Zephyr */
-FAKE_VALUE_FUNC(bool, device_is_ready_mock, const struct device *);
-#define device_is_ready device_is_ready_mock
-
-/* Mock memory functions */
-FAKE_VALUE_FUNC(void *, k_malloc, size_t);
-
-/* Mock filter functions */
-FAKE_VALUE_FUNC(int, adcAcqFilterPushData, size_t, int32_t, int32_t);
-FAKE_VALUE_FUNC(int, adcAcqFilterGetThirdOrderData, size_t, int32_t *);
-
-/* Mock osMemoryPool types and functions */
+/* Mock osMemoryPool type */
 typedef void *osMemoryPoolId_t;
-FAKE_VALUE_FUNC(osMemoryPoolId_t, osMemoryPoolNew, uint32_t, uint32_t, void *);
-FAKE_VALUE_FUNC(void *, osMemoryPoolAlloc, osMemoryPoolId_t, uint32_t);
-FAKE_VALUE_FUNC(int, osMemoryPoolFree, osMemoryPoolId_t, void *);
+
+/* Wrap device_is_ready since it's defined by Zephyr */
+#define device_is_ready device_is_ready_mock
 
 /* Prevent CMSIS OS2 header */
 #define CMSIS_OS2_H_
@@ -75,7 +54,8 @@ FAKE_VALUE_FUNC(int, osMemoryPoolFree, osMemoryPoolId_t, void *);
   FAKE(adcAcqFilterGetThirdOrderData) \
   FAKE(osMemoryPoolNew) \
   FAKE(osMemoryPoolAlloc) \
-  FAKE(osMemoryPoolFree)
+  FAKE(osMemoryPoolFree) \
+  FAKE(mock_subscription_callback)
 
 /* Setup logging */
 #include <zephyr/logging/log.h>
@@ -136,11 +116,9 @@ typedef struct SrvMsgPayload SrvMsgPayload_t;
 typedef int (*AdcSubCallback_t)(SrvMsgPayload_t *data);
 
 struct SrvMsgPayload {
-  osMemoryPoolId_t poolId;  /* Placeholder for compilation */
-  size_t chanCount;  /* Placeholder for compilation */
-  size_t dataLen;  /* Placeholder for compilation */
-  void *data;  /* Placeholder for compilation */
-  float voltages[];  /* Placeholder for compilation */
+  osMemoryPoolId_t poolId;                          /**< Memory pool to return buffer to. */
+  size_t dataLen;                                   /**< Actual data length in bytes. */
+  uint8_t data[];                                   /**< Flexible array of data bytes. */
 };
 
 /* Provide minimal type definitions that adcAcquisitionUtil.c needs */
@@ -178,6 +156,34 @@ struct counter_top_cfg {
   void (*callback)(const struct device *dev, void *user_data);
   void *user_data;
 };
+
+/* Mock ADC functions */
+FAKE_VALUE_FUNC(bool, adc_is_ready_dt, const struct adc_dt_spec *);
+FAKE_VALUE_FUNC(int, adc_channel_setup_dt, const struct adc_dt_spec *);
+FAKE_VALUE_FUNC(int, adc_read_async, const struct device *, const struct adc_sequence *, struct k_poll_signal *);
+
+/* Mock counter/timer functions */
+FAKE_VALUE_FUNC(uint32_t, counter_us_to_ticks, const struct device *, uint64_t);
+FAKE_VALUE_FUNC(int, counter_set_top_value, const struct device *, const struct counter_top_cfg *);
+FAKE_VALUE_FUNC(int, counter_start, const struct device *);
+
+/* Mock device functions */
+FAKE_VALUE_FUNC(bool, device_is_ready_mock, const struct device *);
+
+/* Mock memory functions */
+FAKE_VALUE_FUNC(void *, k_malloc, size_t);
+
+/* Mock filter functions */
+FAKE_VALUE_FUNC(int, adcAcqFilterPushData, size_t, int32_t, int32_t);
+FAKE_VALUE_FUNC(int, adcAcqFilterGetThirdOrderData, size_t, int32_t *);
+
+/* Mock osMemoryPool functions */
+FAKE_VALUE_FUNC(osMemoryPoolId_t, osMemoryPoolNew, uint32_t, uint32_t, void *);
+FAKE_VALUE_FUNC(void *, osMemoryPoolAlloc, osMemoryPoolId_t, uint32_t);
+FAKE_VALUE_FUNC(int, osMemoryPoolFree, osMemoryPoolId_t, void *);
+
+/* Mock subscription callback */
+FAKE_VALUE_FUNC(int, mock_subscription_callback, SrvMsgPayload_t *);
 
 /* Include utility implementation */
 #include "adcAcquisitionUtil.c"
@@ -1087,6 +1093,155 @@ ZTEST(adc_util_tests, test_process_data_success)
                  "voltValues[1] should be approximately 3.0V");
 
   /* Clean up */
+  voltValues = NULL;
+}
+
+/**
+ * Requirement: The adcAcqUtilNotifySubscribers function must skip callback
+ * when memory pool allocation fails.
+ */
+ZTEST(adc_util_tests, test_notify_subscribers_pool_alloc_failure)
+{
+  extern AdcSubConfig_t subConfig;
+  extern AdcSubEntry_t *subscriptions;
+  extern osMemoryPoolId_t subDataPool;
+  AdcSubEntry_t test_subscriptions[1];
+  int result;
+
+  /* Set up one active, non-paused subscription */
+  test_subscriptions[0].callback = mock_subscription_callback;
+  test_subscriptions[0].isPaused = false;
+  subscriptions = test_subscriptions;
+  subConfig.activeSubCount = 1;
+  subDataPool = (osMemoryPoolId_t)0x1000;
+
+  /* Configure osMemoryPoolAlloc to return NULL (allocation failure) */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call adcAcqUtilNotifySubscribers */
+  result = adcAcqUtilNotifySubscribers();
+
+  zassert_equal(result, 0,
+                "adcAcqUtilNotifySubscribers should return 0 even on allocation failure");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+  zassert_equal(osMemoryPoolAlloc_fake.arg0_val, subDataPool,
+                "osMemoryPoolAlloc should be called with subDataPool");
+  zassert_equal(mock_subscription_callback_fake.call_count, 0,
+                "Callback should not be called when allocation fails");
+
+  /* Clean up */
+  subscriptions = NULL;
+  subConfig.activeSubCount = 0;
+}
+
+/**
+ * Requirement: The adcAcqUtilNotifySubscribers function must free the buffer
+ * when callback returns an error.
+ */
+ZTEST(adc_util_tests, test_notify_subscribers_callback_failure)
+{
+  extern AdcSubConfig_t subConfig;
+  extern AdcSubEntry_t *subscriptions;
+  extern osMemoryPoolId_t subDataPool;
+  extern size_t chanCount;
+  extern float *voltValues;
+  AdcSubEntry_t test_subscriptions[1];
+  static uint8_t fake_buffer[64];
+  float test_volt_values[2] = {1.5f, 3.0f};
+  int result;
+
+  /* Set up channel count and voltValues for memcpy */
+  chanCount = 2;
+  voltValues = test_volt_values;
+
+  /* Set up one active, non-paused subscription */
+  test_subscriptions[0].callback = mock_subscription_callback;
+  test_subscriptions[0].isPaused = false;
+  subscriptions = test_subscriptions;
+  subConfig.activeSubCount = 1;
+  subDataPool = (osMemoryPoolId_t)0x1000;
+
+  /* Configure osMemoryPoolAlloc to succeed */
+  osMemoryPoolAlloc_fake.return_val = fake_buffer;
+
+  /* Configure callback to return error */
+  mock_subscription_callback_fake.return_val = -EIO;
+
+  /* Call adcAcqUtilNotifySubscribers */
+  result = adcAcqUtilNotifySubscribers();
+
+  zassert_equal(result, 0,
+                "adcAcqUtilNotifySubscribers should return 0 even on callback failure");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+  zassert_equal(mock_subscription_callback_fake.call_count, 1,
+                "Callback should be called once");
+  zassert_equal(osMemoryPoolFree_fake.call_count, 1,
+                "osMemoryPoolFree should be called once when callback fails");
+  zassert_equal(osMemoryPoolFree_fake.arg0_val, subDataPool,
+                "osMemoryPoolFree should be called with subDataPool");
+  zassert_equal(osMemoryPoolFree_fake.arg1_val, fake_buffer,
+                "osMemoryPoolFree should be called with allocated buffer");
+
+  /* Clean up */
+  subscriptions = NULL;
+  subConfig.activeSubCount = 0;
+  voltValues = NULL;
+}
+
+/**
+ * Requirement: The adcAcqUtilNotifySubscribers function must successfully
+ * notify all active subscribers when all operations succeed.
+ */
+ZTEST(adc_util_tests, test_notify_subscribers_success)
+{
+  extern AdcSubConfig_t subConfig;
+  extern AdcSubEntry_t *subscriptions;
+  extern osMemoryPoolId_t subDataPool;
+  extern size_t chanCount;
+  extern float *voltValues;
+  AdcSubEntry_t test_subscriptions[1];
+  static uint8_t fake_buffer[64];
+  float test_volt_values[2] = {1.5f, 3.0f};
+  int result;
+
+  /* Set up channel count and voltValues for memcpy */
+  chanCount = 2;
+  voltValues = test_volt_values;
+
+  /* Set up one active, non-paused subscription */
+  test_subscriptions[0].callback = mock_subscription_callback;
+  test_subscriptions[0].isPaused = false;
+  subscriptions = test_subscriptions;
+  subConfig.activeSubCount = 1;
+  subDataPool = (osMemoryPoolId_t)0x1000;
+
+  /* Configure osMemoryPoolAlloc to succeed */
+  osMemoryPoolAlloc_fake.return_val = fake_buffer;
+
+  /* Configure callback to return success */
+  mock_subscription_callback_fake.return_val = 0;
+
+  /* Call adcAcqUtilNotifySubscribers */
+  result = adcAcqUtilNotifySubscribers();
+
+  zassert_equal(result, 0,
+                "adcAcqUtilNotifySubscribers should return 0 on success");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+  zassert_equal(osMemoryPoolAlloc_fake.arg0_val, subDataPool,
+                "osMemoryPoolAlloc should be called with subDataPool");
+  zassert_equal(mock_subscription_callback_fake.call_count, 1,
+                "Callback should be called once");
+  zassert_equal(mock_subscription_callback_fake.arg0_val, (SrvMsgPayload_t *)fake_buffer,
+                "Callback should be called with allocated buffer");
+  zassert_equal(osMemoryPoolFree_fake.call_count, 0,
+                "osMemoryPoolFree should not be called when callback succeeds");
+
+  /* Clean up */
+  subscriptions = NULL;
+  subConfig.activeSubCount = 0;
   voltValues = NULL;
 }
 
