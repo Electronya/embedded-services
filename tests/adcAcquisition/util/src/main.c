@@ -952,6 +952,38 @@ ZTEST(adc_util_tests, test_start_trigger_counter_start_failure)
 }
 
 /**
+ * Requirement: The adcAcqUtilStartTrigger function must successfully start
+ * the trigger timer when all operations succeed.
+ */
+ZTEST(adc_util_tests, test_start_trigger_success)
+{
+  extern struct counter_top_cfg triggerConfig;
+  int result;
+
+  /* Configure counter_set_top_value to succeed */
+  counter_set_top_value_fake.return_val = 0;
+
+  /* Configure counter_start to succeed */
+  counter_start_fake.return_val = 0;
+
+  /* Call adcAcqUtilStartTrigger - should succeed */
+  result = adcAcqUtilStartTrigger();
+
+  zassert_equal(result, 0,
+                "adcAcqUtilStartTrigger should return 0 on success");
+  zassert_equal(counter_set_top_value_fake.call_count, 1,
+                "counter_set_top_value should be called once");
+  zassert_equal(counter_set_top_value_fake.arg0_val, &mock_timer_device,
+                "counter_set_top_value should be called with trigger timer device");
+  zassert_equal(counter_set_top_value_fake.arg1_val, &triggerConfig,
+                "counter_set_top_value should be called with triggerConfig pointer");
+  zassert_equal(counter_start_fake.call_count, 1,
+                "counter_start should be called once");
+  zassert_equal(counter_start_fake.arg0_val, &mock_timer_device,
+                "counter_start should be called with trigger timer device");
+}
+
+/**
  * Requirement: The adcAcqUtilGetChanCount function must return the number
  * of configured ADC channels.
  */
