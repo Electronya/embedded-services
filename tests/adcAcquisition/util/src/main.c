@@ -1246,6 +1246,163 @@ ZTEST(adc_util_tests, test_notify_subscribers_success)
 }
 
 /**
+ * Requirement: The adcAcqUtilAddSubscription function must return -ENOSPC
+ * when the maximum subscription count is reached.
+ */
+ZTEST(adc_util_tests, test_add_subscription_max_reached)
+{
+  extern AdcSubConfig_t subConfig;
+  extern AdcSubEntry_t *subscriptions;
+  AdcSubEntry_t test_subscriptions[4];
+  int result;
+
+  /* Set up subscriptions array */
+  subscriptions = test_subscriptions;
+
+  /* Set maxSubCount to 4 and activeSubCount to 3 (one slot left) */
+  subConfig.maxSubCount = 4;
+  subConfig.activeSubCount = 3;
+
+  /* Try to add subscription - should fail because 3 + 1 >= 4 */
+  result = adcAcqUtilAddSubscription(mock_subscription_callback);
+
+  zassert_equal(result, -ENOSPC,
+                "adcAcqUtilAddSubscription should return -ENOSPC when max reached");
+  zassert_equal(subConfig.activeSubCount, 3,
+                "activeSubCount should remain unchanged on failure");
+
+  /* Clean up */
+  subscriptions = NULL;
+  subConfig.activeSubCount = 0;
+  subConfig.maxSubCount = 0;
+}
+
+/**
+ * Requirement: The adcAcqUtilAddSubscription function must successfully add
+ * a subscription when there is available space.
+ *
+ * Note: This function does not call any external functions in the success
+ * path - it only manipulates internal state (subscriptions array and subConfig).
+ */
+ZTEST(adc_util_tests, test_add_subscription_success)
+{
+  extern AdcSubConfig_t subConfig;
+  extern AdcSubEntry_t *subscriptions;
+  AdcSubEntry_t test_subscriptions[4];
+  int result;
+
+  /* Initialize subscriptions array */
+  memset(test_subscriptions, 0, sizeof(test_subscriptions));
+  subscriptions = test_subscriptions;
+
+  /* Set maxSubCount to 4 and activeSubCount to 0 (empty) */
+  subConfig.maxSubCount = 4;
+  subConfig.activeSubCount = 0;
+
+  /* Add subscription - should succeed */
+  result = adcAcqUtilAddSubscription(mock_subscription_callback);
+
+  zassert_equal(result, 0,
+                "adcAcqUtilAddSubscription should return 0 on success");
+  zassert_equal(subConfig.activeSubCount, 1,
+                "activeSubCount should be incremented to 1");
+  zassert_equal(subscriptions[0].callback, mock_subscription_callback,
+                "subscription callback should be stored at index 0");
+  zassert_false(subscriptions[0].isPaused,
+                "subscription isPaused should be set to false");
+
+  /* Clean up */
+  subscriptions = NULL;
+  subConfig.activeSubCount = 0;
+  subConfig.maxSubCount = 0;
+}
+
+/**
+ * Requirement: The adcAcqUtilRemoveSubscription function must return -ESRCH
+ * when the subscription callback is not found.
+ *
+ * Note: This function does not call any external functions - it only
+ * manipulates internal state (subscriptions array and subConfig).
+ */
+ZTEST(adc_util_tests, test_remove_subscription_not_found)
+{
+  extern AdcSubConfig_t subConfig;
+  extern AdcSubEntry_t *subscriptions;
+  AdcSubEntry_t test_subscriptions[4];
+  int result;
+
+  /* Initialize subscriptions array with a different callback */
+  memset(test_subscriptions, 0, sizeof(test_subscriptions));
+  test_subscriptions[0].callback = (AdcSubCallback_t)0xDEADBEEF;
+  test_subscriptions[0].isPaused = false;
+  subscriptions = test_subscriptions;
+
+  /* Set maxSubCount to 4 and activeSubCount to 1 */
+  subConfig.maxSubCount = 4;
+  subConfig.activeSubCount = 1;
+
+  /* Try to remove a subscription that doesn't exist */
+  result = adcAcqUtilRemoveSubscription(mock_subscription_callback);
+
+  zassert_equal(result, -ESRCH,
+                "adcAcqUtilRemoveSubscription should return -ESRCH when not found");
+  zassert_equal(subConfig.activeSubCount, 1,
+                "activeSubCount should remain unchanged when subscription not found");
+  zassert_equal(test_subscriptions[0].callback, (AdcSubCallback_t)0xDEADBEEF,
+                "existing subscription should remain unchanged");
+
+  /* Clean up */
+  subscriptions = NULL;
+  subConfig.activeSubCount = 0;
+  subConfig.maxSubCount = 0;
+}
+
+/**
+ * Requirement: The adcAcqUtilRemoveSubscription function must successfully
+ * remove a subscription and shift remaining subscriptions down.
+ *
+ * Note: This function does not call any external functions - it only
+ * manipulates internal state (subscriptions array and subConfig).
+ */
+ZTEST(adc_util_tests, test_remove_subscription_success)
+{
+  extern AdcSubConfig_t subConfig;
+  extern AdcSubEntry_t *subscriptions;
+  AdcSubEntry_t test_subscriptions[4];
+  AdcSubCallback_t other_callback = (AdcSubCallback_t)0xDEADBEEF;
+  int result;
+
+  /* Initialize subscriptions array with 2 subscriptions */
+  memset(test_subscriptions, 0, sizeof(test_subscriptions));
+  test_subscriptions[0].callback = mock_subscription_callback;
+  test_subscriptions[0].isPaused = false;
+  test_subscriptions[1].callback = other_callback;
+  test_subscriptions[1].isPaused = true;
+  subscriptions = test_subscriptions;
+
+  /* Set maxSubCount to 4 and activeSubCount to 2 */
+  subConfig.maxSubCount = 4;
+  subConfig.activeSubCount = 2;
+
+  /* Remove the first subscription */
+  result = adcAcqUtilRemoveSubscription(mock_subscription_callback);
+
+  zassert_equal(result, 0,
+                "adcAcqUtilRemoveSubscription should return 0 on success");
+  zassert_equal(subConfig.activeSubCount, 1,
+                "activeSubCount should be decremented to 1");
+  zassert_equal(test_subscriptions[0].callback, other_callback,
+                "remaining subscription should be shifted to index 0");
+  zassert_true(test_subscriptions[0].isPaused,
+               "shifted subscription should preserve isPaused state");
+
+  /* Clean up */
+  subscriptions = NULL;
+  subConfig.activeSubCount = 0;
+  subConfig.maxSubCount = 0;
+}
+
+/**
  * Requirement: The adcAcqUtilGetChanCount function must return the number
  * of configured ADC channels.
  */
