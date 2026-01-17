@@ -82,6 +82,10 @@ static ADC_Common_TypeDef mock_adc1_common __attribute__((unused)) = {0};
 #define ADC1_COMMON (&mock_adc1_common)
 #define ADC_CCR_VREFEN (1 << 22)
 
+/* Flag to simulate VREFEN bit not being set (hardware failure) */
+static bool mock_vrefen_fails = false;
+#define READ_ADC1_COMMON_CCR() (mock_vrefen_fails ? 0 : mock_adc1_common.CCR)
+
 /* Mock VREFINT_CAL_ADDR */
 static uint16_t mock_vrefint_cal __attribute__((unused)) = 1500;
 #define VREFINT_CAL_ADDR (&mock_vrefint_cal)
@@ -211,6 +215,7 @@ static void util_tests_before(void *fixture)
 
   /* Reset mock ADC register */
   mock_adc1_common.CCR = 0;
+  mock_vrefen_fails = false;
 
   /* Reset chanCount - it's a static variable in adcAcquisitionUtil.c */
   chanCount = 0;
@@ -695,6 +700,32 @@ ZTEST(adc_util_tests, test_init_adc_buffer_allocation_failure)
 }
 
 /**
+ * Requirement: The adcAcqUtilInitAdc function must return -ENOSPC when
+ * volt values allocation fails.
+ */
+ZTEST(adc_util_tests, test_init_adc_volt_values_allocation_failure)
+{
+  AdcConfig_t adcConfig = {
+    .samplingRate = 500,
+    .filterTau = 100
+  };
+  static uint16_t fake_buffer[2];
+  int result;
+
+  /* Configure k_malloc to succeed for buffer, fail for voltValues */
+  void *malloc_returns[] = {fake_buffer, NULL};
+  SET_RETURN_SEQ(k_malloc, malloc_returns, 2);
+
+  /* Call adcAcqUtilInitAdc - should fail due to volt values allocation failure */
+  result = adcAcqUtilInitAdc(&adcConfig);
+
+  zassert_equal(result, -ENOSPC,
+                "adcAcqUtilInitAdc should return -ENOSPC when volt values allocation fails");
+  zassert_equal(k_malloc_fake.call_count, 2,
+                "k_malloc should be called twice before failing");
+}
+
+/**
  * Requirement: The adcAcqUtilInitAdc function must return -EBUSY when
  * channel configuration fails due to ADC not ready.
  */
@@ -764,6 +795,41 @@ ZTEST(adc_util_tests, test_init_adc_configure_timer_failure)
                 "adc_channel_setup_dt should be called twice for 2 channels");
   zassert_equal(device_is_ready_mock_fake.call_count, 1,
                 "device_is_ready should be called once for timer");
+}
+
+/**
+ * Requirement: The adcAcqUtilInitAdc function must return -EIO when
+ * enabling VREFINT fails.
+ */
+ZTEST(adc_util_tests, test_init_adc_enable_vrefint_failure)
+{
+  AdcConfig_t adcConfig = {
+    .samplingRate = 500,
+    .filterTau = 100
+  };
+  static uint16_t fake_buffer[2];
+  static float fake_volt_values[2];
+  int result;
+
+  /* Configure k_malloc to succeed (return valid pointers) */
+  void *malloc_returns[] = {fake_buffer, fake_volt_values};
+  SET_RETURN_SEQ(k_malloc, malloc_returns, 2);
+
+  /* Configure ADC channel setup to succeed */
+  adc_is_ready_dt_fake.return_val = true;
+  adc_channel_setup_dt_fake.return_val = 0;
+
+  /* Configure timer to be ready */
+  device_is_ready_mock_fake.return_val = true;
+
+  /* Simulate VREFEN bit not being set (hardware failure) */
+  mock_vrefen_fails = true;
+
+  /* Call adcAcqUtilInitAdc - should fail due to VREFINT enable failure */
+  result = adcAcqUtilInitAdc(&adcConfig);
+
+  zassert_equal(result, -EIO,
+                "adcAcqUtilInitAdc should return -EIO when VREFINT enable fails");
 }
 
 /**

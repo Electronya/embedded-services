@@ -165,10 +165,19 @@ static inline int enableVrefint(void)
   /* STM32G0/G4/L4/L5/H7/WB/WL: ADC_CCR_VREFEN */
   #if defined(ADC1_COMMON)
   ADC1_COMMON->CCR |= ADC_CCR_VREFEN;
+  #ifndef READ_ADC1_COMMON_CCR
+  #define READ_ADC1_COMMON_CCR() (ADC1_COMMON->CCR)
+  #endif
+  if(!(READ_ADC1_COMMON_CCR() & ADC_CCR_VREFEN))
+    err = -EIO;
   #elif defined(ADC12_COMMON)
   ADC12_COMMON->CCR |= ADC_CCR_VREFEN;
+  if(!(ADC12_COMMON->CCR & ADC_CCR_VREFEN))
+    err = -EIO;
   #elif defined(ADC_COMMON)
   ADC_COMMON->CCR |= ADC_CCR_VREFEN;
+  if(!(ADC_COMMON->CCR & ADC_CCR_VREFEN))
+    err = -EIO;
   #else
   #error "ADC Common register base not found for this STM32 variant"
   #endif
@@ -177,6 +186,8 @@ static inline int enableVrefint(void)
   /* STM32F3: ADC_CCR_TSVREFE */
   #if defined(ADC1_COMMON)
   ADC1_COMMON->CCR |= ADC_CCR_TSVREFE;
+  if(!(ADC1_COMMON->CCR & ADC_CCR_TSVREFE))
+    err = -EIO;
   #else
   #error "ADC1_COMMON not found for STM32F3"
   #endif
@@ -185,6 +196,8 @@ static inline int enableVrefint(void)
   /* STM32F1/F2/F4: ADC_CR2_TSVREFE */
   #if defined(ADC1)
   ADC1->CR2 |= ADC_CR2_TSVREFE;
+  if(!(ADC1->CR2 & ADC_CR2_TSVREFE))
+    err = -EIO;
   #else
   #error "ADC1 not found for legacy STM32"
   #endif
@@ -203,7 +216,8 @@ static inline int enableVrefint(void)
 
 #if defined(CONFIG_ENYA_ADC_VREF_STABILIZATION_US)
   /* Wait for VREFINT to stabilize */
-  k_busy_wait(CONFIG_ENYA_ADC_VREF_STABILIZATION_US);
+  if(!err)
+    k_busy_wait(CONFIG_ENYA_ADC_VREF_STABILIZATION_US);
 #endif
 
   return err;
@@ -244,7 +258,7 @@ static inline int allocateBuffers(size_t chanCount)
   }
 
   voltValues = k_malloc(chanCount * sizeof(float));
-  if(!chanCount)
+  if(!voltValues)
   {
     err = -ENOSPC;
     LOG_ERR("ERROR %d: unable to allocate the volt average array", err);
