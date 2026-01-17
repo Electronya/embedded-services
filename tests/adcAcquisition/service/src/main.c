@@ -576,4 +576,211 @@ ZTEST(adc_service_tests, test_start_success)
                 "adcAcqUtilStartTrigger should be called once");
 }
 
+/* Dummy callback for subscription tests */
+static int dummyCallback(SrvMsgPayload_t *data)
+{
+  ARG_UNUSED(data);
+  return 0;
+}
+
+/**
+ * Requirement: The adcAcqSubscribe function must return error when adcAcqUtilAddSubscription fails.
+ */
+ZTEST(adc_service_tests, test_subscribe_failure)
+{
+  int result;
+
+  /* Setup: adcAcqUtilAddSubscription returns error */
+  adcAcqUtilAddSubscription_fake.return_val = -ENOMEM;
+
+  /* Execute */
+  result = adcAcqSubscribe(dummyCallback);
+
+  /* Verify return value */
+  zassert_equal(result, -ENOMEM,
+                "adcAcqSubscribe should return error from adcAcqUtilAddSubscription");
+
+  /* Verify adcAcqUtilAddSubscription was called with correct parameter */
+  zassert_equal(adcAcqUtilAddSubscription_fake.call_count, 1,
+                "adcAcqUtilAddSubscription should be called once");
+  zassert_equal(adcAcqUtilAddSubscription_fake.arg0_val, dummyCallback,
+                "adcAcqUtilAddSubscription should be called with callback");
+}
+
+/**
+ * Requirement: The adcAcqSubscribe function must add a subscription callback.
+ */
+ZTEST(adc_service_tests, test_subscribe_success)
+{
+  int result;
+
+  /* Setup: adcAcqUtilAddSubscription succeeds */
+  adcAcqUtilAddSubscription_fake.return_val = 0;
+
+  /* Execute */
+  result = adcAcqSubscribe(dummyCallback);
+
+  /* Verify return value */
+  zassert_equal(result, 0,
+                "adcAcqSubscribe should return 0 on success");
+
+  /* Verify adcAcqUtilAddSubscription was called with correct parameter */
+  zassert_equal(adcAcqUtilAddSubscription_fake.call_count, 1,
+                "adcAcqUtilAddSubscription should be called once");
+  zassert_equal(adcAcqUtilAddSubscription_fake.arg0_val, dummyCallback,
+                "adcAcqUtilAddSubscription should be called with callback");
+}
+
+/**
+ * Requirement: The adcAcqUnsubscribe function must return error when adcAcqUtilRemoveSubscription fails.
+ */
+ZTEST(adc_service_tests, test_unsubscribe_failure)
+{
+  int result;
+
+  /* Setup: adcAcqUtilRemoveSubscription returns error */
+  adcAcqUtilRemoveSubscription_fake.return_val = -ENOENT;
+
+  /* Execute */
+  result = adcAcqUnsubscribe(dummyCallback);
+
+  /* Verify return value */
+  zassert_equal(result, -ENOENT,
+                "adcAcqUnsubscribe should return error from adcAcqUtilRemoveSubscription");
+
+  /* Verify adcAcqUtilRemoveSubscription was called with correct parameter */
+  zassert_equal(adcAcqUtilRemoveSubscription_fake.call_count, 1,
+                "adcAcqUtilRemoveSubscription should be called once");
+  zassert_equal(adcAcqUtilRemoveSubscription_fake.arg0_val, dummyCallback,
+                "adcAcqUtilRemoveSubscription should be called with callback");
+}
+
+/**
+ * Requirement: The adcAcqUnsubscribe function must remove a subscription callback.
+ */
+ZTEST(adc_service_tests, test_unsubscribe_success)
+{
+  int result;
+
+  /* Setup: adcAcqUtilRemoveSubscription succeeds */
+  adcAcqUtilRemoveSubscription_fake.return_val = 0;
+
+  /* Execute */
+  result = adcAcqUnsubscribe(dummyCallback);
+
+  /* Verify return value */
+  zassert_equal(result, 0,
+                "adcAcqUnsubscribe should return 0 on success");
+
+  /* Verify adcAcqUtilRemoveSubscription was called with correct parameter */
+  zassert_equal(adcAcqUtilRemoveSubscription_fake.call_count, 1,
+                "adcAcqUtilRemoveSubscription should be called once");
+  zassert_equal(adcAcqUtilRemoveSubscription_fake.arg0_val, dummyCallback,
+                "adcAcqUtilRemoveSubscription should be called with callback");
+}
+
+/**
+ * Requirement: The adcAcqPauseSubscription function must return error when adcAcqUtilSetSubPauseState fails.
+ */
+ZTEST(adc_service_tests, test_pause_subscription_failure)
+{
+  int result;
+
+  /* Setup: adcAcqUtilSetSubPauseState returns error */
+  adcAcqUtilSetSubPauseState_fake.return_val = -ENOENT;
+
+  /* Execute */
+  result = adcAcqPauseSubscription(dummyCallback);
+
+  /* Verify return value */
+  zassert_equal(result, -ENOENT,
+                "adcAcqPauseSubscription should return error from adcAcqUtilSetSubPauseState");
+
+  /* Verify adcAcqUtilSetSubPauseState was called with correct parameters */
+  zassert_equal(adcAcqUtilSetSubPauseState_fake.call_count, 1,
+                "adcAcqUtilSetSubPauseState should be called once");
+  zassert_equal(adcAcqUtilSetSubPauseState_fake.arg0_val, dummyCallback,
+                "adcAcqUtilSetSubPauseState should be called with callback");
+  zassert_true(adcAcqUtilSetSubPauseState_fake.arg1_val,
+               "adcAcqUtilSetSubPauseState should be called with true for pause");
+}
+
+/**
+ * Requirement: The adcAcqPauseSubscription function must pause a subscription.
+ */
+ZTEST(adc_service_tests, test_pause_subscription_success)
+{
+  int result;
+
+  /* Setup: adcAcqUtilSetSubPauseState succeeds */
+  adcAcqUtilSetSubPauseState_fake.return_val = 0;
+
+  /* Execute */
+  result = adcAcqPauseSubscription(dummyCallback);
+
+  /* Verify return value */
+  zassert_equal(result, 0,
+                "adcAcqPauseSubscription should return 0 on success");
+
+  /* Verify adcAcqUtilSetSubPauseState was called with correct parameters */
+  zassert_equal(adcAcqUtilSetSubPauseState_fake.call_count, 1,
+                "adcAcqUtilSetSubPauseState should be called once");
+  zassert_equal(adcAcqUtilSetSubPauseState_fake.arg0_val, dummyCallback,
+                "adcAcqUtilSetSubPauseState should be called with callback");
+  zassert_true(adcAcqUtilSetSubPauseState_fake.arg1_val,
+               "adcAcqUtilSetSubPauseState should be called with true for pause");
+}
+
+/**
+ * Requirement: The adcAqcUnpauseSubscription function must return error when adcAcqUtilSetSubPauseState fails.
+ */
+ZTEST(adc_service_tests, test_unpause_subscription_failure)
+{
+  int result;
+
+  /* Setup: adcAcqUtilSetSubPauseState returns error */
+  adcAcqUtilSetSubPauseState_fake.return_val = -ENOENT;
+
+  /* Execute */
+  result = adcAqcUnpauseSubscription(dummyCallback);
+
+  /* Verify return value */
+  zassert_equal(result, -ENOENT,
+                "adcAqcUnpauseSubscription should return error from adcAcqUtilSetSubPauseState");
+
+  /* Verify adcAcqUtilSetSubPauseState was called with correct parameters */
+  zassert_equal(adcAcqUtilSetSubPauseState_fake.call_count, 1,
+                "adcAcqUtilSetSubPauseState should be called once");
+  zassert_equal(adcAcqUtilSetSubPauseState_fake.arg0_val, dummyCallback,
+                "adcAcqUtilSetSubPauseState should be called with callback");
+  zassert_false(adcAcqUtilSetSubPauseState_fake.arg1_val,
+                "adcAcqUtilSetSubPauseState should be called with false for unpause");
+}
+
+/**
+ * Requirement: The adcAqcUnpauseSubscription function must unpause a subscription.
+ */
+ZTEST(adc_service_tests, test_unpause_subscription_success)
+{
+  int result;
+
+  /* Setup: adcAcqUtilSetSubPauseState succeeds */
+  adcAcqUtilSetSubPauseState_fake.return_val = 0;
+
+  /* Execute */
+  result = adcAqcUnpauseSubscription(dummyCallback);
+
+  /* Verify return value */
+  zassert_equal(result, 0,
+                "adcAqcUnpauseSubscription should return 0 on success");
+
+  /* Verify adcAcqUtilSetSubPauseState was called with correct parameters */
+  zassert_equal(adcAcqUtilSetSubPauseState_fake.call_count, 1,
+                "adcAcqUtilSetSubPauseState should be called once");
+  zassert_equal(adcAcqUtilSetSubPauseState_fake.arg0_val, dummyCallback,
+                "adcAcqUtilSetSubPauseState should be called with callback");
+  zassert_false(adcAcqUtilSetSubPauseState_fake.arg1_val,
+                "adcAcqUtilSetSubPauseState should be called with false for unpause");
+}
+
 ZTEST_SUITE(adc_service_tests, NULL, service_tests_setup, service_tests_before, NULL, NULL);
