@@ -161,7 +161,7 @@ jobs:
         # Use calculate_coverage.py with gcov-dir mode to get accurate source file coverage
         # This handles source files that are #include'd directly into test files
         if [ -d twister-out ]; then
-          COVERAGE=$(python3 scripts/calculate_coverage.py --gcov-dir twister-out -f 'src/' 2>/dev/null) || true
+          COVERAGE=$(calculate_coverage.py --gcov-dir twister-out -f 'src/' 2>/dev/null) || true
         fi
 
         echo "Extracted coverage: ${COVERAGE:-none}"
