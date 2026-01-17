@@ -1,0 +1,222 @@
+name: Test and Coverage
+
+on:
+  push:
+    branches: [ '*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-coverage:
+    runs-on: homelab-amd64
+    container:
+      image: gitea.main-server.home/electronya/electronya-firm-builder:latest
+
+    env:
+      NODE_TLS_REJECT_UNAUTHORIZED: '0'
+
+    steps:
+    - name: Fix DNS for artifact upload
+      run: |
+        # Route to nginx proxy manager (handles HTTPS on port 443)
+        NPM_IP=$(getent hosts npm | awk '{print $1}')
+        if [ -n "$NPM_IP" ]; then
+          echo "$NPM_IP gitea.main-server.home" >> /etc/hosts
+          echo "Added gitea.main-server.home -> $NPM_IP"
+        else
+          echo "Warning: Could not resolve npm hostname"
+        fi
+
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        path: embedded-services
+
+    - name: Setup West workspace
+      run: |
+        # Create west workspace
+        mkdir -p workspace
+        cd workspace
+
+        # Initialize west with Zephyr
+        west init -m https://github.com/zephyrproject-rtos/zephyr --mr v4.3-branch
+
+        # Update to get all modules
+        west update
+
+        # Copy embedded-services into the workspace as a module
+        mkdir -p apps
+        cp -r ../embedded-services apps/
+
+        # Export Zephyr environment
+        west zephyr-export
+
+        # Set working directory for subsequent steps
+        echo "WORKSPACE_DIR=$PWD" >> $GITHUB_ENV
+
+    - name: Verify environment
+      run: |
+        cd workspace
+        pwd
+        ls -la
+        echo "ZEPHYR_BASE: $ZEPHYR_BASE"
+        which gcc
+        gcc --version
+        which ninja
+        west --version
+        ls -la apps/embedded-services
+
+    - name: Run tests with Twister
+      run: |
+        cd workspace/apps/embedded-services
+        west twister -T tests --coverage --gcov-tool /usr/bin/gcov
+
+    - name: Generate filtered coverage report
+      run: |
+        cd workspace/apps/embedded-services
+
+        echo "=== Generating Filtered Coverage Report ==="
+        mkdir -p twister-out/filteredReport
+
+        # Generate filtered HTML report with only project source files
+        # Exclude LOG macro branches from coverage (they always show 50% due to compile-time conditionals)
+        gcovr --filter 'src/' --exclude-branches-by-pattern '.*LOG_.*' twister-out --html-details -o twister-out/filteredReport/index.html
+
+        # Display coverage summary
+        echo ""
+        echo "=== Coverage Summary (Project Source Files Only) ==="
+        gcovr --filter 'src/' --exclude-branches-by-pattern '.*LOG_.*' twister-out -s
+
+        echo ""
+        echo "Filtered HTML report available at: twister-out/filteredReport/index.html"
+
+    - name: Prepare artifacts
+      if: always()
+      run: |
+        mkdir -p artifacts/test-results
+        mkdir -p artifacts/coverage-report
+
+        # Copy test results
+        cp workspace/apps/embedded-services/twister-out/twister.json artifacts/test-results/ || true
+        cp workspace/apps/embedded-services/twister-out/twister.xml artifacts/test-results/ || true
+        cp workspace/apps/embedded-services/twister-out/twister_report.xml artifacts/test-results/ || true
+
+        # Copy filtered coverage report
+        cp -r workspace/apps/embedded-services/twister-out/filteredReport/* artifacts/coverage-report/ || true
+
+        echo "Artifacts prepared:"
+        ls -la artifacts/test-results/
+        ls -la artifacts/coverage-report/
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results
+        path: artifacts/test-results/
+        retention-days: 30
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: coverage-report
+        path: artifacts/coverage-report/
+        retention-days: 30
+
+    - name: Update badges gist
+      if: always()
+      env:
+        GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+        GIST_ID: ${{ secrets.GIST_ID }}
+      shell: bash
+      run: |
+        cd workspace/apps/embedded-services
+
+        # === Build Status ===
+        if [ -f twister-out/twister.json ]; then
+          BUILD_STATUS="passing"
+          BUILD_COLOR="brightgreen"
+        else
+          BUILD_STATUS="failing"
+          BUILD_COLOR="red"
+        fi
+
+        # === Test Results (pass/fail only) ===
+        if [ -f twister-out/twister.xml ]; then
+          FAILED=$(grep -c '<failure' twister-out/twister.xml 2>/dev/null || true)
+          FAILED=${FAILED:-0}
+
+          if [ "$FAILED" -eq 0 ]; then
+            TESTS_MSG="passing"
+            TESTS_COLOR="brightgreen"
+          else
+            TESTS_MSG="failing"
+            TESTS_COLOR="red"
+          fi
+        else
+          TESTS_MSG="failing"
+          TESTS_COLOR="red"
+        fi
+
+        # === Coverage (filtered for project source files only) ===
+        # Use gcovr with filter to get coverage for project source files only
+        # Exclude LOG macro branches from coverage (they always show 50% due to compile-time conditionals)
+        # Combine line and branch coverage into a single metric: (line% + branch%) / 2
+        COVERAGE=""
+
+        if [ -d twister-out ]; then
+          GCOVR_OUTPUT=$(gcovr --filter 'src/' --exclude-branches-by-pattern '.*LOG_.*' twister-out -s 2>/dev/null) || true
+          LINE_COV=$(echo "$GCOVR_OUTPUT" | grep '^lines:' | grep -oE '[0-9]+\.[0-9]+' | head -1) || true
+          BRANCH_COV=$(echo "$GCOVR_OUTPUT" | grep '^branches:' | grep -oE '[0-9]+\.[0-9]+' | head -1) || true
+
+          if [ -n "$LINE_COV" ] && [ -n "$BRANCH_COV" ]; then
+            # Calculate average of line and branch coverage
+            COVERAGE=$(awk "BEGIN {printf \"%.1f\", ($LINE_COV + $BRANCH_COV) / 2}")
+          elif [ -n "$LINE_COV" ]; then
+            COVERAGE="$LINE_COV"
+          fi
+        fi
+
+        echo "Line coverage: ${LINE_COV:-none}, Branch coverage: ${BRANCH_COV:-none}, Combined: ${COVERAGE:-none}"
+
+        if [ -n "$COVERAGE" ]; then
+          COV_INT=${COVERAGE%.*}
+          COV_INT=${COV_INT:-0}
+          if [ "$COV_INT" -ge 80 ]; then
+            COV_COLOR="brightgreen"
+          elif [ "$COV_INT" -ge 60 ]; then
+            COV_COLOR="yellow"
+          elif [ "$COV_INT" -ge 40 ]; then
+            COV_COLOR="orange"
+          else
+            COV_COLOR="red"
+          fi
+          COV_MSG="${COVERAGE}%"
+        else
+          COV_MSG="unavailable"
+          COV_COLOR="gray"
+        fi
+
+        echo "Build: ${BUILD_STATUS} | Tests: ${TESTS_MSG} | Coverage: ${COV_MSG}"
+
+        # Update GitHub Gist with all badges
+        curl -s -X PATCH \
+          -H "Authorization: token ${GIST_TOKEN}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          "https://api.github.com/gists/${GIST_ID}" \
+          -d @- << EOF
+        {
+          "files": {
+            "build.json": {
+              "content": "{\n  \"schemaVersion\": 1,\n  \"label\": \"build\",\n  \"message\": \"${BUILD_STATUS}\",\n  \"color\": \"${BUILD_COLOR}\"\n}"
+            },
+            "tests.json": {
+              "content": "{\n  \"schemaVersion\": 1,\n  \"label\": \"tests\",\n  \"message\": \"${TESTS_MSG}\",\n  \"color\": \"${TESTS_COLOR}\"\n}"
+            },
+            "coverage.json": {
+              "content": "{\n  \"schemaVersion\": 1,\n  \"label\": \"coverage\",\n  \"message\": \"${COV_MSG}\",\n  \"color\": \"${COV_COLOR}\"\n}"
+            }
+          }
+        }
+        EOF

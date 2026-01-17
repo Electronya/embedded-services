@@ -8,6 +8,9 @@ if(NOT DEFINED CONFIG_ZTEST)
     adcAcquisition.c
     adcAcquisitionUtil.c
     adcAcquisitionFilter.c
-    adcAcquisitionCmd.c
   )
+
+  if(CONFIG_ENYA_ADC_ACQUISITION_SHELL)
+    zephyr_library_sources(adcAcquisitionCmd.c)
+  endif()
 endif()

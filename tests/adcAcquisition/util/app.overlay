@@ -1,0 +1,28 @@
+/**
+ * Devicetree overlay for ADC acquisition util tests
+ * Copyright (C) 2025 by Electronya
+ */
+
+/ {
+	zephyr,user {
+		io-channels = <&test_adc 0>, <&test_adc 1>;
+		vref-channel-index = <0>;
+	};
+
+	aliases {
+		adc-trigger = &test_timer;
+	};
+
+	test_adc: adc@0 {
+		compatible = "vnd,adc";
+		reg = <0x0 0x1000>;
+		#io-channel-cells = <1>;
+		status = "okay";
+	};
+
+	test_timer: timer@0 {
+		compatible = "vnd,counter";
+		reg = <0x1000 0x1000>;
+		status = "okay";
+	};
+};

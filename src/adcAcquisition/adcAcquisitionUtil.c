@@ -153,6 +153,92 @@ static const struct adc_dt_spec adcChannels[] = {
 };
 
 /**
+ * @brief   Enable the internal voltage reference (VREFINT).
+ *
+ * @return  0 if successful, error code otherwise.
+ */
+static inline int enableVrefint(void)
+{
+  int err = 0;
+
+#if defined(CONFIG_ENYA_ADC_VREF_STM32_CCR)
+  /* STM32G0/G4/L4/L5/H7/WB/WL: ADC_CCR_VREFEN */
+  #if defined(ADC1_COMMON)
+  ADC1_COMMON->CCR |= ADC_CCR_VREFEN;
+  #ifndef READ_ADC1_COMMON_CCR
+  #define READ_ADC1_COMMON_CCR() (ADC1_COMMON->CCR)
+  #endif
+  if(!(READ_ADC1_COMMON_CCR() & ADC_CCR_VREFEN))
+    err = -EIO;
+  #elif defined(ADC12_COMMON)
+  ADC12_COMMON->CCR |= ADC_CCR_VREFEN;
+  if(!(ADC12_COMMON->CCR & ADC_CCR_VREFEN))
+    err = -EIO;
+  #elif defined(ADC_COMMON)
+  ADC_COMMON->CCR |= ADC_CCR_VREFEN;
+  if(!(ADC_COMMON->CCR & ADC_CCR_VREFEN))
+    err = -EIO;
+  #else
+  #error "ADC Common register base not found for this STM32 variant"
+  #endif
+
+#elif defined(CONFIG_ENYA_ADC_VREF_STM32_CCR_TSVREFE)
+  /* STM32F3: ADC_CCR_TSVREFE */
+  #if defined(ADC1_COMMON)
+  ADC1_COMMON->CCR |= ADC_CCR_TSVREFE;
+  if(!(ADC1_COMMON->CCR & ADC_CCR_TSVREFE))
+    err = -EIO;
+  #else
+  #error "ADC1_COMMON not found for STM32F3"
+  #endif
+
+#elif defined(CONFIG_ENYA_ADC_VREF_STM32_CR2)
+  /* STM32F1/F2/F4: ADC_CR2_TSVREFE */
+  #if defined(ADC1)
+  ADC1->CR2 |= ADC_CR2_TSVREFE;
+  if(!(ADC1->CR2 & ADC_CR2_TSVREFE))
+    err = -EIO;
+  #else
+  #error "ADC1 not found for legacy STM32"
+  #endif
+
+#elif defined(CONFIG_ENYA_ADC_VREF_DEVICETREE)
+  /* No register manipulation needed - handled by devicetree/HAL */
+  LOG_DBG("VREFINT configured via devicetree");
+
+#elif defined(CONFIG_ENYA_ADC_VREF_NONE)
+  /* No action needed */
+  LOG_DBG("VREFINT enable not required");
+
+#else
+  #error "No ADC VREF enable method selected in Kconfig"
+#endif
+
+#if defined(CONFIG_ENYA_ADC_VREF_STABILIZATION_US)
+  /* Wait for VREFINT to stabilize */
+  if(!err)
+    k_busy_wait(CONFIG_ENYA_ADC_VREF_STABILIZATION_US);
+#endif
+
+  return err;
+}
+
+/**
+ * @brief   Get the VREFINT calibration value.
+ *
+ * @return  The calibration value from factory calibration.
+ */
+static inline uint16_t getVrefintCal(void)
+{
+#if defined(VREFINT_CAL_ADDR)
+  /* Standard STM32 CMSIS define */
+  return *VREFINT_CAL_ADDR;
+#else
+  #error "VREFINT_CAL_ADDR not defined for this SOC. Check STM32 CMSIS headers or disable VREFINT usage."
+#endif
+}
+
+/**
  * @brief   Allocate the ADC buffers.
  *
  * @param[in]   chanCount: The size of the buffer.
@@ -172,7 +258,7 @@ static inline int allocateBuffers(size_t chanCount)
   }
 
   voltValues = k_malloc(chanCount * sizeof(float));
-  if(!chanCount)
+  if(!voltValues)
   {
     err = -ENOSPC;
     LOG_ERR("ERROR %d: unable to allocate the volt average array", err);
@@ -268,7 +354,7 @@ static void triggerConversion(const struct device *dev, void *user_data)
  *
  * @return int
  */
-int configureTimer(void)
+static int configureTimer(void)
 {
   int err;
 
@@ -339,7 +425,7 @@ static inline void setupSequence(void)
  */
 static inline float calculateVdd(int32_t vrefVal)
 {
-  uint16_t vrefCal = *VREFINT_CAL_ADDR;
+  uint16_t vrefCal = getVrefintCal();
 
   return VREFINT_CAL_VOLTAGE * (float)vrefCal / (float)vrefVal;
 }
@@ -363,11 +449,13 @@ int adcAcqUtilInitAdc(AdcConfig_t *adcConfig)
 
   setupSequence();
 
-  /* Enable VREFINT in ADC Common Control Register for channel 13 */
-  ADC1_COMMON->CCR |= ADC_CCR_VREFEN;
-
-  /* Wait for VREFINT to stabilize (min 12μs per datasheet) */
-  k_busy_wait(15);
+  /* Enable internal voltage reference */
+  err = enableVrefint();
+  if(err < 0)
+  {
+    LOG_ERR("ERROR %d: unable to enable VREFINT", err);
+    return err;
+  }
 
   err = configureTimer();
   if(err < 0)
@@ -394,7 +482,7 @@ int adcAcqUtilInitSubscriptions(AdcSubConfig_t *adcSubConfig)
   subConfig.activeSubCount = 0;
 
   /* Calculate memory pool parameters */
-  blockSize = sizeof(AdcSubData_t) + (chanCount * sizeof(float));
+  blockSize = sizeof(SrvMsgPayload_t) + (chanCount * sizeof(float));
   blockCount = 2 * subConfig.maxSubCount;
 
   LOG_INF("attempting to create pool: chanCount=%zu, blockSize=%zu, blockCount=%zu",
@@ -466,14 +554,14 @@ int adcAcqUtilProcessData(void)
 int adcAcqUtilNotifySubscribers(void)
 {
   int err;
-  AdcSubData_t *data;
+  SrvMsgPayload_t *data;
 
   for(size_t i = 0; i < subConfig.activeSubCount; ++i)
   {
     if(!subscriptions[i].isPaused)
     {
       /* Allocate buffer from pool */
-      data = (AdcSubData_t *)osMemoryPoolAlloc(subDataPool, 0);
+      data = (SrvMsgPayload_t *)osMemoryPoolAlloc(subDataPool, 0);
       if(data == NULL)
       {
         err = -ENOSPC;
@@ -482,9 +570,9 @@ int adcAcqUtilNotifySubscribers(void)
       }
 
       /* Fill in data */
-      data->pool = subDataPool;
-      data->valCount = chanCount;
-      memcpy(data->values, voltValues, chanCount * sizeof(float));
+      data->poolId = subDataPool;
+      data->dataLen = chanCount * sizeof(float);
+      memcpy(data->data, voltValues, chanCount * sizeof(float));
 
       /* Call subscriber callback */
       err = subscriptions[i].callback(data);

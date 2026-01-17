@@ -1,0 +1,11 @@
+# Electronya Embedded Services - Service Common
+# Copyright (C) 2026 by Electronya
+
+config ENYA_SERVICE_COMMON
+  bool "Electronya Service Common Definitions"
+  default y
+  help
+    Common data structures and definitions used across all services
+    for inter-service communication. This module provides the
+    SrvMsgPayload_t structure for passing data between services
+    via message queues.

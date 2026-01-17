@@ -125,6 +125,13 @@ int adcAcqFilterGetRawData(size_t chanId, int32_t *rawData)
     return err;
   }
 
+  if(!rawData)
+  {
+    err = -EINVAL;
+    LOG_ERR("ERROR %d: NULL pointer for raw data", err);
+    return err;
+  }
+
   *rawData = filterBuf[dataIdx] >> FILTER_PRESCALE;
 
   return 0;
@@ -139,6 +146,13 @@ int adcAcqFilterGetFirstOrderData(size_t chanId, int32_t *filtData)
   {
     err = -EINVAL;
     LOG_ERR("ERROR %d: invalid channel ID %d", err, chanId);
+    return err;
+  }
+
+  if(!filtData)
+  {
+    err = -EINVAL;
+    LOG_ERR("ERROR %d: NULL pointer for filtered data", err);
     return err;
   }
 
@@ -159,7 +173,14 @@ int adcAcqFilterGetSecondOrderData(size_t chanId, int32_t *filtData)
     return err;
   }
 
-  *filtData = filterBuf[dataIdx];
+  if(!filtData)
+  {
+    err = -EINVAL;
+    LOG_ERR("ERROR %d: NULL pointer for filtered data", err);
+    return err;
+  }
+
+  *filtData = filterBuf[dataIdx] >> FILTER_PRESCALE;
 
   return 0;
 }
@@ -173,6 +194,13 @@ int adcAcqFilterGetThirdOrderData(size_t chanId, int32_t *filtData)
   {
     err = -EINVAL;
     LOG_ERR("ERROR %d: invalid channel ID %d", err, chanId);
+    return err;
+  }
+
+  if(!filtData)
+  {
+    err = -EINVAL;
+    LOG_ERR("ERROR %d: NULL pointer for filtered data", err);
     return err;
   }
 
