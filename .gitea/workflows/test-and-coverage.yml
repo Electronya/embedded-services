@@ -71,20 +71,24 @@ jobs:
         cd workspace/apps/embedded-services
         west twister -T tests --coverage --gcov-tool /usr/bin/gcov
 
-    - name: Display coverage summary
+    - name: Generate filtered coverage report
       run: |
         cd workspace/apps/embedded-services
 
-        echo "=== Coverage Report ==="
-        echo "HTML report available at: twister-out/coverage/index.html"
+        echo "=== Generating Filtered Coverage Report ==="
+        mkdir -p twister-out/filteredReport
 
-        # Find and display coverage summary from all test suites
-        for coverage_file in twister-out/*/native_sim*/*/coverage.info; do
-          if [ -f "$coverage_file" ]; then
-            echo "Coverage for $(dirname $coverage_file):"
-            lcov --summary "$coverage_file" --rc lcov_branch_coverage=1 || true
-          fi
-        done
+        # Generate filtered HTML report with only project source files
+        # Exclude LOG macro branches from coverage (they always show 50% due to compile-time conditionals)
+        gcovr --filter 'src/' --exclude-branches-by-pattern '.*LOG_.*' twister-out --html-details -o twister-out/filteredReport/index.html
+
+        # Display coverage summary
+        echo ""
+        echo "=== Coverage Summary (Project Source Files Only) ==="
+        gcovr --filter 'src/' --exclude-branches-by-pattern '.*LOG_.*' twister-out -s
+
+        echo ""
+        echo "Filtered HTML report available at: twister-out/filteredReport/index.html"
 
     - name: Prepare artifacts
       if: always()
@@ -97,8 +101,8 @@ jobs:
         cp workspace/apps/embedded-services/twister-out/twister.xml artifacts/test-results/ || true
         cp workspace/apps/embedded-services/twister-out/twister_report.xml artifacts/test-results/ || true
 
-        # Copy coverage report
-        cp -r workspace/apps/embedded-services/twister-out/coverage/* artifacts/coverage-report/ || true
+        # Copy filtered coverage report
+        cp -r workspace/apps/embedded-services/twister-out/filteredReport/* artifacts/coverage-report/ || true
 
         echo "Artifacts prepared:"
         ls -la artifacts/test-results/
@@ -156,15 +160,25 @@ jobs:
         fi
 
         # === Coverage (filtered for project source files only) ===
+        # Use gcovr with filter to get coverage for project source files only
+        # Exclude LOG macro branches from coverage (they always show 50% due to compile-time conditionals)
+        # Combine line and branch coverage into a single metric: (line% + branch%) / 2
         COVERAGE=""
 
-        # Use calculate_coverage.py with gcov-dir mode to get accurate source file coverage
-        # This handles source files that are #include'd directly into test files
         if [ -d twister-out ]; then
-          COVERAGE=$(calculate_coverage.py --gcov-dir twister-out -f 'src/' 2>/dev/null) || true
+          GCOVR_OUTPUT=$(gcovr --filter 'src/' --exclude-branches-by-pattern '.*LOG_.*' twister-out -s 2>/dev/null) || true
+          LINE_COV=$(echo "$GCOVR_OUTPUT" | grep '^lines:' | grep -oE '[0-9]+\.[0-9]+' | head -1) || true
+          BRANCH_COV=$(echo "$GCOVR_OUTPUT" | grep '^branches:' | grep -oE '[0-9]+\.[0-9]+' | head -1) || true
+
+          if [ -n "$LINE_COV" ] && [ -n "$BRANCH_COV" ]; then
+            # Calculate average of line and branch coverage
+            COVERAGE=$(awk "BEGIN {printf \"%.1f\", ($LINE_COV + $BRANCH_COV) / 2}")
+          elif [ -n "$LINE_COV" ]; then
+            COVERAGE="$LINE_COV"
+          fi
         fi
 
-        echo "Extracted coverage: ${COVERAGE:-none}"
+        echo "Line coverage: ${LINE_COV:-none}, Branch coverage: ${BRANCH_COV:-none}, Combined: ${COVERAGE:-none}"
 
         if [ -n "$COVERAGE" ]; then
           COV_INT=${COVERAGE%.*}

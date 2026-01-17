@@ -1312,6 +1312,59 @@ ZTEST(adc_util_tests, test_notify_subscribers_success)
 }
 
 /**
+ * Requirement: The adcAcqUtilNotifySubscribers function must skip
+ * paused subscriptions and not allocate memory or call their callbacks.
+ */
+ZTEST(adc_util_tests, test_notify_subscribers_skips_paused)
+{
+  extern AdcSubConfig_t subConfig;
+  extern AdcSubEntry_t *subscriptions;
+  extern osMemoryPoolId_t subDataPool;
+  extern size_t chanCount;
+  extern float *voltValues;
+  AdcSubEntry_t test_subscriptions[2];
+  static uint8_t fake_buffer[64];
+  float test_volt_values[2] = {1.5f, 3.0f};
+  int result;
+
+  /* Set up channel count and voltValues for memcpy */
+  chanCount = 2;
+  voltValues = test_volt_values;
+
+  /* Set up two subscriptions: one paused, one active */
+  test_subscriptions[0].callback = mock_subscription_callback;
+  test_subscriptions[0].isPaused = true;  /* This one should be skipped */
+  test_subscriptions[1].callback = mock_subscription_callback;
+  test_subscriptions[1].isPaused = false; /* This one should be called */
+  subscriptions = test_subscriptions;
+  subConfig.activeSubCount = 2;
+  subDataPool = (osMemoryPoolId_t)0x1000;
+
+  /* Configure osMemoryPoolAlloc to succeed */
+  osMemoryPoolAlloc_fake.return_val = fake_buffer;
+
+  /* Configure callback to return success */
+  mock_subscription_callback_fake.return_val = 0;
+
+  /* Call adcAcqUtilNotifySubscribers */
+  result = adcAcqUtilNotifySubscribers();
+
+  zassert_equal(result, 0,
+                "adcAcqUtilNotifySubscribers should return 0 on success");
+  /* Only one allocation for the non-paused subscription */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once (paused subscription skipped)");
+  /* Only one callback for the non-paused subscription */
+  zassert_equal(mock_subscription_callback_fake.call_count, 1,
+                "Callback should be called once (paused subscription skipped)");
+
+  /* Clean up */
+  subscriptions = NULL;
+  subConfig.activeSubCount = 0;
+  voltValues = NULL;
+}
+
+/**
  * Requirement: The adcAcqUtilAddSubscription function must return -ENOSPC
  * when the maximum subscription count is reached.
  */
@@ -1520,15 +1573,18 @@ ZTEST(adc_util_tests, test_set_sub_pause_state_pause_success)
   AdcSubEntry_t test_subscriptions[4];
   int result;
 
-  /* Initialize subscriptions array with our callback, initially not paused */
+  /* Initialize subscriptions array with 2 subscriptions, target at position 0 */
+  /* This ensures the loop exits early when callback is found (covers err < 0 branch) */
   memset(test_subscriptions, 0, sizeof(test_subscriptions));
   test_subscriptions[0].callback = mock_subscription_callback;
   test_subscriptions[0].isPaused = false;
+  test_subscriptions[1].callback = (AdcSubCallback_t)0xDEADBEEF; /* Different callback */
+  test_subscriptions[1].isPaused = false;
   subscriptions = test_subscriptions;
 
-  /* Set maxSubCount to 4 and activeSubCount to 1 */
+  /* Set maxSubCount to 4 and activeSubCount to 2 */
   subConfig.maxSubCount = 4;
-  subConfig.activeSubCount = 1;
+  subConfig.activeSubCount = 2;
 
   /* Pause the subscription */
   result = adcAcqUtilSetSubPauseState(mock_subscription_callback, true);
@@ -1537,6 +1593,8 @@ ZTEST(adc_util_tests, test_set_sub_pause_state_pause_success)
                 "adcAcqUtilSetSubPauseState should return 0 on success");
   zassert_true(test_subscriptions[0].isPaused,
                "subscription isPaused should be set to true");
+  zassert_false(test_subscriptions[1].isPaused,
+                "other subscription isPaused should remain false");
 
   /* Clean up */
   subscriptions = NULL;
