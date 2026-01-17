@@ -38,6 +38,12 @@ typedef void *osMemoryPoolId_t;
 /* Wrap k_sleep to use mock */
 #define k_sleep k_sleep_mock
 
+/* Wrap k_thread_create to use mock */
+#define k_thread_create k_thread_create_mock
+
+/* Wrap k_thread_name_set to use mock */
+#define k_thread_name_set k_thread_name_set_mock
+
 /* Define service name before including source */
 #define ADC_AQC_SERVICE_NAME adcAcquisition
 
@@ -72,6 +78,9 @@ typedef struct
 
 /* Mock kernel functions */
 FAKE_VOID_FUNC(k_sleep_mock, k_timeout_t);
+FAKE_VALUE_FUNC(k_tid_t, k_thread_create_mock, struct k_thread *, k_thread_stack_t *,
+                size_t, k_thread_entry_t, void *, void *, void *, int, uint32_t, k_timeout_t);
+FAKE_VALUE_FUNC(int, k_thread_name_set_mock, k_tid_t, const char *);
 
 /* Mock utility functions */
 FAKE_VALUE_FUNC(int, adcAcqUtilInitAdc, AdcConfig_t *);
@@ -89,6 +98,8 @@ FAKE_VALUE_FUNC(int, adcAcqFilterInit, size_t);
 
 #define FFF_FAKES_LIST(FAKE) \
   FAKE(k_sleep_mock) \
+  FAKE(k_thread_create_mock) \
+  FAKE(k_thread_name_set_mock) \
   FAKE(adcAcqUtilInitAdc) \
   FAKE(adcAcqUtilInitSubscriptions) \
   FAKE(adcAcqUtilStartTrigger) \
@@ -221,6 +232,287 @@ ZTEST(adc_service_tests, test_run_success)
   /* Verify adcAcqUtilNotifySubscribers was called twice */
   zassert_equal(adcAcqUtilNotifySubscribers_fake.call_count, 2,
                 "adcAcqUtilNotifySubscribers should be called twice");
+}
+
+/**
+ * Requirement: The adcAcqInit function must return -EINVAL when adcConfig is NULL.
+ */
+ZTEST(adc_service_tests, test_init_null_adc_config)
+{
+  AdcSubConfig_t subConfig = {0};
+  k_tid_t threadId;
+  int result;
+
+  /* Execute with NULL adcConfig */
+  result = adcAcqInit(NULL, &subConfig, 5, &threadId);
+
+  /* Verify return value */
+  zassert_equal(result, -EINVAL,
+                "adcAcqInit should return -EINVAL when adcConfig is NULL");
+
+  /* Verify no utility functions were called */
+  zassert_equal(adcAcqUtilInitAdc_fake.call_count, 0,
+                "adcAcqUtilInitAdc should not be called");
+  zassert_equal(adcAcqUtilInitSubscriptions_fake.call_count, 0,
+                "adcAcqUtilInitSubscriptions should not be called");
+  zassert_equal(adcAcqFilterInit_fake.call_count, 0,
+                "adcAcqFilterInit should not be called");
+}
+
+/**
+ * Requirement: The adcAcqInit function must return -EINVAL when adcSubConfig is NULL.
+ */
+ZTEST(adc_service_tests, test_init_null_sub_config)
+{
+  AdcConfig_t adcConfig = {0};
+  k_tid_t threadId;
+  int result;
+
+  /* Execute with NULL adcSubConfig */
+  result = adcAcqInit(&adcConfig, NULL, 5, &threadId);
+
+  /* Verify return value */
+  zassert_equal(result, -EINVAL,
+                "adcAcqInit should return -EINVAL when adcSubConfig is NULL");
+
+  /* Verify no utility functions were called */
+  zassert_equal(adcAcqUtilInitAdc_fake.call_count, 0,
+                "adcAcqUtilInitAdc should not be called");
+  zassert_equal(adcAcqUtilInitSubscriptions_fake.call_count, 0,
+                "adcAcqUtilInitSubscriptions should not be called");
+  zassert_equal(adcAcqFilterInit_fake.call_count, 0,
+                "adcAcqFilterInit should not be called");
+}
+
+/**
+ * Requirement: The adcAcqInit function must return error when adcAcqUtilInitAdc fails.
+ */
+ZTEST(adc_service_tests, test_init_adc_init_failure)
+{
+  AdcConfig_t adcConfig = {.samplingRate = 500, .filterTau = 31};
+  AdcSubConfig_t subConfig = {0};
+  k_tid_t threadId;
+  int result;
+
+  /* Setup: adcAcqUtilInitAdc returns error */
+  adcAcqUtilInitAdc_fake.return_val = -EIO;
+
+  /* Execute */
+  result = adcAcqInit(&adcConfig, &subConfig, 5, &threadId);
+
+  /* Verify return value */
+  zassert_equal(result, -EIO,
+                "adcAcqInit should return error from adcAcqUtilInitAdc");
+
+  /* Verify adcAcqUtilInitAdc was called with correct parameter */
+  zassert_equal(adcAcqUtilInitAdc_fake.call_count, 1,
+                "adcAcqUtilInitAdc should be called once");
+  zassert_equal(adcAcqUtilInitAdc_fake.arg0_val, &adcConfig,
+                "adcAcqUtilInitAdc should be called with adcConfig");
+
+  /* Verify subsequent functions were not called */
+  zassert_equal(adcAcqUtilInitSubscriptions_fake.call_count, 0,
+                "adcAcqUtilInitSubscriptions should not be called");
+  zassert_equal(adcAcqFilterInit_fake.call_count, 0,
+                "adcAcqFilterInit should not be called");
+}
+
+/**
+ * Requirement: The adcAcqInit function must return error when adcAcqUtilInitSubscriptions fails.
+ */
+ZTEST(adc_service_tests, test_init_subscriptions_init_failure)
+{
+  AdcConfig_t adcConfig = {.samplingRate = 500, .filterTau = 31};
+  AdcSubConfig_t subConfig = {.maxSubCount = 4, .activeSubCount = 0, .notificationRate = 100};
+  k_tid_t threadId;
+  int result;
+
+  /* Setup: adcAcqUtilInitAdc succeeds, adcAcqUtilInitSubscriptions fails */
+  adcAcqUtilInitAdc_fake.return_val = 0;
+  adcAcqUtilInitSubscriptions_fake.return_val = -ENOMEM;
+
+  /* Execute */
+  result = adcAcqInit(&adcConfig, &subConfig, 5, &threadId);
+
+  /* Verify return value */
+  zassert_equal(result, -ENOMEM,
+                "adcAcqInit should return error from adcAcqUtilInitSubscriptions");
+
+  /* Verify adcAcqUtilInitAdc was called with correct parameter */
+  zassert_equal(adcAcqUtilInitAdc_fake.call_count, 1,
+                "adcAcqUtilInitAdc should be called once");
+  zassert_equal(adcAcqUtilInitAdc_fake.arg0_val, &adcConfig,
+                "adcAcqUtilInitAdc should be called with adcConfig");
+
+  /* Verify adcAcqUtilInitSubscriptions was called with correct parameter */
+  zassert_equal(adcAcqUtilInitSubscriptions_fake.call_count, 1,
+                "adcAcqUtilInitSubscriptions should be called once");
+  zassert_equal(adcAcqUtilInitSubscriptions_fake.arg0_val, &subConfig,
+                "adcAcqUtilInitSubscriptions should be called with subConfig");
+
+  /* Verify subsequent functions were not called */
+  zassert_equal(adcAcqFilterInit_fake.call_count, 0,
+                "adcAcqFilterInit should not be called");
+}
+
+/**
+ * Requirement: The adcAcqInit function must return error when adcAcqFilterInit fails.
+ */
+ZTEST(adc_service_tests, test_init_filter_init_failure)
+{
+  AdcConfig_t adcConfig = {.samplingRate = 500, .filterTau = 31};
+  AdcSubConfig_t subConfig = {.maxSubCount = 4, .activeSubCount = 0, .notificationRate = 100};
+  k_tid_t threadId;
+  int result;
+
+  /* Setup: adcAcqUtilInitAdc and adcAcqUtilInitSubscriptions succeed, adcAcqFilterInit fails */
+  adcAcqUtilInitAdc_fake.return_val = 0;
+  adcAcqUtilInitSubscriptions_fake.return_val = 0;
+  adcAcqUtilGetChanCount_fake.return_val = 4;
+  adcAcqFilterInit_fake.return_val = -ENOMEM;
+
+  /* Execute */
+  result = adcAcqInit(&adcConfig, &subConfig, 5, &threadId);
+
+  /* Verify return value */
+  zassert_equal(result, -ENOMEM,
+                "adcAcqInit should return error from adcAcqFilterInit");
+
+  /* Verify adcAcqUtilInitAdc was called with correct parameter */
+  zassert_equal(adcAcqUtilInitAdc_fake.call_count, 1,
+                "adcAcqUtilInitAdc should be called once");
+  zassert_equal(adcAcqUtilInitAdc_fake.arg0_val, &adcConfig,
+                "adcAcqUtilInitAdc should be called with adcConfig");
+
+  /* Verify adcAcqUtilInitSubscriptions was called with correct parameter */
+  zassert_equal(adcAcqUtilInitSubscriptions_fake.call_count, 1,
+                "adcAcqUtilInitSubscriptions should be called once");
+  zassert_equal(adcAcqUtilInitSubscriptions_fake.arg0_val, &subConfig,
+                "adcAcqUtilInitSubscriptions should be called with subConfig");
+
+  /* Verify adcAcqFilterInit was called with channel count */
+  zassert_equal(adcAcqUtilGetChanCount_fake.call_count, 1,
+                "adcAcqUtilGetChanCount should be called once");
+  zassert_equal(adcAcqFilterInit_fake.call_count, 1,
+                "adcAcqFilterInit should be called once");
+  zassert_equal(adcAcqFilterInit_fake.arg0_val, 4,
+                "adcAcqFilterInit should be called with channel count 4");
+}
+
+/**
+ * Requirement: The adcAcqInit function must return error when k_thread_name_set fails.
+ */
+ZTEST(adc_service_tests, test_init_thread_name_set_failure)
+{
+  AdcConfig_t adcConfig = {.samplingRate = 500, .filterTau = 31};
+  AdcSubConfig_t subConfig = {.maxSubCount = 4, .activeSubCount = 0, .notificationRate = 100};
+  k_tid_t threadId;
+  int result;
+
+  /* Setup: all init functions succeed, k_thread_name_set fails */
+  adcAcqUtilInitAdc_fake.return_val = 0;
+  adcAcqUtilInitSubscriptions_fake.return_val = 0;
+  adcAcqUtilGetChanCount_fake.return_val = 4;
+  adcAcqFilterInit_fake.return_val = 0;
+  k_thread_create_mock_fake.return_val = (k_tid_t)&thread;
+  k_thread_name_set_mock_fake.return_val = -ENOMEM;
+
+  /* Execute */
+  result = adcAcqInit(&adcConfig, &subConfig, 5, &threadId);
+
+  /* Verify return value */
+  zassert_equal(result, -ENOMEM,
+                "adcAcqInit should return error from k_thread_name_set");
+
+  /* Verify all init functions were called */
+  zassert_equal(adcAcqUtilInitAdc_fake.call_count, 1,
+                "adcAcqUtilInitAdc should be called once");
+  zassert_equal(adcAcqUtilInitSubscriptions_fake.call_count, 1,
+                "adcAcqUtilInitSubscriptions should be called once");
+  zassert_equal(adcAcqFilterInit_fake.call_count, 1,
+                "adcAcqFilterInit should be called once");
+
+  /* Verify k_thread_create was called */
+  zassert_equal(k_thread_create_mock_fake.call_count, 1,
+                "k_thread_create should be called once");
+
+  /* Verify k_thread_name_set was called */
+  zassert_equal(k_thread_name_set_mock_fake.call_count, 1,
+                "k_thread_name_set should be called once");
+}
+
+/**
+ * Requirement: The adcAcqInit function must initialize all components and create the thread.
+ */
+ZTEST(adc_service_tests, test_init_success)
+{
+  AdcConfig_t adcConfig = {.samplingRate = 500, .filterTau = 31};
+  AdcSubConfig_t subConfig = {.maxSubCount = 4, .activeSubCount = 0, .notificationRate = 100};
+  k_tid_t threadId;
+  int result;
+
+  /* Setup: all functions succeed */
+  adcAcqUtilInitAdc_fake.return_val = 0;
+  adcAcqUtilInitSubscriptions_fake.return_val = 0;
+  adcAcqUtilGetChanCount_fake.return_val = 4;
+  adcAcqFilterInit_fake.return_val = 0;
+  k_thread_create_mock_fake.return_val = (k_tid_t)&thread;
+  k_thread_name_set_mock_fake.return_val = 0;
+
+  /* Execute */
+  result = adcAcqInit(&adcConfig, &subConfig, 5, &threadId);
+
+  /* Verify return value */
+  zassert_equal(result, 0,
+                "adcAcqInit should return 0 on success");
+
+  /* Verify threadId was set */
+  zassert_equal(threadId, (k_tid_t)&thread,
+                "threadId should be set to the created thread");
+
+  /* Verify adcAcqUtilInitAdc was called with correct parameter */
+  zassert_equal(adcAcqUtilInitAdc_fake.call_count, 1,
+                "adcAcqUtilInitAdc should be called once");
+  zassert_equal(adcAcqUtilInitAdc_fake.arg0_val, &adcConfig,
+                "adcAcqUtilInitAdc should be called with adcConfig");
+
+  /* Verify adcAcqUtilInitSubscriptions was called with correct parameter */
+  zassert_equal(adcAcqUtilInitSubscriptions_fake.call_count, 1,
+                "adcAcqUtilInitSubscriptions should be called once");
+  zassert_equal(adcAcqUtilInitSubscriptions_fake.arg0_val, &subConfig,
+                "adcAcqUtilInitSubscriptions should be called with subConfig");
+
+  /* Verify adcAcqFilterInit was called with channel count */
+  zassert_equal(adcAcqUtilGetChanCount_fake.call_count, 1,
+                "adcAcqUtilGetChanCount should be called once");
+  zassert_equal(adcAcqFilterInit_fake.call_count, 1,
+                "adcAcqFilterInit should be called once");
+  zassert_equal(adcAcqFilterInit_fake.arg0_val, 4,
+                "adcAcqFilterInit should be called with channel count 4");
+
+  /* Verify k_thread_create was called with correct parameters */
+  zassert_equal(k_thread_create_mock_fake.call_count, 1,
+                "k_thread_create should be called once");
+  zassert_equal(k_thread_create_mock_fake.arg0_val, &thread,
+                "k_thread_create should be called with thread struct");
+  zassert_equal(k_thread_create_mock_fake.arg2_val, CONFIG_ENYA_ADC_ACQUISITION_STACK_SIZE,
+                "k_thread_create should be called with correct stack size");
+  zassert_equal(k_thread_create_mock_fake.arg3_val, run,
+                "k_thread_create should be called with run function");
+  zassert_equal((uintptr_t)k_thread_create_mock_fake.arg4_val, subConfig.notificationRate,
+                "k_thread_create should be called with notification rate as p1");
+  zassert_is_null(k_thread_create_mock_fake.arg5_val,
+                  "k_thread_create should be called with NULL as p2");
+  zassert_is_null(k_thread_create_mock_fake.arg6_val,
+                  "k_thread_create should be called with NULL as p3");
+
+  /* Verify k_thread_name_set was called with correct parameters */
+  zassert_equal(k_thread_name_set_mock_fake.call_count, 1,
+                "k_thread_name_set should be called once");
+  zassert_equal(k_thread_name_set_mock_fake.arg0_val, &thread,
+                "k_thread_name_set should be called with thread struct");
+  zassert_str_equal(k_thread_name_set_mock_fake.arg1_val, "adcAcquisition",
+                    "k_thread_name_set should be called with service name");
 }
 
 ZTEST_SUITE(adc_service_tests, NULL, service_tests_setup, service_tests_before, NULL, NULL);
