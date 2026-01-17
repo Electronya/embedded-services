@@ -44,6 +44,9 @@ typedef void *osMemoryPoolId_t;
 /* Wrap k_thread_name_set to use mock */
 #define k_thread_name_set k_thread_name_set_mock
 
+/* Wrap k_thread_start to use mock */
+#define k_thread_start k_thread_start_mock
+
 /* Define service name before including source */
 #define ADC_AQC_SERVICE_NAME adcAcquisition
 
@@ -81,6 +84,7 @@ FAKE_VOID_FUNC(k_sleep_mock, k_timeout_t);
 FAKE_VALUE_FUNC(k_tid_t, k_thread_create_mock, struct k_thread *, k_thread_stack_t *,
                 size_t, k_thread_entry_t, void *, void *, void *, int, uint32_t, k_timeout_t);
 FAKE_VALUE_FUNC(int, k_thread_name_set_mock, k_tid_t, const char *);
+FAKE_VOID_FUNC(k_thread_start_mock, k_tid_t);
 
 /* Mock utility functions */
 FAKE_VALUE_FUNC(int, adcAcqUtilInitAdc, AdcConfig_t *);
@@ -100,6 +104,7 @@ FAKE_VALUE_FUNC(int, adcAcqFilterInit, size_t);
   FAKE(k_sleep_mock) \
   FAKE(k_thread_create_mock) \
   FAKE(k_thread_name_set_mock) \
+  FAKE(k_thread_start_mock) \
   FAKE(adcAcqUtilInitAdc) \
   FAKE(adcAcqUtilInitSubscriptions) \
   FAKE(adcAcqUtilStartTrigger) \
@@ -513,6 +518,62 @@ ZTEST(adc_service_tests, test_init_success)
                 "k_thread_name_set should be called with thread struct");
   zassert_str_equal(k_thread_name_set_mock_fake.arg1_val, "adcAcquisition",
                     "k_thread_name_set should be called with service name");
+}
+
+/**
+ * Requirement: The adcAcqStart function must return error when adcAcqUtilStartTrigger fails.
+ */
+ZTEST(adc_service_tests, test_start_trigger_failure)
+{
+  int result;
+
+  /* Setup: adcAcqUtilStartTrigger returns error */
+  adcAcqUtilStartTrigger_fake.return_val = -EIO;
+
+  /* Execute */
+  result = adcAcqStart();
+
+  /* Verify return value */
+  zassert_equal(result, -EIO,
+                "adcAcqStart should return error from adcAcqUtilStartTrigger");
+
+  /* Verify k_thread_start was called with thread struct */
+  zassert_equal(k_thread_start_mock_fake.call_count, 1,
+                "k_thread_start should be called once");
+  zassert_equal(k_thread_start_mock_fake.arg0_val, &thread,
+                "k_thread_start should be called with thread struct");
+
+  /* Verify adcAcqUtilStartTrigger was called */
+  zassert_equal(adcAcqUtilStartTrigger_fake.call_count, 1,
+                "adcAcqUtilStartTrigger should be called once");
+}
+
+/**
+ * Requirement: The adcAcqStart function must start the thread and trigger.
+ */
+ZTEST(adc_service_tests, test_start_success)
+{
+  int result;
+
+  /* Setup: adcAcqUtilStartTrigger succeeds */
+  adcAcqUtilStartTrigger_fake.return_val = 0;
+
+  /* Execute */
+  result = adcAcqStart();
+
+  /* Verify return value */
+  zassert_equal(result, 0,
+                "adcAcqStart should return 0 on success");
+
+  /* Verify k_thread_start was called with thread struct */
+  zassert_equal(k_thread_start_mock_fake.call_count, 1,
+                "k_thread_start should be called once");
+  zassert_equal(k_thread_start_mock_fake.arg0_val, &thread,
+                "k_thread_start should be called with thread struct");
+
+  /* Verify adcAcqUtilStartTrigger was called */
+  zassert_equal(adcAcqUtilStartTrigger_fake.call_count, 1,
+                "adcAcqUtilStartTrigger should be called once");
 }
 
 ZTEST_SUITE(adc_service_tests, NULL, service_tests_setup, service_tests_before, NULL, NULL);
