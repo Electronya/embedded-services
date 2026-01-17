@@ -40,6 +40,12 @@ static struct k_thread thread;
  * @param[in]   p2: The second parameter.
  * @param[in]   p3: The third parameter.
  */
+#ifdef CONFIG_ZTEST
+#ifndef ADC_ACQ_RUN_ITERATIONS
+#define ADC_ACQ_RUN_ITERATIONS 1
+#endif
+#endif
+
 void run(void *p1, void *p2, void *p3)
 {
   int err;
@@ -47,7 +53,11 @@ void run(void *p1, void *p2, void *p3)
 
   LOG_INF("ADC acquisition thread started, notification rate: %d ms", notificationRate);
 
+#ifdef CONFIG_ZTEST
+  for(size_t i = 0; i < ADC_ACQ_RUN_ITERATIONS; ++i)
+#else
   for(;;)
+#endif
   {
     k_sleep(K_MSEC(notificationRate));
 
