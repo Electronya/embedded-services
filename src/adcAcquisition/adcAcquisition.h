@@ -20,7 +20,7 @@
 #include <zephyr/drivers/adc.h>
 #include <zephyr/portability/cmsis_os2.h>
 
-#include "serviceCommon/serviceCommon.h"
+#include "serviceCommon.h"
 
 /**
  * @brief   The ADC subscription callback type.
