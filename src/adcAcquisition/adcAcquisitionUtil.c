@@ -52,7 +52,7 @@ LOG_MODULE_DECLARE(ADC_AQC_SERVICE_NAME);
 /**
  * @brief   The ADC full range value.
  */
-#define ADC_FULL_RANGE_VALUE                                            (16383.0f)
+#define ADC_FULL_RANGE_VALUE                                            (4095.0f)
 
 /**
  * @brief   The user node from devicetree.
