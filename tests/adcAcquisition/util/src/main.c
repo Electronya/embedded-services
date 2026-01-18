@@ -1128,8 +1128,8 @@ ZTEST(adc_util_tests, test_process_data_success)
   float test_volt_values[2];
   int result;
   const float expected_vdd = 3.0f;
-  const float expected_volt0 = (8192.0f * expected_vdd) / 16383.0f;   /* ≈ 1.5V */
-  const float expected_volt1 = (16383.0f * expected_vdd) / 16383.0f; /* = 3.0V */
+  const float expected_volt0 = (2048.0f * expected_vdd) / 4095.0f;   /* ≈ 1.5V */
+  const float expected_volt1 = (4095.0f * expected_vdd) / 4095.0f; /* = 3.0V */
 
   /* Set up voltValues array */
   voltValues = test_volt_values;
