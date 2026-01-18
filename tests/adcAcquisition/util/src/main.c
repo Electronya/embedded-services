@@ -1105,10 +1105,10 @@ ZTEST(adc_util_tests, test_process_data_channel_read_failure)
 /**
  * Custom fake for adcAcqFilterGetThirdOrderData that provides test data.
  * Call 0 (Vref): returns 1500 -> VDD = 3.0V
- * Call 1 (channel 0): returns 8192 -> voltage = 8192 * 3.0 / 16383 ≈ 1.5V
- * Call 2 (channel 1): returns 16383 -> voltage = 16383 * 3.0 / 16383 = 3.0V
+ * Call 1 (channel 0): returns 2048 -> voltage = 2048 * 3.0 / 4095 ≈ 1.5V
+ * Call 2 (channel 1): returns 4095 -> voltage = 4095 * 3.0 / 4095 = 3.0V
  */
-static int process_data_test_values[] = {1500, 8192, 16383};
+static int process_data_test_values[] = {1500, 2048, 4095};
 static size_t process_data_call_idx = 0;
 
 static int adcAcqFilterGetThirdOrderData_process_success(size_t chanId, int32_t *data)
