@@ -554,15 +554,15 @@ int adcAcqUtilProcessData(void)
 int adcAcqUtilNotifySubscribers(void)
 {
   int err;
-  SrvMsgPayload_t *data;
+  SrvMsgPayload_t *payload;
 
   for(size_t i = 0; i < subConfig.activeSubCount; ++i)
   {
     if(!subscriptions[i].isPaused)
     {
       /* Allocate buffer from pool */
-      data = (SrvMsgPayload_t *)osMemoryPoolAlloc(subDataPool, 0);
-      if(data == NULL)
+      payload = (SrvMsgPayload_t *)osMemoryPoolAlloc(subDataPool, 0);
+      if(payload == NULL)
       {
         err = -ENOSPC;
         LOG_ERR("ERROR %d: pool allocation failed for subscription %d", err, i);
@@ -570,17 +570,17 @@ int adcAcqUtilNotifySubscribers(void)
       }
 
       /* Fill in data */
-      data->poolId = subDataPool;
-      data->dataLen = chanCount * sizeof(float);
-      memcpy(data->data, voltValues, chanCount * sizeof(float));
+      payload->poolId = subDataPool;
+      payload->dataLen = chanCount * sizeof(float);
+      memcpy(payload->data, voltValues, chanCount * sizeof(float));
 
       /* Call subscriber callback */
-      err = subscriptions[i].callback(data);
+      err = subscriptions[i].callback(payload);
       if(err < 0)
       {
         LOG_ERR("ERROR %d: callback failed for subscription %d", err, i);
         /* Free the buffer since callback failed */
-        osMemoryPoolFree(subDataPool, data);
+        osMemoryPoolFree(subDataPool, payload);
       }
     }
   }
