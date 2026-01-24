@@ -21,6 +21,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+typedef union
+{
+  float floatVal;                 /**< Float value. */
+  uint32_t uintVal;               /**< unsigned integer/multi-state/button value. */
+  int32_t intVal;                 /**< signed integer value. */
+} Data_t;
+
 /**
  * @brief   The service message payload data structure.
  *
@@ -33,7 +40,7 @@ typedef struct
 {
   osMemoryPoolId_t poolId;                          /**< Memory pool to return buffer to. */
   size_t dataLen;                                   /**< Actual data length in bytes. */
-  uint8_t data[];                                   /**< Flexible array of data bytes. */
+  Data_t data[];                                    /**< Flexible array of data bytes. */
 } SrvMsgPayload_t;
 
 #endif    /* SERVICE_COMMON_H */
