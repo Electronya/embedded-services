@@ -206,13 +206,13 @@ jobs:
           -d @- << EOF
         {
           "files": {
-            "build.json": {
+            "embedded-services-build.json": {
               "content": "{\n  \"schemaVersion\": 1,\n  \"label\": \"build\",\n  \"message\": \"${BUILD_STATUS}\",\n  \"color\": \"${BUILD_COLOR}\"\n}"
             },
-            "tests.json": {
+            "embedded-services-tests.json": {
               "content": "{\n  \"schemaVersion\": 1,\n  \"label\": \"tests\",\n  \"message\": \"${TESTS_MSG}\",\n  \"color\": \"${TESTS_COLOR}\"\n}"
             },
-            "coverage.json": {
+            "embedded-services-coverage.json": {
               "content": "{\n  \"schemaVersion\": 1,\n  \"label\": \"coverage\",\n  \"message\": \"${COV_MSG}\",\n  \"color\": \"${COV_COLOR}\"\n}"
             }
           }
