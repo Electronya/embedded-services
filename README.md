@@ -1,4 +1,4 @@
-# Embedded-Services
+# Embedded Services
 
 ![Build](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JudeBake/6aa3080953d92cad7d9ec93b8606c348/raw/embedded-services-build.json)
 ![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JudeBake/6aa3080953d92cad7d9ec93b8606c348/raw/embedded-services-tests.json)
