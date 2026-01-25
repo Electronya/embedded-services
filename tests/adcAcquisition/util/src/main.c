@@ -231,7 +231,7 @@ static void util_tests_before(void *fixture)
 }
 
 /**
- * Requirement: The configureChannels function must return -EBUSY when
+ * @test The configureChannels function must return -EBUSY when
  * ADC device is not ready.
  */
 ZTEST(adc_util_tests, test_configure_channels_adc_not_ready)
@@ -252,7 +252,7 @@ ZTEST(adc_util_tests, test_configure_channels_adc_not_ready)
 }
 
 /**
- * Requirement: The configureChannels function must return an error when
+ * @test The configureChannels function must return an error when
  * adc_channel_setup_dt fails.
  */
 ZTEST(adc_util_tests, test_configure_channels_setup_failure)
@@ -276,7 +276,7 @@ ZTEST(adc_util_tests, test_configure_channels_setup_failure)
 }
 
 /**
- * Requirement: The configureChannels function must successfully configure
+ * @test The configureChannels function must successfully configure
  * all ADC channels when all operations succeed.
  */
 ZTEST(adc_util_tests, test_configure_channels_success)
@@ -312,7 +312,7 @@ ZTEST(adc_util_tests, test_configure_channels_success)
 }
 
 /**
- * Requirement: The triggerConversion function must clear adcBusy flag when
+ * @test The triggerConversion function must clear adcBusy flag when
  * adc_read_async fails.
  */
 ZTEST(adc_util_tests, test_trigger_conversion_adc_read_failure)
@@ -339,7 +339,7 @@ ZTEST(adc_util_tests, test_trigger_conversion_adc_read_failure)
 }
 
 /**
- * Requirement: The triggerConversion function must skip conversion when
+ * @test The triggerConversion function must skip conversion when
  * ADC is busy.
  */
 ZTEST(adc_util_tests, test_trigger_conversion_adc_busy)
@@ -363,7 +363,7 @@ ZTEST(adc_util_tests, test_trigger_conversion_adc_busy)
 }
 
 /**
- * Requirement: The triggerConversion function must successfully start ADC
+ * @test The triggerConversion function must successfully start ADC
  * conversion when ADC is not busy.
  */
 ZTEST(adc_util_tests, test_trigger_conversion_success)
@@ -401,7 +401,7 @@ ZTEST(adc_util_tests, test_trigger_conversion_success)
 }
 
 /**
- * Requirement: The configureTimer function must return -EBUSY when
+ * @test The configureTimer function must return -EBUSY when
  * timer device is not ready.
  */
 ZTEST(adc_util_tests, test_configure_timer_device_not_ready)
@@ -422,7 +422,7 @@ ZTEST(adc_util_tests, test_configure_timer_device_not_ready)
 }
 
 /**
- * Requirement: The configureTimer function must successfully configure
+ * @test The configureTimer function must successfully configure
  * the timer when device is ready.
  */
 ZTEST(adc_util_tests, test_configure_timer_success)
@@ -468,7 +468,7 @@ ZTEST(adc_util_tests, test_configure_timer_success)
 }
 
 /**
- * Requirement: The adcSeqCallback function must clear adcBusy flag and
+ * @test The adcSeqCallback function must clear adcBusy flag and
  * return ADC_ACTION_FINISH even when filter push fails.
  */
 ZTEST(adc_util_tests, test_adc_seq_callback_filter_push_failure)
@@ -512,7 +512,7 @@ ZTEST(adc_util_tests, test_adc_seq_callback_filter_push_failure)
 }
 
 /**
- * Requirement: The adcSeqCallback function must successfully push data to
+ * @test The adcSeqCallback function must successfully push data to
  * filters and clear adcBusy flag.
  */
 ZTEST(adc_util_tests, test_adc_seq_callback_success)
@@ -570,7 +570,7 @@ ZTEST(adc_util_tests, test_adc_seq_callback_success)
 }
 
 /**
- * Requirement: The setupSequence function must correctly initialize the
+ * @test The setupSequence function must correctly initialize the
  * ADC sequence and sequence options structures.
  */
 ZTEST(adc_util_tests, test_setup_sequence)
@@ -619,7 +619,7 @@ ZTEST(adc_util_tests, test_setup_sequence)
 }
 
 /**
- * Requirement: The calculateVdd function must correctly calculate VDD
+ * @test The calculateVdd function must correctly calculate VDD
  * when vrefVal equals the calibration value (VDD = 3.0V).
  */
 ZTEST(adc_util_tests, test_calculate_vdd_at_calibration_voltage)
@@ -638,7 +638,7 @@ ZTEST(adc_util_tests, test_calculate_vdd_at_calibration_voltage)
 }
 
 /**
- * Requirement: The calculateVdd function must correctly calculate VDD
+ * @test The calculateVdd function must correctly calculate VDD
  * when vrefVal is lower than calibration (indicating higher VDD).
  */
 ZTEST(adc_util_tests, test_calculate_vdd_higher_voltage)
@@ -657,7 +657,7 @@ ZTEST(adc_util_tests, test_calculate_vdd_higher_voltage)
 }
 
 /**
- * Requirement: The calculateVdd function must correctly calculate VDD
+ * @test The calculateVdd function must correctly calculate VDD
  * when vrefVal is higher than calibration (indicating lower VDD).
  */
 ZTEST(adc_util_tests, test_calculate_vdd_lower_voltage)
@@ -676,7 +676,7 @@ ZTEST(adc_util_tests, test_calculate_vdd_lower_voltage)
 }
 
 /**
- * Requirement: The adcAcqUtilInitAdc function must return -ENOSPC when
+ * @test The adcAcqUtilInitAdc function must return -ENOSPC when
  * buffer allocation fails.
  */
 ZTEST(adc_util_tests, test_init_adc_buffer_allocation_failure)
@@ -700,7 +700,7 @@ ZTEST(adc_util_tests, test_init_adc_buffer_allocation_failure)
 }
 
 /**
- * Requirement: The adcAcqUtilInitAdc function must return -ENOSPC when
+ * @test The adcAcqUtilInitAdc function must return -ENOSPC when
  * volt values allocation fails.
  */
 ZTEST(adc_util_tests, test_init_adc_volt_values_allocation_failure)
@@ -726,7 +726,7 @@ ZTEST(adc_util_tests, test_init_adc_volt_values_allocation_failure)
 }
 
 /**
- * Requirement: The adcAcqUtilInitAdc function must return -EBUSY when
+ * @test The adcAcqUtilInitAdc function must return -EBUSY when
  * channel configuration fails due to ADC not ready.
  */
 ZTEST(adc_util_tests, test_init_adc_configure_channels_failure)
@@ -758,7 +758,7 @@ ZTEST(adc_util_tests, test_init_adc_configure_channels_failure)
 }
 
 /**
- * Requirement: The adcAcqUtilInitAdc function must return -EBUSY when
+ * @test The adcAcqUtilInitAdc function must return -EBUSY when
  * timer configuration fails due to timer device not ready.
  */
 ZTEST(adc_util_tests, test_init_adc_configure_timer_failure)
@@ -798,7 +798,7 @@ ZTEST(adc_util_tests, test_init_adc_configure_timer_failure)
 }
 
 /**
- * Requirement: The adcAcqUtilInitAdc function must return -EIO when
+ * @test The adcAcqUtilInitAdc function must return -EIO when
  * enabling VREFINT fails.
  */
 ZTEST(adc_util_tests, test_init_adc_enable_vrefint_failure)
@@ -833,7 +833,7 @@ ZTEST(adc_util_tests, test_init_adc_enable_vrefint_failure)
 }
 
 /**
- * Requirement: The adcAcqUtilInitAdc function must successfully initialize
+ * @test The adcAcqUtilInitAdc function must successfully initialize
  * the ADC when all operations succeed.
  */
 ZTEST(adc_util_tests, test_init_adc_success)
@@ -876,7 +876,7 @@ ZTEST(adc_util_tests, test_init_adc_success)
 }
 
 /**
- * Requirement: The adcAcqUtilInitSubscriptions function must return -ENOSPC
+ * @test The adcAcqUtilInitSubscriptions function must return -ENOSPC
  * when subscription allocation fails.
  */
 ZTEST(adc_util_tests, test_init_subscriptions_allocation_failure)
@@ -900,7 +900,7 @@ ZTEST(adc_util_tests, test_init_subscriptions_allocation_failure)
 }
 
 /**
- * Requirement: The adcAcqUtilInitSubscriptions function must return -ENOMEM
+ * @test The adcAcqUtilInitSubscriptions function must return -ENOMEM
  * when memory pool creation fails.
  */
 ZTEST(adc_util_tests, test_init_subscriptions_pool_creation_failure)
@@ -930,7 +930,7 @@ ZTEST(adc_util_tests, test_init_subscriptions_pool_creation_failure)
 }
 
 /**
- * Requirement: The adcAcqUtilInitSubscriptions function must successfully
+ * @test The adcAcqUtilInitSubscriptions function must successfully
  * initialize subscriptions when all operations succeed.
  */
 ZTEST(adc_util_tests, test_init_subscriptions_success)
@@ -977,7 +977,7 @@ ZTEST(adc_util_tests, test_init_subscriptions_success)
 }
 
 /**
- * Requirement: The adcAcqUtilStartTrigger function must return an error when
+ * @test The adcAcqUtilStartTrigger function must return an error when
  * counter_set_top_value fails.
  */
 ZTEST(adc_util_tests, test_start_trigger_set_top_value_failure)
@@ -999,7 +999,7 @@ ZTEST(adc_util_tests, test_start_trigger_set_top_value_failure)
 }
 
 /**
- * Requirement: The adcAcqUtilStartTrigger function must return an error when
+ * @test The adcAcqUtilStartTrigger function must return an error when
  * counter_start fails.
  */
 ZTEST(adc_util_tests, test_start_trigger_counter_start_failure)
@@ -1024,7 +1024,7 @@ ZTEST(adc_util_tests, test_start_trigger_counter_start_failure)
 }
 
 /**
- * Requirement: The adcAcqUtilStartTrigger function must successfully start
+ * @test The adcAcqUtilStartTrigger function must successfully start
  * the trigger timer when all operations succeed.
  */
 ZTEST(adc_util_tests, test_start_trigger_success)
@@ -1056,7 +1056,7 @@ ZTEST(adc_util_tests, test_start_trigger_success)
 }
 
 /**
- * Requirement: The adcAcqUtilProcessData function must return an error when
+ * @test The adcAcqUtilProcessData function must return an error when
  * reading the Vref channel data fails.
  */
 ZTEST(adc_util_tests, test_process_data_vref_read_failure)
@@ -1078,7 +1078,7 @@ ZTEST(adc_util_tests, test_process_data_vref_read_failure)
 }
 
 /**
- * Requirement: The adcAcqUtilProcessData function must return an error when
+ * @test The adcAcqUtilProcessData function must return an error when
  * reading channel data in the conversion loop fails.
  */
 ZTEST(adc_util_tests, test_process_data_channel_read_failure)
@@ -1119,7 +1119,7 @@ static int adcAcqFilterGetThirdOrderData_process_success(size_t chanId, int32_t 
 }
 
 /**
- * Requirement: The adcAcqUtilProcessData function must successfully process
+ * @test The adcAcqUtilProcessData function must successfully process
  * all channel data and calculate voltages when all operations succeed.
  */
 ZTEST(adc_util_tests, test_process_data_success)
@@ -1163,7 +1163,7 @@ ZTEST(adc_util_tests, test_process_data_success)
 }
 
 /**
- * Requirement: The adcAcqUtilNotifySubscribers function must skip callback
+ * @test The adcAcqUtilNotifySubscribers function must skip callback
  * when memory pool allocation fails.
  */
 ZTEST(adc_util_tests, test_notify_subscribers_pool_alloc_failure)
@@ -1202,7 +1202,7 @@ ZTEST(adc_util_tests, test_notify_subscribers_pool_alloc_failure)
 }
 
 /**
- * Requirement: The adcAcqUtilNotifySubscribers function must free the buffer
+ * @test The adcAcqUtilNotifySubscribers function must free the buffer
  * when callback returns an error.
  */
 ZTEST(adc_util_tests, test_notify_subscribers_callback_failure)
@@ -1257,7 +1257,7 @@ ZTEST(adc_util_tests, test_notify_subscribers_callback_failure)
 }
 
 /**
- * Requirement: The adcAcqUtilNotifySubscribers function must successfully
+ * @test The adcAcqUtilNotifySubscribers function must successfully
  * notify all active subscribers when all operations succeed.
  */
 ZTEST(adc_util_tests, test_notify_subscribers_success)
@@ -1312,7 +1312,7 @@ ZTEST(adc_util_tests, test_notify_subscribers_success)
 }
 
 /**
- * Requirement: The adcAcqUtilNotifySubscribers function must skip
+ * @test The adcAcqUtilNotifySubscribers function must skip
  * paused subscriptions and not allocate memory or call their callbacks.
  */
 ZTEST(adc_util_tests, test_notify_subscribers_skips_paused)
@@ -1365,7 +1365,7 @@ ZTEST(adc_util_tests, test_notify_subscribers_skips_paused)
 }
 
 /**
- * Requirement: The adcAcqUtilAddSubscription function must return -ENOSPC
+ * @test The adcAcqUtilAddSubscription function must return -ENOSPC
  * when the maximum subscription count is reached.
  */
 ZTEST(adc_util_tests, test_add_subscription_max_reached)
@@ -1397,7 +1397,7 @@ ZTEST(adc_util_tests, test_add_subscription_max_reached)
 }
 
 /**
- * Requirement: The adcAcqUtilAddSubscription function must successfully add
+ * @test The adcAcqUtilAddSubscription function must successfully add
  * a subscription when there is available space.
  *
  * Note: This function does not call any external functions in the success
@@ -1437,7 +1437,7 @@ ZTEST(adc_util_tests, test_add_subscription_success)
 }
 
 /**
- * Requirement: The adcAcqUtilRemoveSubscription function must return -ESRCH
+ * @test The adcAcqUtilRemoveSubscription function must return -ESRCH
  * when the subscription callback is not found.
  *
  * Note: This function does not call any external functions - it only
@@ -1477,7 +1477,7 @@ ZTEST(adc_util_tests, test_remove_subscription_not_found)
 }
 
 /**
- * Requirement: The adcAcqUtilRemoveSubscription function must successfully
+ * @test The adcAcqUtilRemoveSubscription function must successfully
  * remove a subscription and shift remaining subscriptions down.
  *
  * Note: This function does not call any external functions - it only
@@ -1522,7 +1522,7 @@ ZTEST(adc_util_tests, test_remove_subscription_success)
 }
 
 /**
- * Requirement: The adcAcqUtilSetSubPauseState function must return -ESRCH
+ * @test The adcAcqUtilSetSubPauseState function must return -ESRCH
  * when the subscription callback is not found.
  *
  * Note: This function does not call any external functions - it only
@@ -1560,7 +1560,7 @@ ZTEST(adc_util_tests, test_set_sub_pause_state_not_found)
 }
 
 /**
- * Requirement: The adcAcqUtilSetSubPauseState function must successfully
+ * @test The adcAcqUtilSetSubPauseState function must successfully
  * pause a subscription when setting isPaused to true.
  *
  * Note: This function does not call any external functions - it only
@@ -1603,7 +1603,7 @@ ZTEST(adc_util_tests, test_set_sub_pause_state_pause_success)
 }
 
 /**
- * Requirement: The adcAcqUtilSetSubPauseState function must successfully
+ * @test The adcAcqUtilSetSubPauseState function must successfully
  * unpause a subscription when setting isPaused to false.
  *
  * Note: This function does not call any external functions - it only
@@ -1641,7 +1641,7 @@ ZTEST(adc_util_tests, test_set_sub_pause_state_unpause_success)
 }
 
 /**
- * Requirement: The adcAcqUtilGetChanCount function must return the number
+ * @test The adcAcqUtilGetChanCount function must return the number
  * of configured ADC channels.
  */
 ZTEST(adc_util_tests, test_get_chan_count_returns_channel_count)
@@ -1655,7 +1655,7 @@ ZTEST(adc_util_tests, test_get_chan_count_returns_channel_count)
 }
 
 /**
- * Requirement: The adcAcqUtilGetRaw function must return -EINVAL when
+ * @test The adcAcqUtilGetRaw function must return -EINVAL when
  * channel ID is greater than or equal to the channel count.
  */
 ZTEST(adc_util_tests, test_get_raw_invalid_channel_id)
@@ -1671,7 +1671,7 @@ ZTEST(adc_util_tests, test_get_raw_invalid_channel_id)
 }
 
 /**
- * Requirement: The adcAcqUtilGetRaw function must return -EINVAL when
+ * @test The adcAcqUtilGetRaw function must return -EINVAL when
  * rawVal pointer is NULL.
  */
 ZTEST(adc_util_tests, test_get_raw_null_pointer)
@@ -1690,7 +1690,7 @@ ZTEST(adc_util_tests, test_get_raw_null_pointer)
 }
 
 /**
- * Requirement: The adcAcqUtilGetRaw function must return an error when
+ * @test The adcAcqUtilGetRaw function must return an error when
  * adcAcqFilterGetThirdOrderData fails.
  */
 ZTEST(adc_util_tests, test_get_raw_filter_error)
@@ -1725,7 +1725,7 @@ static int adcAcqFilterGetThirdOrderData_success(size_t chanId, int32_t *data)
 }
 
 /**
- * Requirement: The adcAcqUtilGetRaw function must successfully retrieve
+ * @test The adcAcqUtilGetRaw function must successfully retrieve
  * the raw ADC value when all parameters are valid.
  */
 ZTEST(adc_util_tests, test_get_raw_success)
@@ -1754,7 +1754,7 @@ ZTEST(adc_util_tests, test_get_raw_success)
 }
 
 /**
- * Requirement: The adcAcqUtilGetVolt function must return -EINVAL when
+ * @test The adcAcqUtilGetVolt function must return -EINVAL when
  * channel ID is greater than or equal to the channel count.
  */
 ZTEST(adc_util_tests, test_get_volt_invalid_channel_id)
@@ -1774,7 +1774,7 @@ ZTEST(adc_util_tests, test_get_volt_invalid_channel_id)
 }
 
 /**
- * Requirement: The adcAcqUtilGetVolt function must return -EINVAL when
+ * @test The adcAcqUtilGetVolt function must return -EINVAL when
  * voltVal pointer is NULL.
  */
 ZTEST(adc_util_tests, test_get_volt_null_pointer)
@@ -1793,7 +1793,7 @@ ZTEST(adc_util_tests, test_get_volt_null_pointer)
 }
 
 /**
- * Requirement: The adcAcqUtilGetVolt function must successfully retrieve
+ * @test The adcAcqUtilGetVolt function must successfully retrieve
  * the voltage value when all parameters are valid.
  */
 ZTEST(adc_util_tests, test_get_volt_success)

@@ -113,8 +113,8 @@ static void cmd_tests_before(void *f)
 }
 
 /**
- * Requirement: The execGetChanCount function must call adcAcqUtilGetChanCount
- * and print the channel count with SUCCESS prefix via shell_print.
+ * @test  The execGetChanCount function must call adcAcqUtilGetChanCount
+ *        and print the channel count with SUCCESS prefix via shell_print.
  */
 ZTEST(adc_cmd_tests, test_get_chan_count_success)
 {
@@ -151,7 +151,7 @@ static unsigned long shell_strtoul_with_error(const char *str, int base, int *er
 }
 
 /**
- * Requirement: The execGetRaw function must return error when shell_strtoul
+ * @test The execGetRaw function must return error when shell_strtoul
  * fails to parse the channel ID argument.
  */
 ZTEST(adc_cmd_tests, test_get_raw_invalid_channel_arg)
@@ -190,7 +190,7 @@ static int adcAcqUtilGetRaw_success(size_t chanId, uint32_t *rawVal)
 }
 
 /**
- * Requirement: The execGetRaw function must call adcAcqUtilGetRaw with the
+ * @test The execGetRaw function must call adcAcqUtilGetRaw with the
  * parsed channel ID and print the raw value with SUCCESS prefix via shell_info.
  */
 ZTEST(adc_cmd_tests, test_get_raw_success)
@@ -225,7 +225,7 @@ ZTEST(adc_cmd_tests, test_get_raw_success)
 }
 
 /**
- * Requirement: The execGetRaw function must return error when adcAcqUtilGetRaw
+ * @test The execGetRaw function must return error when adcAcqUtilGetRaw
  * fails to get the raw value.
  */
 ZTEST(adc_cmd_tests, test_get_raw_util_fails)
@@ -258,7 +258,7 @@ ZTEST(adc_cmd_tests, test_get_raw_util_fails)
 }
 
 /**
- * Requirement: The execGetVolt function must return error when shell_strtoul
+ * @test The execGetVolt function must return error when shell_strtoul
  * fails to parse the channel ID argument.
  */
 ZTEST(adc_cmd_tests, test_get_volt_invalid_channel_arg)
@@ -297,7 +297,7 @@ static int adcAcqUtilGetVolt_success(size_t chanId, float *voltVal)
 }
 
 /**
- * Requirement: The execGetVolt function must call adcAcqUtilGetVolt with the
+ * @test The execGetVolt function must call adcAcqUtilGetVolt with the
  * parsed channel ID and print the volt value with SUCCESS prefix via shell_info.
  */
 ZTEST(adc_cmd_tests, test_get_volt_success)
@@ -332,7 +332,7 @@ ZTEST(adc_cmd_tests, test_get_volt_success)
 }
 
 /**
- * Requirement: The execGetVolt function must return error when adcAcqUtilGetVolt
+ * @test The execGetVolt function must return error when adcAcqUtilGetVolt
  * fails to get the volt value.
  */
 ZTEST(adc_cmd_tests, test_get_volt_util_fails)

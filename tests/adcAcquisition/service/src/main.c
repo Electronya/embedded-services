@@ -144,7 +144,7 @@ static void service_tests_before(void *f)
 }
 
 /**
- * Requirement: The run function must call adcAcqUtilProcessData each iteration.
+ * @test The run function must call adcAcqUtilProcessData each iteration.
  * When adcAcqUtilProcessData fails, it must log an error but continue execution.
  */
 ZTEST(adc_service_tests, test_run_process_data_failure)
@@ -176,7 +176,7 @@ ZTEST(adc_service_tests, test_run_process_data_failure)
 }
 
 /**
- * Requirement: The run function must call adcAcqUtilNotifySubscribers each iteration.
+ * @test The run function must call adcAcqUtilNotifySubscribers each iteration.
  * When adcAcqUtilNotifySubscribers fails, it must log an error but continue execution.
  */
 ZTEST(adc_service_tests, test_run_notify_subscribers_failure)
@@ -208,7 +208,7 @@ ZTEST(adc_service_tests, test_run_notify_subscribers_failure)
 }
 
 /**
- * Requirement: The run function must call k_sleep, adcAcqUtilProcessData, and
+ * @test The run function must call k_sleep, adcAcqUtilProcessData, and
  * adcAcqUtilNotifySubscribers each iteration with correct parameters.
  */
 ZTEST(adc_service_tests, test_run_success)
@@ -240,7 +240,7 @@ ZTEST(adc_service_tests, test_run_success)
 }
 
 /**
- * Requirement: The adcAcqInit function must return -EINVAL when adcConfig is NULL.
+ * @test The adcAcqInit function must return -EINVAL when adcConfig is NULL.
  */
 ZTEST(adc_service_tests, test_init_null_adc_config)
 {
@@ -265,7 +265,7 @@ ZTEST(adc_service_tests, test_init_null_adc_config)
 }
 
 /**
- * Requirement: The adcAcqInit function must return -EINVAL when adcSubConfig is NULL.
+ * @test The adcAcqInit function must return -EINVAL when adcSubConfig is NULL.
  */
 ZTEST(adc_service_tests, test_init_null_sub_config)
 {
@@ -290,7 +290,7 @@ ZTEST(adc_service_tests, test_init_null_sub_config)
 }
 
 /**
- * Requirement: The adcAcqInit function must return error when adcAcqUtilInitAdc fails.
+ * @test The adcAcqInit function must return error when adcAcqUtilInitAdc fails.
  */
 ZTEST(adc_service_tests, test_init_adc_init_failure)
 {
@@ -323,7 +323,7 @@ ZTEST(adc_service_tests, test_init_adc_init_failure)
 }
 
 /**
- * Requirement: The adcAcqInit function must return error when adcAcqUtilInitSubscriptions fails.
+ * @test The adcAcqInit function must return error when adcAcqUtilInitSubscriptions fails.
  */
 ZTEST(adc_service_tests, test_init_subscriptions_init_failure)
 {
@@ -361,7 +361,7 @@ ZTEST(adc_service_tests, test_init_subscriptions_init_failure)
 }
 
 /**
- * Requirement: The adcAcqInit function must return error when adcAcqFilterInit fails.
+ * @test The adcAcqInit function must return error when adcAcqFilterInit fails.
  */
 ZTEST(adc_service_tests, test_init_filter_init_failure)
 {
@@ -405,7 +405,7 @@ ZTEST(adc_service_tests, test_init_filter_init_failure)
 }
 
 /**
- * Requirement: The adcAcqInit function must return error when k_thread_name_set fails.
+ * @test The adcAcqInit function must return error when k_thread_name_set fails.
  */
 ZTEST(adc_service_tests, test_init_thread_name_set_failure)
 {
@@ -447,7 +447,7 @@ ZTEST(adc_service_tests, test_init_thread_name_set_failure)
 }
 
 /**
- * Requirement: The adcAcqInit function must initialize all components and create the thread.
+ * @test The adcAcqInit function must initialize all components and create the thread.
  */
 ZTEST(adc_service_tests, test_init_success)
 {
@@ -521,7 +521,7 @@ ZTEST(adc_service_tests, test_init_success)
 }
 
 /**
- * Requirement: The adcAcqStart function must return error when adcAcqUtilStartTrigger fails.
+ * @test The adcAcqStart function must return error when adcAcqUtilStartTrigger fails.
  */
 ZTEST(adc_service_tests, test_start_trigger_failure)
 {
@@ -549,7 +549,7 @@ ZTEST(adc_service_tests, test_start_trigger_failure)
 }
 
 /**
- * Requirement: The adcAcqStart function must start the thread and trigger.
+ * @test The adcAcqStart function must start the thread and trigger.
  */
 ZTEST(adc_service_tests, test_start_success)
 {
@@ -584,7 +584,7 @@ static int dummyCallback(SrvMsgPayload_t *data)
 }
 
 /**
- * Requirement: The adcAcqSubscribe function must return error when adcAcqUtilAddSubscription fails.
+ * @test The adcAcqSubscribe function must return error when adcAcqUtilAddSubscription fails.
  */
 ZTEST(adc_service_tests, test_subscribe_failure)
 {
@@ -608,7 +608,7 @@ ZTEST(adc_service_tests, test_subscribe_failure)
 }
 
 /**
- * Requirement: The adcAcqSubscribe function must add a subscription callback.
+ * @test The adcAcqSubscribe function must add a subscription callback.
  */
 ZTEST(adc_service_tests, test_subscribe_success)
 {
@@ -632,7 +632,7 @@ ZTEST(adc_service_tests, test_subscribe_success)
 }
 
 /**
- * Requirement: The adcAcqUnsubscribe function must return error when adcAcqUtilRemoveSubscription fails.
+ * @test The adcAcqUnsubscribe function must return error when adcAcqUtilRemoveSubscription fails.
  */
 ZTEST(adc_service_tests, test_unsubscribe_failure)
 {
@@ -656,7 +656,7 @@ ZTEST(adc_service_tests, test_unsubscribe_failure)
 }
 
 /**
- * Requirement: The adcAcqUnsubscribe function must remove a subscription callback.
+ * @test The adcAcqUnsubscribe function must remove a subscription callback.
  */
 ZTEST(adc_service_tests, test_unsubscribe_success)
 {
@@ -680,7 +680,7 @@ ZTEST(adc_service_tests, test_unsubscribe_success)
 }
 
 /**
- * Requirement: The adcAcqPauseSubscription function must return error when adcAcqUtilSetSubPauseState fails.
+ * @test The adcAcqPauseSubscription function must return error when adcAcqUtilSetSubPauseState fails.
  */
 ZTEST(adc_service_tests, test_pause_subscription_failure)
 {
@@ -706,7 +706,7 @@ ZTEST(adc_service_tests, test_pause_subscription_failure)
 }
 
 /**
- * Requirement: The adcAcqPauseSubscription function must pause a subscription.
+ * @test The adcAcqPauseSubscription function must pause a subscription.
  */
 ZTEST(adc_service_tests, test_pause_subscription_success)
 {
@@ -732,7 +732,7 @@ ZTEST(adc_service_tests, test_pause_subscription_success)
 }
 
 /**
- * Requirement: The adcAqcUnpauseSubscription function must return error when adcAcqUtilSetSubPauseState fails.
+ * @test The adcAqcUnpauseSubscription function must return error when adcAcqUtilSetSubPauseState fails.
  */
 ZTEST(adc_service_tests, test_unpause_subscription_failure)
 {
@@ -758,7 +758,7 @@ ZTEST(adc_service_tests, test_unpause_subscription_failure)
 }
 
 /**
- * Requirement: The adcAqcUnpauseSubscription function must unpause a subscription.
+ * @test The adcAqcUnpauseSubscription function must unpause a subscription.
  */
 ZTEST(adc_service_tests, test_unpause_subscription_success)
 {

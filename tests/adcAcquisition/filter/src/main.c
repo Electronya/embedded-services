@@ -118,7 +118,7 @@ static void filter_no_init_teardown(void *f)
 /* adcAcqFilterInit tests - error cases first */
 
 /**
- * Requirement: The adcAcqFilterInit function must return -ENOSPC when k_malloc fails.
+ * @test The adcAcqFilterInit function must return -ENOSPC when k_malloc fails.
  */
 ZTEST(adc_filter_init_tests, test_filter_init_malloc_fails)
 {
@@ -133,7 +133,7 @@ ZTEST(adc_filter_init_tests, test_filter_init_malloc_fails)
 }
 
 /**
- * Requirement: The adcAcqFilterInit function must return 0 when initialized with 0 channels.
+ * @test The adcAcqFilterInit function must return 0 when initialized with 0 channels.
  */
 ZTEST(adc_filter_init_tests, test_filter_init_zero_channels)
 {
@@ -150,7 +150,7 @@ ZTEST(adc_filter_init_tests, test_filter_init_zero_channels)
 }
 
 /**
- * Requirement: The adcAcqFilterInit function must call k_malloc with the correct size
+ * @test The adcAcqFilterInit function must call k_malloc with the correct size
  * for the filter buffer based on channel count.
  */
 ZTEST(adc_filter_init_tests, test_filter_init_correct_malloc_size)
@@ -174,7 +174,7 @@ ZTEST(adc_filter_init_tests, test_filter_init_correct_malloc_size)
 }
 
 /**
- * Requirement: The adcAcqFilterInit function must initialize filterBuf pointer
+ * @test The adcAcqFilterInit function must initialize filterBuf pointer
  * to the allocated memory.
  */
 ZTEST(adc_filter_init_tests, test_filter_init_sets_filter_buf)
@@ -191,7 +191,7 @@ ZTEST(adc_filter_init_tests, test_filter_init_sets_filter_buf)
 }
 
 /**
- * Requirement: The adcAcqFilterInit function must set filterCount to the channel count.
+ * @test The adcAcqFilterInit function must set filterCount to the channel count.
  */
 ZTEST(adc_filter_init_tests, test_filter_init_sets_filter_count)
 {
@@ -207,7 +207,7 @@ ZTEST(adc_filter_init_tests, test_filter_init_sets_filter_count)
 }
 
 /**
- * Requirement: The adcAcqFilterInit function must zero-initialize the filter buffer.
+ * @test The adcAcqFilterInit function must zero-initialize the filter buffer.
  */
 ZTEST(adc_filter_init_tests, test_filter_init_zeros_buffer)
 {
@@ -233,7 +233,7 @@ ZTEST(adc_filter_init_tests, test_filter_init_zeros_buffer)
 /* adcAcqFilterPushData tests - error cases first */
 
 /**
- * Requirement: The adcAcqFilterPushData function must return -EINVAL
+ * @test The adcAcqFilterPushData function must return -EINVAL
  * when the channel ID is greater than or equal to the initialized channel count.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_push_data_invalid_channel)
@@ -245,7 +245,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_push_data_invalid_channel)
 }
 
 /**
- * Requirement: The adcAcqFilterPushData function must clamp tau to minimum value (1)
+ * @test The adcAcqFilterPushData function must clamp tau to minimum value (1)
  * when tau is less than 1.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_push_data_tau_too_small)
@@ -257,7 +257,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_push_data_tau_too_small)
 }
 
 /**
- * Requirement: The adcAcqFilterPushData function must clamp tau to maximum value (511)
+ * @test The adcAcqFilterPushData function must clamp tau to maximum value (511)
  * when tau is greater than 511.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_push_data_tau_too_large)
@@ -269,7 +269,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_push_data_tau_too_large)
 }
 
 /**
- * Requirement: The adcAcqFilterPushData function must return 0 when pushing data
+ * @test The adcAcqFilterPushData function must return 0 when pushing data
  * to a valid channel with valid tau.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_push_data_valid)
@@ -281,7 +281,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_push_data_valid)
 }
 
 /**
- * Requirement: The adcAcqFilterPushData function must accept tau=1 (minimum valid value).
+ * @test The adcAcqFilterPushData function must accept tau=1 (minimum valid value).
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_push_data_tau_minimum)
 {
@@ -292,7 +292,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_push_data_tau_minimum)
 }
 
 /**
- * Requirement: The adcAcqFilterPushData function must accept tau=511 (maximum valid value).
+ * @test The adcAcqFilterPushData function must accept tau=511 (maximum valid value).
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_push_data_tau_maximum)
 {
@@ -303,7 +303,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_push_data_tau_maximum)
 }
 
 /**
- * Requirement: The adcAcqFilterPushData function must store the raw data at index 0
+ * @test The adcAcqFilterPushData function must store the raw data at index 0
  * of the channel's filter buffer.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_push_data_stores_raw_value)
@@ -321,7 +321,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_push_data_stores_raw_value)
 }
 
 /**
- * Requirement: The adcAcqFilterPushData function must independently handle data
+ * @test The adcAcqFilterPushData function must independently handle data
  * for each channel.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_push_data_independent_channels)
@@ -349,7 +349,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_push_data_independent_channels)
 /* adcAcqFilterGetRawData tests - error cases first */
 
 /**
- * Requirement: The adcAcqFilterGetRawData function must return -EINVAL
+ * @test The adcAcqFilterGetRawData function must return -EINVAL
  * when the channel ID is greater than or equal to the initialized channel count.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_get_raw_data_invalid_channel)
@@ -362,7 +362,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_get_raw_data_invalid_channel)
 }
 
 /**
- * Requirement: The adcAcqFilterGetRawData function must return -EINVAL
+ * @test The adcAcqFilterGetRawData function must return -EINVAL
  * when passed a NULL output pointer.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_get_raw_data_null_pointer)
@@ -377,7 +377,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_get_raw_data_null_pointer)
 }
 
 /**
- * Requirement: The adcAcqFilterGetRawData function must return the most recently
+ * @test The adcAcqFilterGetRawData function must return the most recently
  * pushed raw data value.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_get_raw_data_returns_pushed_value)
@@ -394,7 +394,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_get_raw_data_returns_pushed_valu
 }
 
 /**
- * Requirement: The adcAcqFilterGetRawData function must return the unfiltered input value.
+ * @test The adcAcqFilterGetRawData function must return the unfiltered input value.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_get_raw_data_unfiltered)
 {
@@ -417,7 +417,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_get_raw_data_unfiltered)
 /* adcAcqFilterGetFirstOrderData tests - error cases first */
 
 /**
- * Requirement: The adcAcqFilterGetFirstOrderData function must return -EINVAL
+ * @test The adcAcqFilterGetFirstOrderData function must return -EINVAL
  * when the channel ID is invalid.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_get_first_order_invalid_channel)
@@ -430,7 +430,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_get_first_order_invalid_channel)
 }
 
 /**
- * Requirement: The adcAcqFilterGetFirstOrderData function must return -EINVAL
+ * @test The adcAcqFilterGetFirstOrderData function must return -EINVAL
  * when passed a NULL output pointer.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_get_first_order_null_pointer)
@@ -445,7 +445,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_get_first_order_null_pointer)
 }
 
 /**
- * Requirement: The adcAcqFilterGetFirstOrderData function must return filtered data
+ * @test The adcAcqFilterGetFirstOrderData function must return filtered data
  * that increases from initial state towards the input value.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_first_order_initial_convergence)
@@ -466,7 +466,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_first_order_initial_convergence)
 }
 
 /**
- * Requirement: The adcAcqFilterGetFirstOrderData function must maintain filter state
+ * @test The adcAcqFilterGetFirstOrderData function must maintain filter state
  * across multiple calls and continue exponential convergence.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_first_order_state_maintained)
@@ -497,7 +497,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_first_order_state_maintained)
 /* adcAcqFilterGetSecondOrderData tests - error cases first */
 
 /**
- * Requirement: The adcAcqFilterGetSecondOrderData function must return -EINVAL
+ * @test The adcAcqFilterGetSecondOrderData function must return -EINVAL
  * when the channel ID is invalid.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_get_second_order_invalid_channel)
@@ -510,7 +510,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_get_second_order_invalid_channel
 }
 
 /**
- * Requirement: The adcAcqFilterGetSecondOrderData function must return -EINVAL
+ * @test The adcAcqFilterGetSecondOrderData function must return -EINVAL
  * when passed a NULL output pointer.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_get_second_order_null_pointer)
@@ -525,7 +525,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_get_second_order_null_pointer)
 }
 
 /**
- * Requirement: The adcAcqFilterGetSecondOrderData function must provide stronger filtering
+ * @test The adcAcqFilterGetSecondOrderData function must provide stronger filtering
  * than first-order, resulting in output values that lag further behind the input.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_second_order_stronger_filtering)
@@ -556,7 +556,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_second_order_stronger_filtering)
 /* adcAcqFilterGetThirdOrderData tests - error cases first */
 
 /**
- * Requirement: The adcAcqFilterGetThirdOrderData function must return -EINVAL
+ * @test The adcAcqFilterGetThirdOrderData function must return -EINVAL
  * when the channel ID is invalid.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_get_third_order_invalid_channel)
@@ -569,7 +569,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_get_third_order_invalid_channel)
 }
 
 /**
- * Requirement: The adcAcqFilterGetThirdOrderData function must return -EINVAL
+ * @test The adcAcqFilterGetThirdOrderData function must return -EINVAL
  * when passed a NULL output pointer.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_get_third_order_null_pointer)
@@ -584,7 +584,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_get_third_order_null_pointer)
 }
 
 /**
- * Requirement: The adcAcqFilterGetThirdOrderData function must provide the strongest filtering,
+ * @test The adcAcqFilterGetThirdOrderData function must provide the strongest filtering,
  * with output values lagging further behind than both first-order and second-order filters.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_third_order_strongest_filtering)
@@ -620,7 +620,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_third_order_strongest_filtering)
 /* Integration tests - filter behavior */
 
 /**
- * Requirement: The filter must produce monotonically increasing output for a positive step input,
+ * @test The filter must produce monotonically increasing output for a positive step input,
  * never overshooting the target value.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_monotonic_convergence)
@@ -649,7 +649,7 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_monotonic_convergence)
 }
 
 /**
- * Requirement: The filter must settle to within a small tolerance of the input value
+ * @test The filter must settle to within a small tolerance of the input value
  * after sufficient settling time.
  */
 ZTEST_F(adc_filter_with_init_tests, test_filter_settling_time)
