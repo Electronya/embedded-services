@@ -141,7 +141,7 @@ static struct DatastoreSubs uintSubs  = {.entries = NULL, .maxCount = 0, .active
  */
 static inline bool isBinaryDatapointInSubRange(uint32_t datapointId, DatastoreSubEntry_t *sub)
 {
-  return datapointId >= sub->datapointId && datapointId < sub->valCount;
+  return datapointId >= sub->datapointId && datapointId < (sub->datapointId + sub->valCount);
 }
 
 /**
