@@ -11,3 +11,7 @@ endif()
 if(CONFIG_ENYA_ADC_ACQUISITION)
   add_subdirectory(./src/adcAcquisition)
 endif()
+
+if(CONFIG_ENYA_DATASTORE)
+  add_subdirectory(./src/datastore)
+endif()

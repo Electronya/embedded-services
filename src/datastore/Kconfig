@@ -1,0 +1,31 @@
+# Electronya Embedded Datastore
+# Copyright (C) 2025 by Electronya
+
+config ENYA_DATASTORE
+  bool "Electronya Embedded Datastore"
+  default y
+  depends on CMSIS_RTOS_V2
+  help
+    The Electronya embedded application datastore.
+
+if ENYA_DATASTORE
+
+config ENYA_DATASTORE_LOG_LEVEL
+  int "Electronya Embedded Datastore Log Level"
+  default 3
+  help
+    The Electronya embedded datastore log level.
+
+config FIRST_FLOAT_DEFAULT_VAL
+  int "First Float Default Value"
+  default 123
+  help
+    The 1st float default value. Needs to be divided by 10.
+
+config SECOND_INT_DEFAULT_VAL
+  int "Second Signed Integer Default Value"
+  default -12
+  help
+    The 2nd signed integer default value.
+
+endif
