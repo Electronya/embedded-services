@@ -209,7 +209,7 @@ static inline int notifyBinarySubs(uint32_t datapointId, osMemoryPoolId_t pool)
  */
 static inline bool isButtonDatapointInSubRange(uint32_t datapointId, DatastoreSubEntry_t *sub)
 {
-  return datapointId >= sub->datapointId && datapointId < sub->valCount;
+  return datapointId >= sub->datapointId && datapointId < (sub->datapointId + sub->valCount);
 }
 
 /**
@@ -277,7 +277,7 @@ static inline int notifyButtonSubs(uint32_t datapointId, osMemoryPoolId_t pool)
  */
 static inline bool isFloatDatapointInSubRange(uint32_t datapointId, DatastoreSubEntry_t *sub)
 {
-  return datapointId >= sub->datapointId && datapointId < sub->valCount;
+  return datapointId >= sub->datapointId && datapointId < (sub->datapointId + sub->valCount);
 }
 
 /**
@@ -345,7 +345,7 @@ static inline int notifyFloatSubs(uint32_t datapointId, osMemoryPoolId_t pool)
  */
 static inline bool isIntDatapointInSubRange(uint32_t datapointId, DatastoreSubEntry_t *sub)
 {
-  return datapointId >= sub->datapointId && datapointId < sub->valCount;
+  return datapointId >= sub->datapointId && datapointId < (sub->datapointId + sub->valCount);
 }
 
 /**
@@ -413,7 +413,7 @@ static inline int notifyIntSubs(uint32_t datapointId, osMemoryPoolId_t pool)
  */
 static inline bool isMultiStateDatapointInSubRange(uint32_t datapointId, DatastoreSubEntry_t *sub)
 {
-  return datapointId >= sub->datapointId && datapointId < sub->valCount;
+  return datapointId >= sub->datapointId && datapointId < (sub->datapointId + sub->valCount);
 }
 
 /**
@@ -481,7 +481,7 @@ static inline int notifyMultiStateSubs(uint32_t datapointId, osMemoryPoolId_t po
  */
 static inline bool isUintDatapointInSubRange(uint32_t datapointId, DatastoreSubEntry_t *sub)
 {
-  return datapointId >= sub->datapointId && datapointId < sub->valCount;
+  return datapointId >= sub->datapointId && datapointId < (sub->datapointId + sub->valCount);
 }
 
 /**

@@ -17,6 +17,7 @@ target_sources(app
 # Include directories
 target_include_directories(app
   PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src  # Test src dir for mock datastoreMeta.h
   ${CMAKE_CURRENT_SOURCE_DIR}/../../../src  # Parent dir for serviceCommon/serviceCommon.h
   ${CMAKE_CURRENT_SOURCE_DIR}/../../../src/datastore
   ${CMAKE_CURRENT_SOURCE_DIR}/../../../src/serviceCommon

@@ -41,58 +41,15 @@ LOG_MODULE_REGISTER(datastore, LOG_LEVEL_DBG);
 #undef LOG_ERR
 #define LOG_ERR(...) do {} while (0)
 
-/* Define types from datastore.h before including source */
-typedef enum
-{
-  BINARY_DATAPOINT,
-  BUTTON_DATAPOINT,
-  FLOAT_DATAPOINT,
-  INT_DATAPOINT,
-  MULTI_STATE_DATAPOINT,
-  UINT_DATAPOINT,
-  DATAPOINT_TYPE_COUNT
-} DatapointType_t;
-
-typedef union
-{
-  bool binaryVal;
-  uint32_t buttonVal;
-  float floatVal;
-  int32_t intVal;
-  uint32_t multiStateVal;
-  uint32_t uintVal;
-} Data_t;
-
-typedef struct SrvMsgPayload SrvMsgPayload_t;
-
-struct SrvMsgPayload {
-  osMemoryPoolId_t poolId;
-  size_t dataLen;
-  uint8_t data[];
-};
-
-typedef int (*DatastoreSubCb_t)(SrvMsgPayload_t *payload, size_t valCount);
-
-typedef struct
-{
-  uint32_t datapointId;
-  size_t valCount;
-  bool isPaused;
-  DatastoreSubCb_t callback;
-} DatastoreSubEntry_t;
-
 /* Mock osMemoryPool functions */
 FAKE_VALUE_FUNC(void *, osMemoryPoolAlloc, osMemoryPoolId_t, uint32_t);
 FAKE_VALUE_FUNC(int, osMemoryPoolFree, osMemoryPoolId_t, void *);
 
-/* Mock subscription callback */
-FAKE_VALUE_FUNC(int, mock_subscription_callback, SrvMsgPayload_t *, size_t);
+/* Include utility implementation - this will define SrvMsgPayload_t */
+#include "datastoreUtil.c"
 
-/* Copy the function under test to expose it for testing */
-static inline bool isBinaryDatapointInSubRange(uint32_t datapointId, DatastoreSubEntry_t *sub)
-{
-  return datapointId >= sub->datapointId && datapointId < sub->valCount;
-}
+/* Mock subscription callback - SrvMsgPayload_t is now defined */
+FAKE_VALUE_FUNC(int, mock_subscription_callback, SrvMsgPayload_t *, size_t);
 
 /**
  * Test setup function.
@@ -109,6 +66,10 @@ static void util_tests_before(void *fixture)
 {
   FFF_FAKES_LIST(RESET_FAKE);
   FFF_RESET_HISTORY();
+
+  /* Reset binary subscriptions */
+  memset(binarySubs.entries, 0, sizeof(DatastoreSubEntry_t) * binarySubs.maxCount);
+  binarySubs.activeCount = 0;
 }
 
 /**
