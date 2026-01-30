@@ -7,10 +7,12 @@ config ENYA_EMBEDDED_SERVICES
   help
     The Electronya embedded services.
       - ADC Acquisition
+      - Datastore
 
 if ENYA_EMBEDDED_SERVICES
 
 rsource "src/serviceCommon/Kconfig"
 rsource "src/adcAcquisition/Kconfig"
+rsource "src/datastore/Kconfig"
 
 endif
