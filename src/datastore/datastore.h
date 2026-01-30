@@ -19,6 +19,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/portability/cmsis_os2.h>
 
+#include "datastoreTypes.h"
 #include "datastoreMeta.h"
 #include "serviceCommon.h"
 

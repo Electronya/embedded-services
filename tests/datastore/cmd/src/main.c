@@ -19,7 +19,6 @@ DEFINE_FFF_GLOBALS;
 
 /* Prevent headers from being included */
 #define DATASTORE_SRV
-#define DATASTORE_META
 #define SHELL_H__
 
 /* Provide needed declarations */
@@ -33,25 +32,57 @@ enum shell_vt100_color {
   SHELL_WARNING
 };
 
-/* Button state enum (from datastoreMeta.h) */
-typedef enum __attribute__((mode(SI)))
+/* Include application metadata */
+#include "datastoreMeta.h"
+
+/* Generate datapoint count enums from X-macros */
+enum BinaryDatapoint
 {
-  BUTTON_UNPRESSED = 0,
-  BUTTON_SHORT_PRESSED,
-  BUTTON_LONG_PRESSED,
-  BUTTON_STATE_COUNT
-} ButtonState_t;
+#define X(name, flags, defaultVal) name,
+  DATASTORE_BINARY_DATAPOINTS
+#undef X
+  BINARY_DATAPOINT_COUNT,
+};
 
-/* Datapoint counts - minimal for testing */
-#define BINARY_DATAPOINT_COUNT 4
-#define BUTTON_DATAPOINT_COUNT 2
-#define FLOAT_DATAPOINT_COUNT 2
-#define INT_DATAPOINT_COUNT 2
-#define MULTI_STATE_DATAPOINT_COUNT 2
-#define UINT_DATAPOINT_COUNT 2
+enum ButtonDatapoint
+{
+#define X(name, flags, defaultVal) name,
+  DATASTORE_BUTTON_DATAPOINTS
+#undef X
+  BUTTON_DATAPOINT_COUNT,
+};
 
-/* Message queue count */
-#define DATASTORE_MSG_COUNT 10
+enum FloatDatapoint
+{
+#define X(name, flags, defaultVal) name,
+  DATASTORE_FLOAT_DATAPOINTS
+#undef X
+  FLOAT_DATAPOINT_COUNT,
+};
+
+enum IntDatapoint
+{
+#define X(name, flags, defaultVal) name,
+  DATASTORE_INT_DATAPOINTS
+#undef X
+  INT_DATAPOINT_COUNT,
+};
+
+enum MultiStateDatapoint
+{
+#define X(name, flags, defaultVal) name,
+  DATASTORE_MULTI_STATE_DATAPOINTS
+#undef X
+  MULTI_STATE_DATAPOINT_COUNT,
+};
+
+enum UintDatapoint
+{
+#define X(name, flags, defaultVal) name,
+  DATASTORE_UINT_DATAPOINTS
+#undef X
+  UINT_DATAPOINT_COUNT,
+};
 
 /* Captured shell output */
 #define MAX_SHELL_OUTPUT_COUNT 16
@@ -346,33 +377,6 @@ FAKE_VALUE_FUNC(int, datastoreWriteUint, uint32_t, uint32_t *, size_t, struct k_
 /* Suppress K_MSGQ_DEFINE from the source file - we mock it */
 #undef K_MSGQ_DEFINE
 #define K_MSGQ_DEFINE(name, ...) /* mocked */
-
-/* Define datapoint X-macros for testing */
-#define DATASTORE_BINARY_DATAPOINTS \
-  X(BINARY_FIRST_DATAPOINT, 0, true) \
-  X(BINARY_SECOND_DATAPOINT, 0, false) \
-  X(BINARY_THIRD_DATAPOINT, 0, true) \
-  X(BINARY_FOURTH_DATAPOINT, 0, false)
-
-#define DATASTORE_BUTTON_DATAPOINTS \
-  X(BUTTON_FIRST_DATAPOINT, 0, BUTTON_UNPRESSED) \
-  X(BUTTON_SECOND_DATAPOINT, 0, BUTTON_UNPRESSED)
-
-#define DATASTORE_FLOAT_DATAPOINTS \
-  X(FLOAT_FIRST_DATAPOINT, 0, 0.0f) \
-  X(FLOAT_SECOND_DATAPOINT, 0, 0.0f)
-
-#define DATASTORE_INT_DATAPOINTS \
-  X(INT_FIRST_DATAPOINT, 0, 0) \
-  X(INT_SECOND_DATAPOINT, 0, 0)
-
-#define DATASTORE_MULTI_STATE_DATAPOINTS \
-  X(MULTI_STATE_FIRST_DATAPOINT, 0, 0) \
-  X(MULTI_STATE_SECOND_DATAPOINT, 0, 0)
-
-#define DATASTORE_UINT_DATAPOINTS \
-  X(UINT_FIRST_DATAPOINT, 0, 0) \
-  X(UINT_SECOND_DATAPOINT, 0, 0)
 
 /* Mock message queue */
 static struct k_msgq datastoreCmdResQueue;

@@ -83,20 +83,108 @@ CONFIG_SECOND_INT_DEFAULT_VAL=-12
 
 ### Defining Datapoints
 
-Datapoints are defined using X-macros in `datastoreMeta.h`:
+Applications must provide a `datastoreMeta.h` file in their `src/` directory to define their datapoints using X-macros.
+
+Create `src/datastoreMeta.h` in your application with the following template:
 
 ```c
+/**
+ * @file      datastoreMeta.h
+ * @brief     Application Datastore Metadata
+ *
+ *            Application-specific datapoint definitions for datastore service.
+ */
+
+#ifndef DATASTORE_META_H
+#define DATASTORE_META_H
+
+#include "datastoreTypes.h"
+
+/* ============================================================================
+ * Multi-State Datapoint State Definitions
+ * ============================================================================
+ * Define enumerations for each multi-state datapoint used in your application.
+ * Each multi-state datapoint should have its own enum.
+ */
+
+/**
+ * @brief   Example multi-state datapoint states.
+ */
+typedef enum
+{
+  MY_STATE_1 = 0,
+  MY_STATE_2,
+  MY_STATE_3,
+  MY_STATE_COUNT
+} MyMultiStates_t;
+
+/* ============================================================================
+ * Datapoint X-Macro Definitions
+ * ============================================================================
+ * Define your application's datapoints using X-macros.
+ * Format: X(datapoint_id, flags, default_value)
+ *
+ * Flags:
+ *   - DATAPOINT_NO_FLAG_MASK: Datapoint is not persisted to NVM
+ *   - DATAPOINT_FLAG_NVM_MASK: Datapoint is persisted to NVM
+ *
+ * Default values:
+ *   - Binary: true or false
+ *   - Button: 0 (BUTTON_UNPRESSED)
+ *   - Float: floating point value (e.g., 1.23f)
+ *   - Integer: signed integer value (e.g., -10)
+ *   - Multi-State: enum value from your state definitions
+ *   - Unsigned Integer: unsigned integer value (e.g., 100)
+ */
+
+/**
+ * @brief   Binary datapoint information X-macro.
+ * @note    X(datapoint ID, option flag, default value)
+ */
 #define DATASTORE_BINARY_DATAPOINTS \
-  X(BINARY_FIRST_DATAPOINT,   DATAPOINT_FLAG_NVM_MASK, true) \
-  X(BINARY_SECOND_DATAPOINT,  DATAPOINT_FLAG_NVM_MASK, false) \
-  X(BINARY_THIRD_DATAPOINT,   DATAPOINT_FLAG_NVM_MASK, true) \
-  X(BINARY_FOURTH_DATAPOINT,  DATAPOINT_FLAG_NVM_MASK, false)
+  X(SENSOR_ENABLED,    DATAPOINT_FLAG_NVM_MASK, true) \
+  X(ALARM_ACTIVE,      DATAPOINT_NO_FLAG_MASK,  false)
+
+/**
+ * @brief   Button datapoint information X-macro.
+ */
+#define DATASTORE_BUTTON_DATAPOINTS \
+  X(USER_BUTTON,       DATAPOINT_NO_FLAG_MASK, 0)
+
+/**
+ * @brief   Float datapoint information X-macro.
+ */
+#define DATASTORE_FLOAT_DATAPOINTS \
+  X(TEMPERATURE,       DATAPOINT_NO_FLAG_MASK,  25.0f) \
+  X(SETPOINT,          DATAPOINT_FLAG_NVM_MASK, 20.0f)
+
+/**
+ * @brief   Signed integer datapoint information X-macro.
+ */
+#define DATASTORE_INT_DATAPOINTS \
+  X(ERROR_COUNT,       DATAPOINT_NO_FLAG_MASK, 0)
+
+/**
+ * @brief   Multi-state datapoint information X-macro.
+ */
+#define DATASTORE_MULTI_STATE_DATAPOINTS \
+  X(SYSTEM_MODE,       DATAPOINT_FLAG_NVM_MASK, MY_STATE_1)
+
+/**
+ * @brief   Unsigned integer datapoint information X-macro.
+ */
+#define DATASTORE_UINT_DATAPOINTS \
+  X(CYCLE_COUNT,       DATAPOINT_NO_FLAG_MASK, 0)
+
+#endif    /* DATASTORE_META_H */
 ```
 
 **X-Macro Format**: `X(datapoint_id, flags, default_value)`
 - `datapoint_id`: Unique identifier for the datapoint
 - `flags`: `DATAPOINT_FLAG_NVM_MASK` for NVM persistence, `DATAPOINT_NO_FLAG_MASK` otherwise
 - `default_value`: Initial value on startup
+
+**Note**: The application's `src/` directory is automatically in the include path, so the datastore service will find your `datastoreMeta.h` file during compilation.
 
 ## Architecture
 
