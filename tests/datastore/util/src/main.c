@@ -28,6 +28,8 @@ typedef void *osMemoryPoolId_t;
 #define FFF_FAKES_LIST(FAKE) \
   FAKE(osMemoryPoolAlloc) \
   FAKE(osMemoryPoolFree) \
+  FAKE(k_malloc) \
+  FAKE(k_free) \
   FAKE(mock_subscription_callback)
 
 /* Setup logging */
@@ -44,6 +46,10 @@ LOG_MODULE_REGISTER(datastore, LOG_LEVEL_DBG);
 /* Mock osMemoryPool functions */
 FAKE_VALUE_FUNC(void *, osMemoryPoolAlloc, osMemoryPoolId_t, uint32_t);
 FAKE_VALUE_FUNC(int, osMemoryPoolFree, osMemoryPoolId_t, void *);
+
+/* Mock kernel memory allocation functions */
+FAKE_VALUE_FUNC(void *, k_malloc, size_t);
+FAKE_VOID_FUNC(k_free, void *);
 
 /* Include utility implementation - this will define SrvMsgPayload_t */
 #include "datastoreUtil.c"
@@ -2776,6 +2782,2737 @@ ZTEST(datastore_util_tests, test_notify_uint_subs_success)
                 "osMemoryPoolAlloc should be called once for subscription 0");
   zassert_equal(mock_subscription_callback_fake.call_count, 1,
                 "Callback should be called once for subscription 0");
+}
+
+/**
+ * @test The isDatapointIdAndValCountValid function must return false when
+ * datapointId is greater than or equal to datapointCount.
+ */
+ZTEST(datastore_util_tests, test_is_datapoint_id_and_val_count_valid_id_out_of_bounds)
+{
+  bool result;
+
+  /* datapointId >= datapointCount - should be invalid */
+  result = isDatapointIdAndValCountValid(10, 1, 10);
+  zassert_false(result,
+                "Should return false when datapointId >= datapointCount");
+
+  result = isDatapointIdAndValCountValid(15, 1, 10);
+  zassert_false(result,
+                "Should return false when datapointId > datapointCount");
+}
+
+/**
+ * @test The isDatapointIdAndValCountValid function must return false when
+ * datapointId + valCount exceeds datapointCount.
+ */
+ZTEST(datastore_util_tests, test_is_datapoint_id_and_val_count_valid_range_overflow)
+{
+  bool result;
+
+  /* datapointId + valCount > datapointCount - should be invalid */
+  result = isDatapointIdAndValCountValid(8, 3, 10);
+  zassert_false(result,
+                "Should return false when datapointId + valCount > datapointCount");
+
+  result = isDatapointIdAndValCountValid(9, 2, 10);
+  zassert_false(result,
+                "Should return false when range exceeds bounds by 1");
+}
+
+/**
+ * @test The isDatapointIdAndValCountValid function must return false when
+ * both conditions fail (datapointId out of bounds and range overflow).
+ */
+ZTEST(datastore_util_tests, test_is_datapoint_id_and_val_count_valid_both_fail)
+{
+  bool result;
+
+  /* Both datapointId >= datapointCount AND datapointId + valCount > datapointCount */
+  result = isDatapointIdAndValCountValid(15, 5, 10);
+  zassert_false(result,
+                "Should return false when both conditions fail");
+}
+
+/**
+ * @test The isDatapointIdAndValCountValid function must return true when
+ * datapointId is at the start boundary and range is valid.
+ */
+ZTEST(datastore_util_tests, test_is_datapoint_id_and_val_count_valid_at_start)
+{
+  bool result;
+
+  /* datapointId = 0, valid range */
+  result = isDatapointIdAndValCountValid(0, 1, 10);
+  zassert_true(result,
+               "Should return true when datapointId = 0 with valid range");
+
+  result = isDatapointIdAndValCountValid(0, 5, 10);
+  zassert_true(result,
+               "Should return true when datapointId = 0 with larger valid range");
+}
+
+/**
+ * @test The isDatapointIdAndValCountValid function must return true when
+ * datapointId is at the end boundary and range is valid.
+ */
+ZTEST(datastore_util_tests, test_is_datapoint_id_and_val_count_valid_at_end)
+{
+  bool result;
+
+  /* datapointId at end with valCount = 1 */
+  result = isDatapointIdAndValCountValid(9, 1, 10);
+  zassert_true(result,
+               "Should return true when datapointId + valCount = datapointCount");
+}
+
+/**
+ * @test The isDatapointIdAndValCountValid function must return true when
+ * datapointId is in the middle and range is valid.
+ */
+ZTEST(datastore_util_tests, test_is_datapoint_id_and_val_count_valid_in_middle)
+{
+  bool result;
+
+  /* datapointId in middle with valid range */
+  result = isDatapointIdAndValCountValid(5, 3, 10);
+  zassert_true(result,
+               "Should return true when datapointId and range are in middle");
+
+  result = isDatapointIdAndValCountValid(3, 5, 10);
+  zassert_true(result,
+               "Should return true when range spans middle to near end");
+}
+
+/**
+ * @test The isDatapointIdAndValCountValid function must return true when
+ * valCount is 0.
+ */
+ZTEST(datastore_util_tests, test_is_datapoint_id_and_val_count_valid_zero_count)
+{
+  bool result;
+
+  /* valCount = 0 should be valid (no range to check) */
+  result = isDatapointIdAndValCountValid(5, 0, 10);
+  zassert_true(result,
+               "Should return true when valCount = 0");
+
+  result = isDatapointIdAndValCountValid(9, 0, 10);
+  zassert_true(result,
+               "Should return true when valCount = 0 at end boundary");
+}
+
+/**
+ * @test The isDatapointIdAndValCountValid function must return true when
+ * the range covers the entire datapoint array.
+ */
+ZTEST(datastore_util_tests, test_is_datapoint_id_and_val_count_valid_full_range)
+{
+  bool result;
+
+  /* Full range from start to end */
+  result = isDatapointIdAndValCountValid(0, 10, 10);
+  zassert_true(result,
+               "Should return true when range covers entire array");
+}
+
+/**
+ * @test The datastoreUtilAllocateBinarySubs function must return -ENOSPC
+ * when k_malloc fails to allocate memory.
+ */
+ZTEST(datastore_util_tests, test_allocate_binary_subs_allocation_failure)
+{
+  int result;
+
+  /* Configure k_malloc to return NULL (allocation failure) */
+  k_malloc_fake.return_val = NULL;
+
+  /* Call datastoreUtilAllocateBinarySubs - should fail */
+  result = datastoreUtilAllocateBinarySubs(5);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when k_malloc fails");
+  zassert_equal(k_malloc_fake.call_count, 1,
+                "k_malloc should be called once");
+  zassert_equal(k_malloc_fake.arg0_val, 5 * sizeof(DatastoreSubEntry_t),
+                "k_malloc should be called with correct size");
+  zassert_is_null(binarySubs.entries,
+                  "binarySubs.entries should remain NULL");
+}
+
+/**
+ * @test The datastoreUtilAllocateBinarySubs function must successfully allocate
+ * memory and initialize binarySubs when k_malloc succeeds.
+ */
+ZTEST(datastore_util_tests, test_allocate_binary_subs_success)
+{
+  static uint8_t fake_buffer[256];
+  int result;
+
+  /* Configure k_malloc to succeed */
+  k_malloc_fake.return_val = fake_buffer;
+
+  /* Call datastoreUtilAllocateBinarySubs - should succeed */
+  result = datastoreUtilAllocateBinarySubs(5);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_equal(k_malloc_fake.call_count, 1,
+                "k_malloc should be called once");
+  zassert_equal(k_malloc_fake.arg0_val, 5 * sizeof(DatastoreSubEntry_t),
+                "k_malloc should be called with correct size");
+  zassert_equal_ptr(binarySubs.entries, fake_buffer,
+                    "binarySubs.entries should be set to allocated memory");
+  zassert_equal(binarySubs.maxCount, 5,
+                "binarySubs.maxCount should be set to maxSubCount");
+}
+
+/**
+ * @test The datastoreUtilAllocateButtonSubs function must return -ENOSPC
+ * when k_malloc fails to allocate memory.
+ */
+ZTEST(datastore_util_tests, test_allocate_button_subs_allocation_failure)
+{
+  int result;
+
+  /* Configure k_malloc to return NULL (allocation failure) */
+  k_malloc_fake.return_val = NULL;
+
+  /* Call datastoreUtilAllocateButtonSubs - should fail */
+  result = datastoreUtilAllocateButtonSubs(5);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when k_malloc fails");
+  zassert_equal(k_malloc_fake.call_count, 1,
+                "k_malloc should be called once");
+  zassert_equal(k_malloc_fake.arg0_val, 5 * sizeof(DatastoreSubEntry_t),
+                "k_malloc should be called with correct size");
+  zassert_is_null(buttonSubs.entries,
+                  "buttonSubs.entries should remain NULL");
+}
+
+/**
+ * @test The datastoreUtilAllocateButtonSubs function must successfully allocate
+ * memory and initialize buttonSubs when k_malloc succeeds.
+ */
+ZTEST(datastore_util_tests, test_allocate_button_subs_success)
+{
+  static uint8_t fake_buffer[256];
+  int result;
+
+  /* Configure k_malloc to succeed */
+  k_malloc_fake.return_val = fake_buffer;
+
+  /* Call datastoreUtilAllocateButtonSubs - should succeed */
+  result = datastoreUtilAllocateButtonSubs(5);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_equal(k_malloc_fake.call_count, 1,
+                "k_malloc should be called once");
+  zassert_equal(k_malloc_fake.arg0_val, 5 * sizeof(DatastoreSubEntry_t),
+                "k_malloc should be called with correct size");
+  zassert_equal_ptr(buttonSubs.entries, fake_buffer,
+                    "buttonSubs.entries should be set to allocated memory");
+  zassert_equal(buttonSubs.maxCount, 5,
+                "buttonSubs.maxCount should be set to maxSubCount");
+}
+
+/**
+ * @test The datastoreUtilAllocateFloatSubs function must return -ENOSPC
+ * when k_malloc fails to allocate memory.
+ */
+ZTEST(datastore_util_tests, test_allocate_float_subs_allocation_failure)
+{
+  int result;
+
+  /* Configure k_malloc to return NULL (allocation failure) */
+  k_malloc_fake.return_val = NULL;
+
+  /* Call datastoreUtilAllocateFloatSubs - should fail */
+  result = datastoreUtilAllocateFloatSubs(5);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when k_malloc fails");
+  zassert_equal(k_malloc_fake.call_count, 1,
+                "k_malloc should be called once");
+  zassert_equal(k_malloc_fake.arg0_val, 5 * sizeof(DatastoreSubEntry_t),
+                "k_malloc should be called with correct size");
+  zassert_is_null(floatSubs.entries,
+                  "floatSubs.entries should remain NULL");
+}
+
+/**
+ * @test The datastoreUtilAllocateFloatSubs function must successfully allocate
+ * memory and initialize floatSubs when k_malloc succeeds.
+ */
+ZTEST(datastore_util_tests, test_allocate_float_subs_success)
+{
+  static uint8_t fake_buffer[256];
+  int result;
+
+  /* Configure k_malloc to succeed */
+  k_malloc_fake.return_val = fake_buffer;
+
+  /* Call datastoreUtilAllocateFloatSubs - should succeed */
+  result = datastoreUtilAllocateFloatSubs(5);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_equal(k_malloc_fake.call_count, 1,
+                "k_malloc should be called once");
+  zassert_equal(k_malloc_fake.arg0_val, 5 * sizeof(DatastoreSubEntry_t),
+                "k_malloc should be called with correct size");
+  zassert_equal_ptr(floatSubs.entries, fake_buffer,
+                    "floatSubs.entries should be set to allocated memory");
+  zassert_equal(floatSubs.maxCount, 5,
+                "floatSubs.maxCount should be set to maxSubCount");
+}
+
+/**
+ * @test The datastoreUtilAllocateIntSubs function must return -ENOSPC
+ * when k_malloc fails to allocate memory.
+ */
+ZTEST(datastore_util_tests, test_allocate_int_subs_allocation_failure)
+{
+  int result;
+
+  /* Configure k_malloc to return NULL (allocation failure) */
+  k_malloc_fake.return_val = NULL;
+
+  /* Call datastoreUtilAllocateIntSubs - should fail */
+  result = datastoreUtilAllocateIntSubs(5);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when k_malloc fails");
+  zassert_equal(k_malloc_fake.call_count, 1,
+                "k_malloc should be called once");
+  zassert_equal(k_malloc_fake.arg0_val, 5 * sizeof(DatastoreSubEntry_t),
+                "k_malloc should be called with correct size");
+  zassert_is_null(intSubs.entries,
+                  "intSubs.entries should remain NULL");
+}
+
+/**
+ * @test The datastoreUtilAllocateIntSubs function must successfully allocate
+ * memory and initialize intSubs when k_malloc succeeds.
+ */
+ZTEST(datastore_util_tests, test_allocate_int_subs_success)
+{
+  static uint8_t fake_buffer[256];
+  int result;
+
+  /* Configure k_malloc to succeed */
+  k_malloc_fake.return_val = fake_buffer;
+
+  /* Call datastoreUtilAllocateIntSubs - should succeed */
+  result = datastoreUtilAllocateIntSubs(5);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_equal(k_malloc_fake.call_count, 1,
+                "k_malloc should be called once");
+  zassert_equal(k_malloc_fake.arg0_val, 5 * sizeof(DatastoreSubEntry_t),
+                "k_malloc should be called with correct size");
+  zassert_equal_ptr(intSubs.entries, fake_buffer,
+                    "intSubs.entries should be set to allocated memory");
+  zassert_equal(intSubs.maxCount, 5,
+                "intSubs.maxCount should be set to maxSubCount");
+}
+
+/**
+ * @test The datastoreUtilAllocateMultiStateSubs function must return -ENOSPC
+ * when k_malloc fails to allocate memory.
+ */
+ZTEST(datastore_util_tests, test_allocate_multi_state_subs_allocation_failure)
+{
+  int result;
+
+  /* Configure k_malloc to return NULL (allocation failure) */
+  k_malloc_fake.return_val = NULL;
+
+  /* Call datastoreUtilAllocateMultiStateSubs - should fail */
+  result = datastoreUtilAllocateMultiStateSubs(5);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when k_malloc fails");
+  zassert_equal(k_malloc_fake.call_count, 1,
+                "k_malloc should be called once");
+  zassert_equal(k_malloc_fake.arg0_val, 5 * sizeof(DatastoreSubEntry_t),
+                "k_malloc should be called with correct size");
+  zassert_is_null(multiStateSubs.entries,
+                  "multiStateSubs.entries should remain NULL");
+}
+
+/**
+ * @test The datastoreUtilAllocateMultiStateSubs function must successfully allocate
+ * memory and initialize multiStateSubs when k_malloc succeeds.
+ */
+ZTEST(datastore_util_tests, test_allocate_multi_state_subs_success)
+{
+  static uint8_t fake_buffer[256];
+  int result;
+
+  /* Configure k_malloc to succeed */
+  k_malloc_fake.return_val = fake_buffer;
+
+  /* Call datastoreUtilAllocateMultiStateSubs - should succeed */
+  result = datastoreUtilAllocateMultiStateSubs(5);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_equal(k_malloc_fake.call_count, 1,
+                "k_malloc should be called once");
+  zassert_equal(k_malloc_fake.arg0_val, 5 * sizeof(DatastoreSubEntry_t),
+                "k_malloc should be called with correct size");
+  zassert_equal_ptr(multiStateSubs.entries, fake_buffer,
+                    "multiStateSubs.entries should be set to allocated memory");
+  zassert_equal(multiStateSubs.maxCount, 5,
+                "multiStateSubs.maxCount should be set to maxSubCount");
+}
+
+/**
+ * @test The datastoreUtilAllocateUintSubs function must return -ENOSPC
+ * when k_malloc fails to allocate memory.
+ */
+ZTEST(datastore_util_tests, test_allocate_uint_subs_allocation_failure)
+{
+  int result;
+
+  /* Configure k_malloc to return NULL (allocation failure) */
+  k_malloc_fake.return_val = NULL;
+
+  /* Call datastoreUtilAllocateUintSubs - should fail */
+  result = datastoreUtilAllocateUintSubs(5);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when k_malloc fails");
+  zassert_equal(k_malloc_fake.call_count, 1,
+                "k_malloc should be called once");
+  zassert_equal(k_malloc_fake.arg0_val, 5 * sizeof(DatastoreSubEntry_t),
+                "k_malloc should be called with correct size");
+  zassert_is_null(uintSubs.entries,
+                  "uintSubs.entries should remain NULL");
+}
+
+/**
+ * @test The datastoreUtilAllocateUintSubs function must successfully allocate
+ * memory and initialize uintSubs when k_malloc succeeds.
+ */
+ZTEST(datastore_util_tests, test_allocate_uint_subs_success)
+{
+  static uint8_t fake_buffer[256];
+  int result;
+
+  /* Configure k_malloc to succeed */
+  k_malloc_fake.return_val = fake_buffer;
+
+  /* Call datastoreUtilAllocateUintSubs - should succeed */
+  result = datastoreUtilAllocateUintSubs(5);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_equal(k_malloc_fake.call_count, 1,
+                "k_malloc should be called once");
+  zassert_equal(k_malloc_fake.arg0_val, 5 * sizeof(DatastoreSubEntry_t),
+                "k_malloc should be called with correct size");
+  zassert_equal_ptr(uintSubs.entries, fake_buffer,
+                    "uintSubs.entries should be set to allocated memory");
+  zassert_equal(uintSubs.maxCount, 5,
+                "uintSubs.maxCount should be set to maxSubCount");
+}
+
+/**
+ * @test The datastoreUtilCalculateBufferSize function must return 0 when
+ * all datapoint counts are zero.
+ */
+ZTEST(datastore_util_tests, test_calculate_buffer_size_all_zero)
+{
+  size_t counts[DATAPOINT_TYPE_COUNT] = {0, 0, 0, 0, 0, 0};
+  size_t result;
+
+  result = datastoreUtilCalculateBufferSize(counts);
+
+  zassert_equal(result, 0,
+                "Should return 0 when all counts are zero");
+}
+
+/**
+ * @test The datastoreUtilCalculateBufferSize function must return correct size
+ * when the first element is the maximum.
+ */
+ZTEST(datastore_util_tests, test_calculate_buffer_size_first_max)
+{
+  size_t counts[DATAPOINT_TYPE_COUNT] = {10, 5, 3, 2, 1, 0};
+  size_t result;
+
+  result = datastoreUtilCalculateBufferSize(counts);
+
+  zassert_equal(result, 10 * sizeof(Datapoint_t),
+                "Should return max_count * sizeof(Datapoint_t)");
+}
+
+/**
+ * @test The datastoreUtilCalculateBufferSize function must return correct size
+ * when the last element is the maximum.
+ */
+ZTEST(datastore_util_tests, test_calculate_buffer_size_last_max)
+{
+  size_t counts[DATAPOINT_TYPE_COUNT] = {1, 2, 3, 5, 8, 15};
+  size_t result;
+
+  result = datastoreUtilCalculateBufferSize(counts);
+
+  zassert_equal(result, 15 * sizeof(Datapoint_t),
+                "Should return max_count * sizeof(Datapoint_t)");
+}
+
+/**
+ * @test The datastoreUtilCalculateBufferSize function must return correct size
+ * when a middle element is the maximum.
+ */
+ZTEST(datastore_util_tests, test_calculate_buffer_size_middle_max)
+{
+  size_t counts[DATAPOINT_TYPE_COUNT] = {5, 3, 12, 7, 2, 1};
+  size_t result;
+
+  result = datastoreUtilCalculateBufferSize(counts);
+
+  zassert_equal(result, 12 * sizeof(Datapoint_t),
+                "Should return max_count * sizeof(Datapoint_t)");
+}
+
+/**
+ * @test The datastoreUtilCalculateBufferSize function must return correct size
+ * when multiple elements have the same maximum value.
+ */
+ZTEST(datastore_util_tests, test_calculate_buffer_size_multiple_max)
+{
+  size_t counts[DATAPOINT_TYPE_COUNT] = {8, 3, 8, 5, 8, 2};
+  size_t result;
+
+  result = datastoreUtilCalculateBufferSize(counts);
+
+  zassert_equal(result, 8 * sizeof(Datapoint_t),
+                "Should return max_count * sizeof(Datapoint_t)");
+}
+
+/**
+ * @test The datastoreUtilCalculateBufferSize function must return correct size
+ * when all elements have the same non-zero value.
+ */
+ZTEST(datastore_util_tests, test_calculate_buffer_size_all_same)
+{
+  size_t counts[DATAPOINT_TYPE_COUNT] = {7, 7, 7, 7, 7, 7};
+  size_t result;
+
+  result = datastoreUtilCalculateBufferSize(counts);
+
+  zassert_equal(result, 7 * sizeof(Datapoint_t),
+                "Should return max_count * sizeof(Datapoint_t)");
+}
+
+/**
+ * @test The datastoreUtilCalculateBufferSize function must return correct size
+ * when only one element is non-zero.
+ */
+ZTEST(datastore_util_tests, test_calculate_buffer_size_single_nonzero)
+{
+  size_t counts[DATAPOINT_TYPE_COUNT] = {0, 0, 0, 20, 0, 0};
+  size_t result;
+
+  result = datastoreUtilCalculateBufferSize(counts);
+
+  zassert_equal(result, 20 * sizeof(Datapoint_t),
+                "Should return max_count * sizeof(Datapoint_t)");
+}
+
+/**
+ * @test The datastoreUtilAddBinarySub function must return -ENOBUFS when
+ * the subscription list is full.
+ */
+ZTEST(datastore_util_tests, test_add_binary_sub_list_full)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up binarySubs to be full */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateBinarySubs(5);
+  binarySubs.activeCount = 4;  /* maxCount is 5, so activeCount + 1 >= maxCount */
+
+  /* Call datastoreUtilAddBinarySub - should fail due to full list */
+  result = datastoreUtilAddBinarySub(&sub, pool);
+
+  zassert_equal(result, -ENOBUFS,
+                "Should return -ENOBUFS when subscription list is full");
+  zassert_equal(binarySubs.activeCount, 4,
+                "activeCount should not be incremented");
+}
+
+/**
+ * @test The datastoreUtilAddBinarySub function must return the error code
+ * when notifyBinarySub fails.
+ */
+ZTEST(datastore_util_tests, test_add_binary_sub_notify_failure)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up binarySubs with available space */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateBinarySubs(5);
+  binarySubs.activeCount = 2;
+
+  /* Configure osMemoryPoolAlloc to fail (causes notifyBinarySub to fail) */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call datastoreUtilAddBinarySub - should fail due to notification failure */
+  result = datastoreUtilAddBinarySub(&sub, pool);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when notifyBinarySub fails");
+  zassert_equal(binarySubs.activeCount, 3,
+                "activeCount should be incremented even when notification fails");
+}
+
+/**
+ * @test The datastoreUtilAddBinarySub function must successfully add a subscription
+ * and notify when everything succeeds.
+ */
+ZTEST(datastore_util_tests, test_add_binary_sub_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_pool_buffer[128];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up binarySubs with available space */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateBinarySubs(5);
+  binarySubs.activeCount = 2;
+
+  /* Configure osMemoryPoolAlloc to succeed */
+  osMemoryPoolAlloc_fake.return_val = fake_pool_buffer;
+
+  /* Configure callback to return success */
+  mock_subscription_callback_fake.return_val = 0;
+
+  /* Call datastoreUtilAddBinarySub - should succeed */
+  result = datastoreUtilAddBinarySub(&sub, pool);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_equal(binarySubs.activeCount, 3,
+                "activeCount should be incremented");
+  zassert_equal(binarySubs.entries[2].datapointId, 0,
+                "New subscription datapointId should be added");
+  zassert_equal(binarySubs.entries[2].valCount, 1,
+                "New subscription valCount should be added");
+  zassert_false(binarySubs.entries[2].isPaused,
+                "New subscription isPaused should be added");
+  zassert_equal(binarySubs.entries[2].callback, mock_subscription_callback,
+                "New subscription callback should be added");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once for notification");
+  zassert_equal(mock_subscription_callback_fake.call_count, 1,
+                "Callback should be called once for notification");
+}
+
+/**
+ * @test The datastoreUtilRemoveBinarySub function must return -ESRCH when
+ * the callback is not found in the subscription list.
+ */
+ZTEST(datastore_util_tests, test_remove_binary_sub_not_found)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t other_callback = (DatastoreSubCb_t)0x2000;
+  int result;
+
+  /* Set up binarySubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateBinarySubs(5);
+  binarySubs.activeCount = 2;
+  binarySubs.entries[0].callback = mock_subscription_callback;
+  binarySubs.entries[1].callback = mock_subscription_callback;
+
+  /* Try to remove a callback that doesn't exist */
+  result = datastoreUtilRemoveBinarySub(other_callback);
+
+  zassert_equal(result, -ESRCH,
+                "Should return -ESRCH when callback not found");
+  zassert_equal(binarySubs.activeCount, 2,
+                "activeCount should remain unchanged");
+}
+
+/**
+ * @test The datastoreUtilRemoveBinarySub function must successfully remove
+ * a subscription when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_remove_binary_sub_success)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t callback1 = (DatastoreSubCb_t)0x1000;
+  DatastoreSubCb_t callback2 = (DatastoreSubCb_t)0x2000;
+  DatastoreSubCb_t callback3 = (DatastoreSubCb_t)0x3000;
+  int result;
+
+  /* Set up binarySubs with three entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateBinarySubs(5);
+  binarySubs.activeCount = 3;
+  binarySubs.entries[0].callback = callback1;
+  binarySubs.entries[0].datapointId = 0;
+  binarySubs.entries[1].callback = callback2;
+  binarySubs.entries[1].datapointId = 1;
+  binarySubs.entries[2].callback = callback3;
+  binarySubs.entries[2].datapointId = 2;
+
+  /* Remove the middle entry (callback2) */
+  result = datastoreUtilRemoveBinarySub(callback2);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_equal(binarySubs.activeCount, 2,
+                "activeCount should be decremented");
+  zassert_equal(binarySubs.entries[0].callback, callback1,
+                "First entry should remain unchanged");
+  zassert_equal(binarySubs.entries[1].callback, callback3,
+                "Third entry should be shifted down to second position");
+  zassert_equal(binarySubs.entries[1].datapointId, 2,
+                "Third entry's datapointId should be preserved");
+}
+
+/**
+ * @test The datastoreUtilSetBinarySubPauseState function must return -EINVAL
+ * when the callback is NULL.
+ */
+ZTEST(datastore_util_tests, test_set_binary_sub_pause_state_null_callback)
+{
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Call with NULL callback - should fail */
+  result = datastoreUtilSetBinarySubPauseState(NULL, true, pool);
+
+  zassert_equal(result, -EINVAL,
+                "Should return -EINVAL when callback is NULL");
+}
+
+/**
+ * @test The datastoreUtilSetBinarySubPauseState function must return -ESRCH
+ * when the callback is not found in the subscription list.
+ */
+ZTEST(datastore_util_tests, test_set_binary_sub_pause_state_not_found)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t other_callback = (DatastoreSubCb_t)0x2000;
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up binarySubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateBinarySubs(5);
+  binarySubs.activeCount = 2;
+  binarySubs.entries[0].callback = mock_subscription_callback;
+  binarySubs.entries[1].callback = mock_subscription_callback;
+
+  /* Try to set pause state for a callback that doesn't exist */
+  result = datastoreUtilSetBinarySubPauseState(other_callback, true, pool);
+
+  zassert_equal(result, -ESRCH,
+                "Should return -ESRCH when callback not found");
+}
+
+/**
+ * @test The datastoreUtilSetBinarySubPauseState function must successfully
+ * pause a subscription when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_set_binary_sub_pause_state_pause_success)
+{
+  static uint8_t fake_buffer[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up binarySubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateBinarySubs(5);
+  binarySubs.activeCount = 2;
+  binarySubs.entries[0].callback = mock_subscription_callback;
+  binarySubs.entries[0].isPaused = false;
+  binarySubs.entries[1].callback = (DatastoreSubCb_t)0x2000;
+  binarySubs.entries[1].isPaused = false;
+
+  /* Pause the first subscription */
+  result = datastoreUtilSetBinarySubPauseState(mock_subscription_callback, true, pool);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_true(binarySubs.entries[0].isPaused,
+               "Subscription should be paused");
+  zassert_false(binarySubs.entries[1].isPaused,
+                "Other subscriptions should remain unchanged");
+}
+
+/**
+ * @test The datastoreUtilSetBinarySubPauseState function must successfully
+ * unpause a subscription and notify when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_set_binary_sub_pause_state_unpause_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_pool_buffer[128];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up binarySubs with a paused entry */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateBinarySubs(5);
+  binarySubs.activeCount = 1;
+  binarySubs.entries[0].callback = mock_subscription_callback;
+  binarySubs.entries[0].isPaused = true;
+  binarySubs.entries[0].datapointId = 0;
+  binarySubs.entries[0].valCount = 1;
+
+  /* Configure osMemoryPoolAlloc to succeed for notification */
+  osMemoryPoolAlloc_fake.return_val = fake_pool_buffer;
+
+  /* Configure callback to return success */
+  mock_subscription_callback_fake.return_val = 0;
+
+  /* Unpause the subscription */
+  result = datastoreUtilSetBinarySubPauseState(mock_subscription_callback, false, pool);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_false(binarySubs.entries[0].isPaused,
+                "Subscription should be unpaused");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once for notification");
+  zassert_equal(mock_subscription_callback_fake.call_count, 1,
+                "Callback should be called once for notification");
+}
+
+/**
+ * @test The datastoreUtilAddButtonSub function must return -ENOBUFS when
+ * the subscription list is full.
+ */
+ZTEST(datastore_util_tests, test_add_button_sub_list_full)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up buttonSubs to be full */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateButtonSubs(5);
+  buttonSubs.activeCount = 4;  /* maxCount is 5, so activeCount + 1 >= maxCount */
+
+  /* Call datastoreUtilAddButtonSub - should fail due to full list */
+  result = datastoreUtilAddButtonSub(&sub, pool);
+
+  zassert_equal(result, -ENOBUFS,
+                "Should return -ENOBUFS when subscription list is full");
+  zassert_equal(buttonSubs.activeCount, 4,
+                "activeCount should not be incremented");
+}
+
+/**
+ * @test The datastoreUtilAddButtonSub function must return the error code
+ * when notifyButtonSub fails.
+ */
+ZTEST(datastore_util_tests, test_add_button_sub_notify_failure)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up buttonSubs with available space */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateButtonSubs(5);
+  buttonSubs.activeCount = 2;
+
+  /* Configure osMemoryPoolAlloc to fail (causes notifyButtonSub to fail) */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call datastoreUtilAddButtonSub - should fail due to notification failure */
+  result = datastoreUtilAddButtonSub(&sub, pool);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when notifyButtonSub fails");
+  zassert_equal(buttonSubs.activeCount, 3,
+                "activeCount should be incremented even when notification fails");
+}
+
+/**
+ * @test The datastoreUtilAddButtonSub function must successfully add a subscription
+ * and notify when everything succeeds.
+ */
+ZTEST(datastore_util_tests, test_add_button_sub_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_pool_buffer[128];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up buttonSubs with available space */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateButtonSubs(5);
+  buttonSubs.activeCount = 2;
+
+  /* Configure osMemoryPoolAlloc to succeed */
+  osMemoryPoolAlloc_fake.return_val = fake_pool_buffer;
+
+  /* Configure callback to return success */
+  mock_subscription_callback_fake.return_val = 0;
+
+  /* Call datastoreUtilAddButtonSub - should succeed */
+  result = datastoreUtilAddButtonSub(&sub, pool);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_equal(buttonSubs.activeCount, 3,
+                "activeCount should be incremented");
+  zassert_equal(buttonSubs.entries[2].datapointId, 0,
+                "New subscription datapointId should be added");
+  zassert_equal(buttonSubs.entries[2].valCount, 1,
+                "New subscription valCount should be added");
+  zassert_false(buttonSubs.entries[2].isPaused,
+                "New subscription isPaused should be added");
+  zassert_equal(buttonSubs.entries[2].callback, mock_subscription_callback,
+                "New subscription callback should be added");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once for notification");
+  zassert_equal(mock_subscription_callback_fake.call_count, 1,
+                "Callback should be called once for notification");
+}
+
+/**
+ * @test The datastoreUtilRemoveButtonSub function must return -ESRCH when
+ * the callback is not found in the subscription list.
+ */
+ZTEST(datastore_util_tests, test_remove_button_sub_not_found)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t other_callback = (DatastoreSubCb_t)0x2000;
+  int result;
+
+  /* Set up buttonSubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateButtonSubs(5);
+  buttonSubs.activeCount = 2;
+  buttonSubs.entries[0].callback = mock_subscription_callback;
+  buttonSubs.entries[1].callback = mock_subscription_callback;
+
+  /* Try to remove a callback that doesn't exist */
+  result = datastoreUtilRemoveButtonSub(other_callback);
+
+  zassert_equal(result, -ESRCH,
+                "Should return -ESRCH when callback not found");
+  zassert_equal(buttonSubs.activeCount, 2,
+                "activeCount should remain unchanged");
+}
+
+/**
+ * @test The datastoreUtilRemoveButtonSub function must successfully remove
+ * a subscription when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_remove_button_sub_success)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t callback1 = (DatastoreSubCb_t)0x1000;
+  DatastoreSubCb_t callback2 = (DatastoreSubCb_t)0x2000;
+  DatastoreSubCb_t callback3 = (DatastoreSubCb_t)0x3000;
+  int result;
+
+  /* Set up buttonSubs with three entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateButtonSubs(5);
+  buttonSubs.activeCount = 3;
+  buttonSubs.entries[0].callback = callback1;
+  buttonSubs.entries[0].datapointId = 0;
+  buttonSubs.entries[1].callback = callback2;
+  buttonSubs.entries[1].datapointId = 1;
+  buttonSubs.entries[2].callback = callback3;
+  buttonSubs.entries[2].datapointId = 2;
+
+  /* Remove the middle entry (callback2) */
+  result = datastoreUtilRemoveButtonSub(callback2);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_equal(buttonSubs.activeCount, 2,
+                "activeCount should be decremented");
+  zassert_equal(buttonSubs.entries[0].callback, callback1,
+                "First entry should remain unchanged");
+  zassert_equal(buttonSubs.entries[1].callback, callback3,
+                "Third entry should be shifted down to second position");
+  zassert_equal(buttonSubs.entries[1].datapointId, 2,
+                "Third entry's datapointId should be preserved");
+}
+
+/**
+ * @test The datastoreUtilSetButtonSubPauseState function must return -EINVAL
+ * when the callback is NULL.
+ */
+ZTEST(datastore_util_tests, test_set_button_sub_pause_state_null_callback)
+{
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Call with NULL callback - should fail */
+  result = datastoreUtilSetButtonSubPauseState(NULL, true, pool);
+
+  zassert_equal(result, -EINVAL,
+                "Should return -EINVAL when callback is NULL");
+}
+
+/**
+ * @test The datastoreUtilSetButtonSubPauseState function must return -ESRCH
+ * when the callback is not found in the subscription list.
+ */
+ZTEST(datastore_util_tests, test_set_button_sub_pause_state_not_found)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t other_callback = (DatastoreSubCb_t)0x2000;
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up buttonSubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateButtonSubs(5);
+  buttonSubs.activeCount = 2;
+  buttonSubs.entries[0].callback = mock_subscription_callback;
+  buttonSubs.entries[1].callback = mock_subscription_callback;
+
+  /* Try to set pause state for a callback that doesn't exist */
+  result = datastoreUtilSetButtonSubPauseState(other_callback, true, pool);
+
+  zassert_equal(result, -ESRCH,
+                "Should return -ESRCH when callback not found");
+}
+
+/**
+ * @test The datastoreUtilSetButtonSubPauseState function must successfully
+ * pause a subscription when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_set_button_sub_pause_state_pause_success)
+{
+  static uint8_t fake_buffer[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up buttonSubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateButtonSubs(5);
+  buttonSubs.activeCount = 2;
+  buttonSubs.entries[0].callback = mock_subscription_callback;
+  buttonSubs.entries[0].isPaused = false;
+  buttonSubs.entries[1].callback = (DatastoreSubCb_t)0x2000;
+  buttonSubs.entries[1].isPaused = false;
+
+  /* Pause the first subscription */
+  result = datastoreUtilSetButtonSubPauseState(mock_subscription_callback, true, pool);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_true(buttonSubs.entries[0].isPaused,
+               "Subscription should be paused");
+  zassert_false(buttonSubs.entries[1].isPaused,
+                "Other subscriptions should remain unchanged");
+}
+
+/**
+ * @test The datastoreUtilSetButtonSubPauseState function must successfully
+ * unpause a subscription and notify when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_set_button_sub_pause_state_unpause_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_pool_buffer[128];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up buttonSubs with a paused entry */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateButtonSubs(5);
+  buttonSubs.activeCount = 1;
+  buttonSubs.entries[0].callback = mock_subscription_callback;
+  buttonSubs.entries[0].isPaused = true;
+  buttonSubs.entries[0].datapointId = 0;
+  buttonSubs.entries[0].valCount = 1;
+
+  /* Configure osMemoryPoolAlloc to succeed for notification */
+  osMemoryPoolAlloc_fake.return_val = fake_pool_buffer;
+
+  /* Configure callback to return success */
+  mock_subscription_callback_fake.return_val = 0;
+
+  /* Unpause the subscription */
+  result = datastoreUtilSetButtonSubPauseState(mock_subscription_callback, false, pool);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_false(buttonSubs.entries[0].isPaused,
+                "Subscription should be unpaused");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once for notification");
+  zassert_equal(mock_subscription_callback_fake.call_count, 1,
+                "Callback should be called once for notification");
+}
+
+/**
+ * @test The datastoreUtilAddFloatSub function must return -ENOBUFS when
+ * the subscription list is full.
+ */
+ZTEST(datastore_util_tests, test_add_float_sub_list_full)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up floatSubs to be full */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateFloatSubs(5);
+  floatSubs.activeCount = 4;  /* maxCount is 5, so activeCount + 1 >= maxCount */
+
+  /* Call datastoreUtilAddFloatSub - should fail due to full list */
+  result = datastoreUtilAddFloatSub(&sub, pool);
+
+  zassert_equal(result, -ENOBUFS,
+                "Should return -ENOBUFS when subscription list is full");
+  zassert_equal(floatSubs.activeCount, 4,
+                "activeCount should not be incremented");
+}
+
+/**
+ * @test The datastoreUtilAddFloatSub function must return the error code
+ * when notifyFloatSub fails.
+ */
+ZTEST(datastore_util_tests, test_add_float_sub_notify_failure)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up floatSubs with available space */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateFloatSubs(5);
+  floatSubs.activeCount = 2;
+
+  /* Configure osMemoryPoolAlloc to fail (causes notifyFloatSub to fail) */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call datastoreUtilAddFloatSub - should fail due to notification failure */
+  result = datastoreUtilAddFloatSub(&sub, pool);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when notifyFloatSub fails");
+  zassert_equal(floatSubs.activeCount, 3,
+                "activeCount should be incremented even when notification fails");
+}
+
+/**
+ * @test The datastoreUtilAddFloatSub function must successfully add a subscription
+ * and notify when everything succeeds.
+ */
+ZTEST(datastore_util_tests, test_add_float_sub_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_pool_buffer[128];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up floatSubs with available space */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateFloatSubs(5);
+  floatSubs.activeCount = 2;
+
+  /* Configure osMemoryPoolAlloc to succeed */
+  osMemoryPoolAlloc_fake.return_val = fake_pool_buffer;
+
+  /* Configure callback to return success */
+  mock_subscription_callback_fake.return_val = 0;
+
+  /* Call datastoreUtilAddFloatSub - should succeed */
+  result = datastoreUtilAddFloatSub(&sub, pool);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_equal(floatSubs.activeCount, 3,
+                "activeCount should be incremented");
+  zassert_equal(floatSubs.entries[2].datapointId, 0,
+                "New subscription datapointId should be added");
+  zassert_equal(floatSubs.entries[2].valCount, 1,
+                "New subscription valCount should be added");
+  zassert_false(floatSubs.entries[2].isPaused,
+                "New subscription isPaused should be added");
+  zassert_equal(floatSubs.entries[2].callback, mock_subscription_callback,
+                "New subscription callback should be added");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once for notification");
+  zassert_equal(mock_subscription_callback_fake.call_count, 1,
+                "Callback should be called once for notification");
+}
+
+/**
+ * @test The datastoreUtilRemoveFloatSub function must return -ESRCH when
+ * the callback is not found in the subscription list.
+ */
+ZTEST(datastore_util_tests, test_remove_float_sub_not_found)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t other_callback = (DatastoreSubCb_t)0x2000;
+  int result;
+
+  /* Set up floatSubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateFloatSubs(5);
+  floatSubs.activeCount = 2;
+  floatSubs.entries[0].callback = mock_subscription_callback;
+  floatSubs.entries[1].callback = mock_subscription_callback;
+
+  /* Try to remove a callback that doesn't exist */
+  result = datastoreUtilRemoveFloatSub(other_callback);
+
+  zassert_equal(result, -ESRCH,
+                "Should return -ESRCH when callback not found");
+  zassert_equal(floatSubs.activeCount, 2,
+                "activeCount should remain unchanged");
+}
+
+/**
+ * @test The datastoreUtilRemoveFloatSub function must successfully remove
+ * a subscription when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_remove_float_sub_success)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t callback1 = (DatastoreSubCb_t)0x1000;
+  DatastoreSubCb_t callback2 = (DatastoreSubCb_t)0x2000;
+  DatastoreSubCb_t callback3 = (DatastoreSubCb_t)0x3000;
+  int result;
+
+  /* Set up floatSubs with three entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateFloatSubs(5);
+  floatSubs.activeCount = 3;
+  floatSubs.entries[0].callback = callback1;
+  floatSubs.entries[0].datapointId = 0;
+  floatSubs.entries[1].callback = callback2;
+  floatSubs.entries[1].datapointId = 1;
+  floatSubs.entries[2].callback = callback3;
+  floatSubs.entries[2].datapointId = 2;
+
+  /* Remove the middle entry (callback2) */
+  result = datastoreUtilRemoveFloatSub(callback2);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_equal(floatSubs.activeCount, 2,
+                "activeCount should be decremented");
+  zassert_equal(floatSubs.entries[0].callback, callback1,
+                "First entry should remain unchanged");
+  zassert_equal(floatSubs.entries[1].callback, callback3,
+                "Third entry should be shifted down to second position");
+  zassert_equal(floatSubs.entries[1].datapointId, 2,
+                "Third entry's datapointId should be preserved");
+}
+
+/**
+ * @test The datastoreUtilSetFloatSubPauseState function must return -EINVAL
+ * when the callback is NULL.
+ */
+ZTEST(datastore_util_tests, test_set_float_sub_pause_state_null_callback)
+{
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Call with NULL callback - should fail */
+  result = datastoreUtilSetFloatSubPauseState(NULL, true, pool);
+
+  zassert_equal(result, -EINVAL,
+                "Should return -EINVAL when callback is NULL");
+}
+
+/**
+ * @test The datastoreUtilSetFloatSubPauseState function must return -ESRCH
+ * when the callback is not found in the subscription list.
+ */
+ZTEST(datastore_util_tests, test_set_float_sub_pause_state_not_found)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t other_callback = (DatastoreSubCb_t)0x2000;
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up floatSubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateFloatSubs(5);
+  floatSubs.activeCount = 2;
+  floatSubs.entries[0].callback = mock_subscription_callback;
+  floatSubs.entries[1].callback = mock_subscription_callback;
+
+  /* Try to set pause state for a callback that doesn't exist */
+  result = datastoreUtilSetFloatSubPauseState(other_callback, true, pool);
+
+  zassert_equal(result, -ESRCH,
+                "Should return -ESRCH when callback not found");
+}
+
+/**
+ * @test The datastoreUtilSetFloatSubPauseState function must successfully
+ * pause a subscription when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_set_float_sub_pause_state_pause_success)
+{
+  static uint8_t fake_buffer[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up floatSubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateFloatSubs(5);
+  floatSubs.activeCount = 2;
+  floatSubs.entries[0].callback = mock_subscription_callback;
+  floatSubs.entries[0].isPaused = false;
+  floatSubs.entries[1].callback = (DatastoreSubCb_t)0x2000;
+  floatSubs.entries[1].isPaused = false;
+
+  /* Pause the first subscription */
+  result = datastoreUtilSetFloatSubPauseState(mock_subscription_callback, true, pool);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_true(floatSubs.entries[0].isPaused,
+               "Subscription should be paused");
+  zassert_false(floatSubs.entries[1].isPaused,
+                "Other subscriptions should remain unchanged");
+}
+
+/**
+ * @test The datastoreUtilSetFloatSubPauseState function must successfully
+ * unpause a subscription and notify when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_set_float_sub_pause_state_unpause_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_pool_buffer[128];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up floatSubs with a paused entry */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateFloatSubs(5);
+  floatSubs.activeCount = 1;
+  floatSubs.entries[0].callback = mock_subscription_callback;
+  floatSubs.entries[0].isPaused = true;
+  floatSubs.entries[0].datapointId = 0;
+  floatSubs.entries[0].valCount = 1;
+
+  /* Configure osMemoryPoolAlloc to succeed for notification */
+  osMemoryPoolAlloc_fake.return_val = fake_pool_buffer;
+
+  /* Configure callback to return success */
+  mock_subscription_callback_fake.return_val = 0;
+
+  /* Unpause the subscription */
+  result = datastoreUtilSetFloatSubPauseState(mock_subscription_callback, false, pool);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_false(floatSubs.entries[0].isPaused,
+                "Subscription should be unpaused");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once for notification");
+  zassert_equal(mock_subscription_callback_fake.call_count, 1,
+                "Callback should be called once for notification");
+}
+
+/**
+ * @test The datastoreUtilAddIntSub function must return -ENOBUFS when
+ * the subscription list is full.
+ */
+ZTEST(datastore_util_tests, test_add_int_sub_list_full)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up intSubs to be full */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateIntSubs(5);
+  intSubs.activeCount = 4;  /* maxCount is 5, so activeCount + 1 >= maxCount */
+
+  /* Call datastoreUtilAddIntSub - should fail due to full list */
+  result = datastoreUtilAddIntSub(&sub, pool);
+
+  zassert_equal(result, -ENOBUFS,
+                "Should return -ENOBUFS when subscription list is full");
+  zassert_equal(intSubs.activeCount, 4,
+                "activeCount should not be incremented");
+}
+
+/**
+ * @test The datastoreUtilAddIntSub function must return the error code
+ * when notifyIntSub fails.
+ */
+ZTEST(datastore_util_tests, test_add_int_sub_notify_failure)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up intSubs with available space */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateIntSubs(5);
+  intSubs.activeCount = 2;
+
+  /* Configure osMemoryPoolAlloc to fail (causes notifyIntSub to fail) */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call datastoreUtilAddIntSub - should fail due to notification failure */
+  result = datastoreUtilAddIntSub(&sub, pool);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when notifyIntSub fails");
+  zassert_equal(intSubs.activeCount, 3,
+                "activeCount should be incremented even when notification fails");
+}
+
+/**
+ * @test The datastoreUtilAddIntSub function must successfully add a subscription
+ * and notify when everything succeeds.
+ */
+ZTEST(datastore_util_tests, test_add_int_sub_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_pool_buffer[128];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up intSubs with available space */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateIntSubs(5);
+  intSubs.activeCount = 2;
+
+  /* Configure osMemoryPoolAlloc to succeed */
+  osMemoryPoolAlloc_fake.return_val = fake_pool_buffer;
+
+  /* Configure callback to return success */
+  mock_subscription_callback_fake.return_val = 0;
+
+  /* Call datastoreUtilAddIntSub - should succeed */
+  result = datastoreUtilAddIntSub(&sub, pool);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_equal(intSubs.activeCount, 3,
+                "activeCount should be incremented");
+  zassert_equal(intSubs.entries[2].datapointId, 0,
+                "New subscription datapointId should be added");
+  zassert_equal(intSubs.entries[2].valCount, 1,
+                "New subscription valCount should be added");
+  zassert_false(intSubs.entries[2].isPaused,
+                "New subscription isPaused should be added");
+  zassert_equal(intSubs.entries[2].callback, mock_subscription_callback,
+                "New subscription callback should be added");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once for notification");
+  zassert_equal(mock_subscription_callback_fake.call_count, 1,
+                "Callback should be called once for notification");
+}
+
+/**
+ * @test The datastoreUtilRemoveIntSub function must return -ESRCH when
+ * the callback is not found in the subscription list.
+ */
+ZTEST(datastore_util_tests, test_remove_int_sub_not_found)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t other_callback = (DatastoreSubCb_t)0x2000;
+  int result;
+
+  /* Set up intSubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateIntSubs(5);
+  intSubs.activeCount = 2;
+  intSubs.entries[0].callback = mock_subscription_callback;
+  intSubs.entries[1].callback = mock_subscription_callback;
+
+  /* Try to remove a callback that doesn't exist */
+  result = datastoreUtilRemoveIntSub(other_callback);
+
+  zassert_equal(result, -ESRCH,
+                "Should return -ESRCH when callback not found");
+  zassert_equal(intSubs.activeCount, 2,
+                "activeCount should remain unchanged");
+}
+
+/**
+ * @test The datastoreUtilRemoveIntSub function must successfully remove
+ * a subscription when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_remove_int_sub_success)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t callback1 = (DatastoreSubCb_t)0x1000;
+  DatastoreSubCb_t callback2 = (DatastoreSubCb_t)0x2000;
+  DatastoreSubCb_t callback3 = (DatastoreSubCb_t)0x3000;
+  int result;
+
+  /* Set up intSubs with three entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateIntSubs(5);
+  intSubs.activeCount = 3;
+  intSubs.entries[0].callback = callback1;
+  intSubs.entries[0].datapointId = 0;
+  intSubs.entries[1].callback = callback2;
+  intSubs.entries[1].datapointId = 1;
+  intSubs.entries[2].callback = callback3;
+  intSubs.entries[2].datapointId = 2;
+
+  /* Remove the middle entry (callback2) */
+  result = datastoreUtilRemoveIntSub(callback2);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_equal(intSubs.activeCount, 2,
+                "activeCount should be decremented");
+  zassert_equal(intSubs.entries[0].callback, callback1,
+                "First entry should remain unchanged");
+  zassert_equal(intSubs.entries[1].callback, callback3,
+                "Third entry should be shifted down to second position");
+  zassert_equal(intSubs.entries[1].datapointId, 2,
+                "Third entry's datapointId should be preserved");
+}
+
+/**
+ * @test The datastoreUtilSetIntSubPauseState function must return -EINVAL
+ * when the callback is NULL.
+ */
+ZTEST(datastore_util_tests, test_set_int_sub_pause_state_null_callback)
+{
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Call with NULL callback - should fail */
+  result = datastoreUtilSetIntSubPauseState(NULL, true, pool);
+
+  zassert_equal(result, -EINVAL,
+                "Should return -EINVAL when callback is NULL");
+}
+
+/**
+ * @test The datastoreUtilSetIntSubPauseState function must return -ESRCH
+ * when the callback is not found in the subscription list.
+ */
+ZTEST(datastore_util_tests, test_set_int_sub_pause_state_not_found)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t other_callback = (DatastoreSubCb_t)0x2000;
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up intSubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateIntSubs(5);
+  intSubs.activeCount = 2;
+  intSubs.entries[0].callback = mock_subscription_callback;
+  intSubs.entries[1].callback = mock_subscription_callback;
+
+  /* Try to set pause state for a callback that doesn't exist */
+  result = datastoreUtilSetIntSubPauseState(other_callback, true, pool);
+
+  zassert_equal(result, -ESRCH,
+                "Should return -ESRCH when callback not found");
+}
+
+/**
+ * @test The datastoreUtilSetIntSubPauseState function must successfully
+ * pause a subscription when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_set_int_sub_pause_state_pause_success)
+{
+  static uint8_t fake_buffer[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up intSubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateIntSubs(5);
+  intSubs.activeCount = 2;
+  intSubs.entries[0].callback = mock_subscription_callback;
+  intSubs.entries[0].isPaused = false;
+  intSubs.entries[1].callback = (DatastoreSubCb_t)0x2000;
+  intSubs.entries[1].isPaused = false;
+
+  /* Pause the first subscription */
+  result = datastoreUtilSetIntSubPauseState(mock_subscription_callback, true, pool);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_true(intSubs.entries[0].isPaused,
+               "Subscription should be paused");
+  zassert_false(intSubs.entries[1].isPaused,
+                "Other subscriptions should remain unchanged");
+}
+
+/**
+ * @test The datastoreUtilSetIntSubPauseState function must successfully
+ * unpause a subscription and notify when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_set_int_sub_pause_state_unpause_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_pool_buffer[128];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up intSubs with a paused entry */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateIntSubs(5);
+  intSubs.activeCount = 1;
+  intSubs.entries[0].callback = mock_subscription_callback;
+  intSubs.entries[0].isPaused = true;
+  intSubs.entries[0].datapointId = 0;
+  intSubs.entries[0].valCount = 1;
+
+  /* Configure osMemoryPoolAlloc to succeed for notification */
+  osMemoryPoolAlloc_fake.return_val = fake_pool_buffer;
+
+  /* Configure callback to return success */
+  mock_subscription_callback_fake.return_val = 0;
+
+  /* Unpause the subscription */
+  result = datastoreUtilSetIntSubPauseState(mock_subscription_callback, false, pool);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_false(intSubs.entries[0].isPaused,
+                "Subscription should be unpaused");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once for notification");
+  zassert_equal(mock_subscription_callback_fake.call_count, 1,
+                "Callback should be called once for notification");
+}
+
+/**
+ * @test The datastoreUtilAddMultiStateSub function must return -ENOBUFS when
+ * the subscription list is full.
+ */
+ZTEST(datastore_util_tests, test_add_multi_state_sub_list_full)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up multiStateSubs to be full */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateMultiStateSubs(5);
+  multiStateSubs.activeCount = 4;  /* maxCount is 5, so activeCount + 1 >= maxCount */
+
+  /* Call datastoreUtilAddMultiStateSub - should fail due to full list */
+  result = datastoreUtilAddMultiStateSub(&sub, pool);
+
+  zassert_equal(result, -ENOBUFS,
+                "Should return -ENOBUFS when subscription list is full");
+  zassert_equal(multiStateSubs.activeCount, 4,
+                "activeCount should not be incremented");
+}
+
+/**
+ * @test The datastoreUtilAddMultiStateSub function must return the error code
+ * when notifyMultiStateSub fails.
+ */
+ZTEST(datastore_util_tests, test_add_multi_state_sub_notify_failure)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up multiStateSubs with available space */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateMultiStateSubs(5);
+  multiStateSubs.activeCount = 2;
+
+  /* Configure osMemoryPoolAlloc to fail (causes notifyMultiStateSub to fail) */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call datastoreUtilAddMultiStateSub - should fail due to notification failure */
+  result = datastoreUtilAddMultiStateSub(&sub, pool);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when notifyMultiStateSub fails");
+  zassert_equal(multiStateSubs.activeCount, 3,
+                "activeCount should be incremented even when notification fails");
+}
+
+/**
+ * @brief   Test adding a multi state subscription successfully.
+ */
+ZTEST(datastore_util_tests, test_add_multi_state_sub_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_msg[256];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up multiStateSubs with available space */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateMultiStateSubs(5);
+  multiStateSubs.activeCount = 2;
+
+  /* Configure osMemoryPoolAlloc to succeed */
+  osMemoryPoolAlloc_fake.return_val = fake_msg;
+
+  /* Call datastoreUtilAddMultiStateSub - should succeed */
+  result = datastoreUtilAddMultiStateSub(&sub, pool);
+
+  zassert_equal(result, 0, "Should return 0 on success");
+  zassert_equal(multiStateSubs.activeCount, 3, "activeCount should be incremented");
+  zassert_equal(multiStateSubs.entries[2].datapointId, sub.datapointId,
+                "datapointId should be set correctly");
+  zassert_equal(multiStateSubs.entries[2].valCount, sub.valCount,
+                "valCount should be set correctly");
+  zassert_equal(multiStateSubs.entries[2].isPaused, sub.isPaused,
+                "isPaused should be set correctly");
+  zassert_equal(multiStateSubs.entries[2].callback, sub.callback,
+                "callback should be set correctly");
+}
+
+/**
+ * @test The datastoreUtilRemoveMultiStateSub function must return -ESRCH
+ * when the callback is not found in the subscription list.
+ */
+ZTEST(datastore_util_tests, test_remove_multi_state_sub_not_found)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t other_callback = (DatastoreSubCb_t)0x2000;
+  int result;
+
+  /* Set up multiStateSubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateMultiStateSubs(5);
+  multiStateSubs.activeCount = 2;
+  multiStateSubs.entries[0].callback = mock_subscription_callback;
+  multiStateSubs.entries[1].callback = mock_subscription_callback;
+
+  /* Try to remove a callback that doesn't exist */
+  result = datastoreUtilRemoveMultiStateSub(other_callback);
+
+  zassert_equal(result, -ESRCH,
+                "Should return -ESRCH when callback not found");
+  zassert_equal(multiStateSubs.activeCount, 2,
+                "activeCount should remain unchanged");
+}
+
+/**
+ * @test The datastoreUtilRemoveMultiStateSub function must successfully remove
+ * a subscription when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_remove_multi_state_sub_success)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t callback1 = (DatastoreSubCb_t)0x1000;
+  DatastoreSubCb_t callback2 = (DatastoreSubCb_t)0x2000;
+  DatastoreSubCb_t callback3 = (DatastoreSubCb_t)0x3000;
+  int result;
+
+  /* Set up multiStateSubs with three entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateMultiStateSubs(5);
+  multiStateSubs.activeCount = 3;
+  multiStateSubs.entries[0].callback = callback1;
+  multiStateSubs.entries[0].datapointId = 0;
+  multiStateSubs.entries[1].callback = callback2;
+  multiStateSubs.entries[1].datapointId = 1;
+  multiStateSubs.entries[2].callback = callback3;
+  multiStateSubs.entries[2].datapointId = 2;
+
+  /* Remove the middle entry (callback2) */
+  result = datastoreUtilRemoveMultiStateSub(callback2);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_equal(multiStateSubs.activeCount, 2,
+                "activeCount should be decremented");
+  zassert_equal(multiStateSubs.entries[0].callback, callback1,
+                "First entry should remain unchanged");
+  zassert_equal(multiStateSubs.entries[1].callback, callback3,
+                "Third entry should be shifted down to second position");
+  zassert_equal(multiStateSubs.entries[1].datapointId, 2,
+                "Third entry's datapointId should be preserved");
+}
+
+/**
+ * @test The datastoreUtilSetMultiStateSubPauseState function must return -EINVAL
+ * when the callback is NULL.
+ */
+ZTEST(datastore_util_tests, test_set_multi_state_sub_pause_state_null_callback)
+{
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Call with NULL callback - should fail */
+  result = datastoreUtilSetMultiStateSubPauseState(NULL, true, pool);
+
+  zassert_equal(result, -EINVAL,
+                "Should return -EINVAL when callback is NULL");
+}
+
+/**
+ * @test The datastoreUtilSetMultiStateSubPauseState function must return -ESRCH
+ * when the callback is not found in the subscription list.
+ */
+ZTEST(datastore_util_tests, test_set_multi_state_sub_pause_state_not_found)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t other_callback = (DatastoreSubCb_t)0x2000;
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up multiStateSubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateMultiStateSubs(5);
+  multiStateSubs.activeCount = 2;
+  multiStateSubs.entries[0].callback = mock_subscription_callback;
+  multiStateSubs.entries[1].callback = mock_subscription_callback;
+
+  /* Try to set pause state for a callback that doesn't exist */
+  result = datastoreUtilSetMultiStateSubPauseState(other_callback, true, pool);
+
+  zassert_equal(result, -ESRCH,
+                "Should return -ESRCH when callback not found");
+}
+
+/**
+ * @test The datastoreUtilSetMultiStateSubPauseState function must successfully
+ * pause a subscription when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_set_multi_state_sub_pause_state_pause_success)
+{
+  static uint8_t fake_buffer[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up multiStateSubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateMultiStateSubs(5);
+  multiStateSubs.activeCount = 2;
+  multiStateSubs.entries[0].callback = mock_subscription_callback;
+  multiStateSubs.entries[0].isPaused = false;
+  multiStateSubs.entries[1].callback = (DatastoreSubCb_t)0x2000;
+  multiStateSubs.entries[1].isPaused = false;
+
+  /* Pause the first subscription */
+  result = datastoreUtilSetMultiStateSubPauseState(mock_subscription_callback, true, pool);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_true(multiStateSubs.entries[0].isPaused,
+               "Subscription should be paused");
+  zassert_false(multiStateSubs.entries[1].isPaused,
+                "Other subscriptions should remain unchanged");
+}
+
+/**
+ * @test The datastoreUtilSetMultiStateSubPauseState function must successfully
+ * unpause a subscription and notify when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_set_multi_state_sub_pause_state_unpause_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_pool_buffer[128];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up multiStateSubs with a paused entry */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateMultiStateSubs(5);
+  multiStateSubs.activeCount = 1;
+  multiStateSubs.entries[0].callback = mock_subscription_callback;
+  multiStateSubs.entries[0].isPaused = true;
+  multiStateSubs.entries[0].datapointId = 0;
+  multiStateSubs.entries[0].valCount = 1;
+
+  /* Configure osMemoryPoolAlloc to succeed for notification */
+  osMemoryPoolAlloc_fake.return_val = fake_pool_buffer;
+
+  /* Configure callback to return success */
+  mock_subscription_callback_fake.return_val = 0;
+
+  /* Unpause the subscription */
+  result = datastoreUtilSetMultiStateSubPauseState(mock_subscription_callback, false, pool);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_false(multiStateSubs.entries[0].isPaused,
+                "Subscription should be unpaused");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once for notification");
+  zassert_equal(mock_subscription_callback_fake.call_count, 1,
+                "Callback should be called once for notification");
+}
+
+/**
+ * @test The datastoreUtilAddUintSub function must return -ENOBUFS when
+ * the subscription list is full.
+ */
+ZTEST(datastore_util_tests, test_add_uint_sub_list_full)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up uintSubs to be full */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateUintSubs(5);
+  uintSubs.activeCount = 4;  /* maxCount is 5, so activeCount + 1 >= maxCount */
+
+  /* Call datastoreUtilAddUintSub - should fail due to full list */
+  result = datastoreUtilAddUintSub(&sub, pool);
+
+  zassert_equal(result, -ENOBUFS,
+                "Should return -ENOBUFS when subscription list is full");
+  zassert_equal(uintSubs.activeCount, 4,
+                "activeCount should not be incremented");
+}
+
+/**
+ * @test The datastoreUtilAddUintSub function must return the error code
+ * when notifyUintSub fails.
+ */
+ZTEST(datastore_util_tests, test_add_uint_sub_notify_failure)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up uintSubs with available space */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateUintSubs(5);
+  uintSubs.activeCount = 2;
+
+  /* Configure osMemoryPoolAlloc to fail (causes notifyUintSub to fail) */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call datastoreUtilAddUintSub - should fail due to notification failure */
+  result = datastoreUtilAddUintSub(&sub, pool);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when notifyUintSub fails");
+  zassert_equal(uintSubs.activeCount, 3,
+                "activeCount should be incremented even when notification fails");
+}
+
+/**
+ * @test The datastoreUtilAddUintSub function must successfully add a
+ * subscription when space is available and notification succeeds.
+ */
+ZTEST(datastore_util_tests, test_add_uint_sub_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_msg[256];
+  DatastoreSubEntry_t sub = {
+    .datapointId = 0,
+    .valCount = 1,
+    .isPaused = false,
+    .callback = mock_subscription_callback
+  };
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up uintSubs with available space */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateUintSubs(5);
+  uintSubs.activeCount = 2;
+
+  /* Configure osMemoryPoolAlloc to succeed */
+  osMemoryPoolAlloc_fake.return_val = fake_msg;
+
+  /* Call datastoreUtilAddUintSub - should succeed */
+  result = datastoreUtilAddUintSub(&sub, pool);
+
+  zassert_equal(result, 0, "Should return 0 on success");
+  zassert_equal(uintSubs.activeCount, 3, "activeCount should be incremented");
+  zassert_equal(uintSubs.entries[2].datapointId, sub.datapointId,
+                "datapointId should be set correctly");
+  zassert_equal(uintSubs.entries[2].valCount, sub.valCount,
+                "valCount should be set correctly");
+  zassert_equal(uintSubs.entries[2].isPaused, sub.isPaused,
+                "isPaused should be set correctly");
+  zassert_equal(uintSubs.entries[2].callback, sub.callback,
+                "callback should be set correctly");
+}
+
+/**
+ * @test The datastoreUtilRemoveUintSub function must return -ESRCH
+ * when the callback is not found in the subscription list.
+ */
+ZTEST(datastore_util_tests, test_remove_uint_sub_not_found)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t other_callback = (DatastoreSubCb_t)0x2000;
+  int result;
+
+  /* Set up uintSubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateUintSubs(5);
+  uintSubs.activeCount = 2;
+  uintSubs.entries[0].callback = mock_subscription_callback;
+  uintSubs.entries[1].callback = mock_subscription_callback;
+
+  /* Try to remove a callback that doesn't exist */
+  result = datastoreUtilRemoveUintSub(other_callback);
+
+  zassert_equal(result, -ESRCH,
+                "Should return -ESRCH when callback not found");
+  zassert_equal(uintSubs.activeCount, 2,
+                "activeCount should remain unchanged");
+}
+
+/**
+ * @test The datastoreUtilRemoveUintSub function must successfully remove
+ * a subscription when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_remove_uint_sub_success)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t callback1 = (DatastoreSubCb_t)0x1000;
+  DatastoreSubCb_t callback2 = (DatastoreSubCb_t)0x2000;
+  DatastoreSubCb_t callback3 = (DatastoreSubCb_t)0x3000;
+  int result;
+
+  /* Set up uintSubs with three entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateUintSubs(5);
+  uintSubs.activeCount = 3;
+  uintSubs.entries[0].callback = callback1;
+  uintSubs.entries[0].datapointId = 0;
+  uintSubs.entries[1].callback = callback2;
+  uintSubs.entries[1].datapointId = 1;
+  uintSubs.entries[2].callback = callback3;
+  uintSubs.entries[2].datapointId = 2;
+
+  /* Remove the middle entry (callback2) */
+  result = datastoreUtilRemoveUintSub(callback2);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_equal(uintSubs.activeCount, 2,
+                "activeCount should be decremented");
+  zassert_equal(uintSubs.entries[0].callback, callback1,
+                "First entry should remain unchanged");
+  zassert_equal(uintSubs.entries[1].callback, callback3,
+                "Third entry should be shifted down to second position");
+  zassert_equal(uintSubs.entries[1].datapointId, 2,
+                "Third entry's datapointId should be preserved");
+}
+
+/**
+ * @test The datastoreUtilSetUintSubPauseState function must return -EINVAL
+ * when the callback is NULL.
+ */
+ZTEST(datastore_util_tests, test_set_uint_sub_pause_state_null_callback)
+{
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Call with NULL callback - should fail */
+  result = datastoreUtilSetUintSubPauseState(NULL, true, pool);
+
+  zassert_equal(result, -EINVAL,
+                "Should return -EINVAL when callback is NULL");
+}
+
+/**
+ * @test The datastoreUtilSetUintSubPauseState function must return -ESRCH
+ * when the callback is not found in the subscription list.
+ */
+ZTEST(datastore_util_tests, test_set_uint_sub_pause_state_not_found)
+{
+  static uint8_t fake_buffer[256];
+  DatastoreSubCb_t other_callback = (DatastoreSubCb_t)0x2000;
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up uintSubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateUintSubs(5);
+  uintSubs.activeCount = 2;
+  uintSubs.entries[0].callback = mock_subscription_callback;
+  uintSubs.entries[1].callback = mock_subscription_callback;
+
+  /* Try to set pause state for a callback that doesn't exist */
+  result = datastoreUtilSetUintSubPauseState(other_callback, true, pool);
+
+  zassert_equal(result, -ESRCH,
+                "Should return -ESRCH when callback not found");
+}
+
+/**
+ * @test The datastoreUtilSetUintSubPauseState function must successfully
+ * pause a subscription when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_set_uint_sub_pause_state_pause_success)
+{
+  static uint8_t fake_buffer[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up uintSubs with some entries */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateUintSubs(5);
+  uintSubs.activeCount = 2;
+  uintSubs.entries[0].callback = mock_subscription_callback;
+  uintSubs.entries[0].isPaused = false;
+  uintSubs.entries[1].callback = (DatastoreSubCb_t)0x2000;
+  uintSubs.entries[1].isPaused = false;
+
+  /* Pause the first subscription */
+  result = datastoreUtilSetUintSubPauseState(mock_subscription_callback, true, pool);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_true(uintSubs.entries[0].isPaused,
+               "Subscription should be paused");
+  zassert_false(uintSubs.entries[1].isPaused,
+                "Other subscriptions should remain unchanged");
+}
+
+/**
+ * @test The datastoreUtilSetUintSubPauseState function must successfully
+ * unpause a subscription and notify when the callback is found.
+ */
+ZTEST(datastore_util_tests, test_set_uint_sub_pause_state_unpause_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_pool_buffer[128];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up uintSubs with a paused entry */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateUintSubs(5);
+  uintSubs.activeCount = 1;
+  uintSubs.entries[0].callback = mock_subscription_callback;
+  uintSubs.entries[0].isPaused = true;
+  uintSubs.entries[0].datapointId = 0;
+  uintSubs.entries[0].valCount = 1;
+
+  /* Configure osMemoryPoolAlloc to succeed for notification */
+  osMemoryPoolAlloc_fake.return_val = fake_pool_buffer;
+
+  /* Configure callback to return success */
+  mock_subscription_callback_fake.return_val = 0;
+
+  /* Unpause the subscription */
+  result = datastoreUtilSetUintSubPauseState(mock_subscription_callback, false, pool);
+
+  zassert_equal(result, 0,
+                "Should return 0 on success");
+  zassert_false(uintSubs.entries[0].isPaused,
+                "Subscription should be unpaused");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once for notification");
+  zassert_equal(mock_subscription_callback_fake.call_count, 1,
+                "Callback should be called once for notification");
+}
+
+/**
+ * @test The datastoreUtilRead function must return -EINVAL when the
+ * datapoint ID or value count is invalid.
+ */
+ZTEST(datastore_util_tests, test_read_invalid_datapoint)
+{
+  Data_t values[2];
+  int result;
+
+  /* Try to read with invalid datapoint ID (beyond range) */
+  result = datastoreUtilRead(DATAPOINT_BINARY, 100, 1, values);
+
+  zassert_equal(result, -EINVAL,
+                "Should return -EINVAL when datapoint ID is invalid");
+}
+
+/**
+ * @test The datastoreUtilRead function must successfully read datapoint
+ * values when the datapoint ID and value count are valid.
+ */
+ZTEST(datastore_util_tests, test_read_success)
+{
+  Data_t values[2];
+  int result;
+
+  /* Set known values in the datastore */
+  binaries[0].value.uintVal = 1;
+  binaries[1].value.uintVal = 0;
+
+  /* Read the values */
+  result = datastoreUtilRead(DATAPOINT_BINARY, 0, 2, values);
+
+  zassert_equal(result, 0, "Should return 0 on success");
+  zassert_equal(values[0].uintVal, 1, "First value should match");
+  zassert_equal(values[1].uintVal, 0, "Second value should match");
+}
+
+/**
+ * @test The datastoreUtilWrite function must return -EINVAL when the
+ * datapoint ID or value count is invalid.
+ */
+ZTEST(datastore_util_tests, test_write_invalid_datapoint)
+{
+  Data_t values[2] = {{.uintVal = 1}, {.uintVal = 0}};
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Try to write with invalid datapoint ID (beyond range) */
+  result = datastoreUtilWrite(DATAPOINT_BINARY, 100, values, 1, pool);
+
+  zassert_equal(result, -EINVAL,
+                "Should return -EINVAL when datapoint ID is invalid");
+}
+
+/**
+ * @test The datastoreUtilWrite function must return the error code when
+ * notification fails.
+ */
+ZTEST(datastore_util_tests, test_write_notification_failure)
+{
+  static uint8_t fake_buffer[256];
+  Data_t values[1] = {{.uintVal = 5}};
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up binary subscriptions */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateBinarySubs(5);
+  binarySubs.activeCount = 1;
+  binarySubs.entries[0].datapointId = 0;
+  binarySubs.entries[0].valCount = 1;
+  binarySubs.entries[0].isPaused = false;
+  binarySubs.entries[0].callback = mock_subscription_callback;
+
+  /* Set initial value different from write value to trigger notification */
+  binaries[0].value.uintVal = 0;
+
+  /* Configure osMemoryPoolAlloc to fail (causes notification to fail) */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Write the value - should trigger notification which will fail */
+  result = datastoreUtilWrite(DATAPOINT_BINARY, 0, values, 1, pool);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when notification fails");
+}
+
+/**
+ * @test The datastoreUtilWrite function must successfully write datapoint
+ * values without notification when there are no subscriptions.
+ */
+ZTEST(datastore_util_tests, test_write_success_no_notification)
+{
+  Data_t values[2] = {{.uintVal = 1}, {.uintVal = 0}};
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set initial values */
+  binaries[0].value.uintVal = 0;
+  binaries[1].value.uintVal = 1;
+
+  /* No subscriptions set up */
+  binarySubs.activeCount = 0;
+
+  /* Write the values */
+  result = datastoreUtilWrite(DATAPOINT_BINARY, 0, values, 2, pool);
+
+  zassert_equal(result, 0, "Should return 0 on success");
+  zassert_equal(binaries[0].value.uintVal, 1, "First value should be updated");
+  zassert_equal(binaries[1].value.uintVal, 0, "Second value should be updated");
+}
+
+/**
+ * @test The datastoreUtilWrite function must successfully write datapoint
+ * values and trigger notification when subscriptions exist.
+ */
+ZTEST(datastore_util_tests, test_write_success_with_notification)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_msg[256];
+  Data_t values[1] = {{.uintVal = 5}};
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set up binary subscriptions */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateBinarySubs(5);
+  binarySubs.activeCount = 1;
+  binarySubs.entries[0].datapointId = 0;
+  binarySubs.entries[0].valCount = 1;
+  binarySubs.entries[0].isPaused = false;
+  binarySubs.entries[0].callback = mock_subscription_callback;
+
+  /* Set initial value different from write value */
+  binaries[0].value.uintVal = 0;
+
+  /* Configure osMemoryPoolAlloc to succeed */
+  osMemoryPoolAlloc_fake.return_val = fake_msg;
+
+  /* Configure callback to return success */
+  mock_subscription_callback_fake.return_val = 0;
+
+  /* Write the value - should trigger notification */
+  result = datastoreUtilWrite(DATAPOINT_BINARY, 0, values, 1, pool);
+
+  zassert_equal(result, 0, "Should return 0 on success");
+  zassert_equal(binaries[0].value.uintVal, 5, "Value should be updated");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once for notification");
+  zassert_equal(osMemoryPoolAlloc_fake.arg0_val, pool,
+                "osMemoryPoolAlloc should be called with correct pool");
+  zassert_equal(mock_subscription_callback_fake.call_count, 1,
+                "Callback should be called once for notification");
+  zassert_not_null(mock_subscription_callback_fake.arg0_val,
+                   "Callback should be called with non-NULL message");
+}
+
+/**
+ * @test The datastoreUtilNotify function must return -ENOTSUP when the
+ * datapoint type is invalid.
+ */
+ZTEST(datastore_util_tests, test_notify_invalid_type)
+{
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Try to notify with invalid datapoint type */
+  result = datastoreUtilNotify(DATAPOINT_TYPE_COUNT, 0, pool);
+
+  zassert_equal(result, -ENOTSUP,
+                "Should return -ENOTSUP when datapoint type is invalid");
+}
+
+/**
+ * @test The datastoreUtilNotify function must return the error code when
+ * notifyBinarySubs fails.
+ */
+ZTEST(datastore_util_tests, test_notify_binary_subs_failure)
+{
+  static uint8_t fake_buffer[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateBinarySubs(5);
+  binarySubs.activeCount = 1;
+  binarySubs.entries[0].datapointId = 0;
+  binarySubs.entries[0].valCount = 1;
+  binarySubs.entries[0].isPaused = false;
+  binarySubs.entries[0].callback = mock_subscription_callback;
+
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  result = datastoreUtilNotify(DATAPOINT_BINARY, 0, pool);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when notifyBinarySubs fails");
+}
+
+/**
+ * @test The datastoreUtilNotify function must return the error code when
+ * notifyButtonSubs fails.
+ */
+ZTEST(datastore_util_tests, test_notify_button_subs_failure)
+{
+  static uint8_t fake_buffer[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateButtonSubs(5);
+  buttonSubs.activeCount = 1;
+  buttonSubs.entries[0].datapointId = 0;
+  buttonSubs.entries[0].valCount = 1;
+  buttonSubs.entries[0].isPaused = false;
+  buttonSubs.entries[0].callback = mock_subscription_callback;
+
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  result = datastoreUtilNotify(DATAPOINT_BUTTON, 0, pool);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when notifyButtonSubs fails");
+}
+
+/**
+ * @test The datastoreUtilNotify function must return the error code when
+ * notifyFloatSubs fails.
+ */
+ZTEST(datastore_util_tests, test_notify_float_subs_failure)
+{
+  static uint8_t fake_buffer[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateFloatSubs(5);
+  floatSubs.activeCount = 1;
+  floatSubs.entries[0].datapointId = 0;
+  floatSubs.entries[0].valCount = 1;
+  floatSubs.entries[0].isPaused = false;
+  floatSubs.entries[0].callback = mock_subscription_callback;
+
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  result = datastoreUtilNotify(DATAPOINT_FLOAT, 0, pool);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when notifyFloatSubs fails");
+}
+
+/**
+ * @test The datastoreUtilNotify function must return the error code when
+ * notifyIntSubs fails.
+ */
+ZTEST(datastore_util_tests, test_notify_int_subs_failure)
+{
+  static uint8_t fake_buffer[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateIntSubs(5);
+  intSubs.activeCount = 1;
+  intSubs.entries[0].datapointId = 0;
+  intSubs.entries[0].valCount = 1;
+  intSubs.entries[0].isPaused = false;
+  intSubs.entries[0].callback = mock_subscription_callback;
+
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  result = datastoreUtilNotify(DATAPOINT_INT, 0, pool);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when notifyIntSubs fails");
+}
+
+/**
+ * @test The datastoreUtilNotify function must return the error code when
+ * notifyMultiStateSubs fails.
+ */
+ZTEST(datastore_util_tests, test_notify_multi_state_subs_failure)
+{
+  static uint8_t fake_buffer[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateMultiStateSubs(5);
+  multiStateSubs.activeCount = 1;
+  multiStateSubs.entries[0].datapointId = 0;
+  multiStateSubs.entries[0].valCount = 1;
+  multiStateSubs.entries[0].isPaused = false;
+  multiStateSubs.entries[0].callback = mock_subscription_callback;
+
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  result = datastoreUtilNotify(DATAPOINT_MULTI_STATE, 0, pool);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when notifyMultiStateSubs fails");
+}
+
+/**
+ * @test The datastoreUtilNotify function must return the error code when
+ * notifyUintSubs fails.
+ */
+ZTEST(datastore_util_tests, test_notify_uint_subs_failure)
+{
+  static uint8_t fake_buffer[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateUintSubs(5);
+  uintSubs.activeCount = 1;
+  uintSubs.entries[0].datapointId = 0;
+  uintSubs.entries[0].valCount = 1;
+  uintSubs.entries[0].isPaused = false;
+  uintSubs.entries[0].callback = mock_subscription_callback;
+
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  result = datastoreUtilNotify(DATAPOINT_UINT, 0, pool);
+
+  zassert_equal(result, -ENOSPC,
+                "Should return -ENOSPC when notifyUintSubs fails");
+}
+
+/**
+ * @test The datastoreUtilNotify function must successfully dispatch to
+ * notifyBinarySubs.
+ */
+ZTEST(datastore_util_tests, test_util_notify_binary_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_msg[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateBinarySubs(5);
+  binarySubs.activeCount = 1;
+  binarySubs.entries[0].datapointId = 0;
+  binarySubs.entries[0].valCount = 1;
+  binarySubs.entries[0].isPaused = false;
+  binarySubs.entries[0].callback = mock_subscription_callback;
+
+  osMemoryPoolAlloc_fake.return_val = fake_msg;
+  mock_subscription_callback_fake.return_val = 0;
+
+  result = datastoreUtilNotify(DATAPOINT_BINARY, 0, pool);
+
+  zassert_equal(result, 0, "Should return 0 on success");
+}
+
+/**
+ * @test The datastoreUtilNotify function must successfully dispatch to
+ * notifyButtonSubs.
+ */
+ZTEST(datastore_util_tests, test_util_notify_button_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_msg[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateButtonSubs(5);
+  buttonSubs.activeCount = 1;
+  buttonSubs.entries[0].datapointId = 0;
+  buttonSubs.entries[0].valCount = 1;
+  buttonSubs.entries[0].isPaused = false;
+  buttonSubs.entries[0].callback = mock_subscription_callback;
+
+  osMemoryPoolAlloc_fake.return_val = fake_msg;
+  mock_subscription_callback_fake.return_val = 0;
+
+  result = datastoreUtilNotify(DATAPOINT_BUTTON, 0, pool);
+
+  zassert_equal(result, 0, "Should return 0 on success");
+}
+
+/**
+ * @test The datastoreUtilNotify function must successfully dispatch to
+ * notifyFloatSubs.
+ */
+ZTEST(datastore_util_tests, test_util_notify_float_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_msg[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateFloatSubs(5);
+  floatSubs.activeCount = 1;
+  floatSubs.entries[0].datapointId = 0;
+  floatSubs.entries[0].valCount = 1;
+  floatSubs.entries[0].isPaused = false;
+  floatSubs.entries[0].callback = mock_subscription_callback;
+
+  osMemoryPoolAlloc_fake.return_val = fake_msg;
+  mock_subscription_callback_fake.return_val = 0;
+
+  result = datastoreUtilNotify(DATAPOINT_FLOAT, 0, pool);
+
+  zassert_equal(result, 0, "Should return 0 on success");
+}
+
+/**
+ * @test The datastoreUtilNotify function must successfully dispatch to
+ * notifyIntSubs.
+ */
+ZTEST(datastore_util_tests, test_util_notify_int_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_msg[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateIntSubs(5);
+  intSubs.activeCount = 1;
+  intSubs.entries[0].datapointId = 0;
+  intSubs.entries[0].valCount = 1;
+  intSubs.entries[0].isPaused = false;
+  intSubs.entries[0].callback = mock_subscription_callback;
+
+  osMemoryPoolAlloc_fake.return_val = fake_msg;
+  mock_subscription_callback_fake.return_val = 0;
+
+  result = datastoreUtilNotify(DATAPOINT_INT, 0, pool);
+
+  zassert_equal(result, 0, "Should return 0 on success");
+}
+
+/**
+ * @test The datastoreUtilNotify function must successfully dispatch to
+ * notifyMultiStateSubs.
+ */
+ZTEST(datastore_util_tests, test_util_notify_multi_state_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_msg[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateMultiStateSubs(5);
+  multiStateSubs.activeCount = 1;
+  multiStateSubs.entries[0].datapointId = 0;
+  multiStateSubs.entries[0].valCount = 1;
+  multiStateSubs.entries[0].isPaused = false;
+  multiStateSubs.entries[0].callback = mock_subscription_callback;
+
+  osMemoryPoolAlloc_fake.return_val = fake_msg;
+  mock_subscription_callback_fake.return_val = 0;
+
+  result = datastoreUtilNotify(DATAPOINT_MULTI_STATE, 0, pool);
+
+  zassert_equal(result, 0, "Should return 0 on success");
+}
+
+/**
+ * @test The datastoreUtilNotify function must successfully dispatch to
+ * notifyUintSubs.
+ */
+ZTEST(datastore_util_tests, test_util_notify_uint_success)
+{
+  static uint8_t fake_buffer[256];
+  static uint8_t fake_msg[256];
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateUintSubs(5);
+  uintSubs.activeCount = 1;
+  uintSubs.entries[0].datapointId = 0;
+  uintSubs.entries[0].valCount = 1;
+  uintSubs.entries[0].isPaused = false;
+  uintSubs.entries[0].callback = mock_subscription_callback;
+
+  osMemoryPoolAlloc_fake.return_val = fake_msg;
+  mock_subscription_callback_fake.return_val = 0;
+
+  result = datastoreUtilNotify(DATAPOINT_UINT, 0, pool);
+
+  zassert_equal(result, 0, "Should return 0 on success");
 }
 
 ZTEST_SUITE(datastore_util_tests, NULL, util_tests_setup, util_tests_before, NULL, NULL);
