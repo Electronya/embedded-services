@@ -1045,6 +1045,38 @@ ZTEST(datastore_util_tests, test_notify_button_subs_success)
 }
 
 /**
+ * @test The notifyButtonSubs function must skip notifications for
+ * subscriptions that match the datapointId but are paused.
+ */
+ZTEST(datastore_util_tests, test_notify_button_subs_paused_in_range)
+{
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  DatastoreSubEntry_t test_entry;
+  int result;
+
+  /* Set up buttonSubs with 1 entry that matches but is paused */
+  buttonSubs.maxCount = 1;
+  buttonSubs.activeCount = 1;
+  buttonSubs.entries = &test_entry;
+
+  /* Entry covers [5, 10), paused - datapointId=7 is in range but should be skipped */
+  test_entry.datapointId = 5;
+  test_entry.valCount = 5;
+  test_entry.isPaused = true;
+  test_entry.callback = mock_subscription_callback;
+
+  /* Call notifyButtonSubs with datapointId=7 */
+  result = notifyButtonSubs(7, pool);
+
+  zassert_equal(result, 0,
+                "notifyButtonSubs should return 0 when all matching subs are paused");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 0,
+                "osMemoryPoolAlloc should not be called for paused subscriptions");
+  zassert_equal(mock_subscription_callback_fake.call_count, 0,
+                "Callback should not be called for paused subscriptions");
+}
+
+/**
  * @test The isFloatDatapointInSubRange function must return true when
  * datapointId equals the subscription starting datapoint ID.
  *
@@ -5134,6 +5166,42 @@ ZTEST(datastore_util_tests, test_write_success_no_notification)
   zassert_equal(result, 0, "Should return 0 on success");
   zassert_equal(binaries[0].value.uintVal, 1, "First value should be updated");
   zassert_equal(binaries[1].value.uintVal, 0, "Second value should be updated");
+}
+
+/**
+ * @test The datastoreUtilWrite function must not trigger notification when
+ * writing the same values (no change).
+ */
+ZTEST(datastore_util_tests, test_write_no_change)
+{
+  static uint8_t fake_buffer[256];
+  Data_t values[2] = {{.uintVal = 5}, {.uintVal = 10}};
+  osMemoryPoolId_t pool = (osMemoryPoolId_t)0x1000;
+  int result;
+
+  /* Set initial values same as what we'll write */
+  binaries[0].value.uintVal = 5;
+  binaries[1].value.uintVal = 10;
+
+  /* Set up subscriptions */
+  k_malloc_fake.return_val = fake_buffer;
+  datastoreUtilAllocateBinarySubs(5);
+  binarySubs.activeCount = 1;
+  binarySubs.entries[0].datapointId = 0;
+  binarySubs.entries[0].valCount = 2;
+  binarySubs.entries[0].isPaused = false;
+  binarySubs.entries[0].callback = mock_subscription_callback;
+
+  /* Write the same values */
+  result = datastoreUtilWrite(DATAPOINT_BINARY, 0, values, 2, pool);
+
+  zassert_equal(result, 0, "Should return 0 on success");
+  zassert_equal(binaries[0].value.uintVal, 5, "First value should remain unchanged");
+  zassert_equal(binaries[1].value.uintVal, 10, "Second value should remain unchanged");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 0,
+                "osMemoryPoolAlloc should not be called when no change");
+  zassert_equal(mock_subscription_callback_fake.call_count, 0,
+                "Callback should not be called when no change");
 }
 
 /**
