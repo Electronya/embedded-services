@@ -64,29 +64,10 @@ jobs:
         west --version
         ls -la apps/embedded-services
 
-    - name: Run tests with Twister
+    - name: Run tests and generate coverage
       run: |
         cd workspace/apps/embedded-services
-        west twister -T tests --coverage --gcov-tool /usr/bin/gcov
-
-    - name: Generate filtered coverage report
-      run: |
-        cd workspace/apps/embedded-services
-
-        echo "=== Generating Filtered Coverage Report ==="
-        mkdir -p twister-out/filteredReport
-
-        # Generate filtered HTML report with only project source files
-        # Exclude LOG macro branches from coverage (they always show 50% due to compile-time conditionals)
-        gcovr --filter 'src/' --exclude-branches-by-pattern '.*LOG_.*' twister-out --html-details -o twister-out/filteredReport/index.html
-
-        # Display coverage summary
-        echo ""
-        echo "=== Coverage Summary (Project Source Files Only) ==="
-        gcovr --filter 'src/' --exclude-branches-by-pattern '.*LOG_.*' twister-out -s
-
-        echo ""
-        echo "Filtered HTML report available at: twister-out/filteredReport/index.html"
+        ./run-tests-coverage.sh tests
 
     - name: Prepare artifacts
       if: always()
