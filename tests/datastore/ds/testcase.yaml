@@ -1,0 +1,7 @@
+tests:
+  electronya.embedded_datastore.datastore.ds:
+    tags:
+      - unit
+      - datastore
+    platform_allow:
+      - native_sim
