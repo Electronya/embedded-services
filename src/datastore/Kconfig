@@ -16,6 +16,12 @@ config ENYA_DATASTORE_LOG_LEVEL
   help
     The Electronya embedded datastore log level.
 
+config ENYA_DATASTORE_MSGQ_TIMEOUT
+  int "Datastore Message Queue Get Timeout (ms)"
+  default 100
+  help
+    The timeout for k_msgq_get in the datastore run loop in milliseconds.
+
 config FIRST_FLOAT_DEFAULT_VAL
   int "First Float Default Value"
   default 123

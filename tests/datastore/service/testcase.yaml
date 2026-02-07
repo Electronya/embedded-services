@@ -1,5 +1,5 @@
 tests:
-  electronya.embedded_datastore.datastore.ds:
+  electronya.embedded_datastore.datastore.service:
     tags:
       - unit
       - datastore
