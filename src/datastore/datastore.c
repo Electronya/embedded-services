@@ -170,6 +170,8 @@ int datastoreInit(size_t maxSubs[DATAPOINT_TYPE_COUNT], uint32_t priority, k_tid
     return err;
 
   bufferPool = osMemoryPoolNew(DATASTORE_BUFFER_COUNT, datastoreUtilCalculateBufferSize(datapointCounts), NULL);
+  if(!bufferPool)
+    return -ENOSPC;
 
   *threadId = k_thread_create(&thread, datastoreStack, DATASTORE_STACK_SIZE, run,
                               NULL, NULL, NULL, K_PRIO_PREEMPT(priority), 0, K_FOREVER);

@@ -29,10 +29,19 @@ DEFINE_FFF_GLOBALS;
 /* Prevent util header from being included */
 #define DATASTORE_SRV_UTIL
 
+/* Wrap k_thread_create to use mock */
+#define k_thread_create k_thread_create_mock
+
+/* Wrap k_thread_name_set to use mock */
+#define k_thread_name_set k_thread_name_set_mock
+
 /* Mock function declarations */
 FAKE_VALUE_FUNC(void *, osMemoryPoolAlloc, osMemoryPoolId_t, uint32_t);
 FAKE_VALUE_FUNC(osStatus_t, osMemoryPoolFree, osMemoryPoolId_t, void *);
 FAKE_VALUE_FUNC(osMemoryPoolId_t, osMemoryPoolNew, uint32_t, uint32_t, const osMemoryPoolAttr_t *);
+FAKE_VALUE_FUNC(k_tid_t, k_thread_create_mock, struct k_thread *, k_thread_stack_t *, size_t,
+                k_thread_entry_t, void *, void *, void *, int, uint32_t, k_timeout_t);
+FAKE_VALUE_FUNC(int, k_thread_name_set_mock, k_tid_t, const char *);
 FAKE_VALUE_FUNC(int, datastoreUtilAllocateBinarySubs, size_t);
 FAKE_VALUE_FUNC(int, datastoreUtilAllocateButtonSubs, size_t);
 FAKE_VALUE_FUNC(int, datastoreUtilAllocateFloatSubs, size_t);
@@ -65,6 +74,8 @@ FAKE_VALUE_FUNC(int, datastoreUtilSetUintSubPauseState, DatastoreSubCb_t, bool, 
   FAKE(osMemoryPoolAlloc) \
   FAKE(osMemoryPoolFree) \
   FAKE(osMemoryPoolNew) \
+  FAKE(k_thread_create_mock) \
+  FAKE(k_thread_name_set_mock) \
   FAKE(datastoreUtilAllocateBinarySubs) \
   FAKE(datastoreUtilAllocateButtonSubs) \
   FAKE(datastoreUtilAllocateFloatSubs) \
@@ -431,6 +442,425 @@ ZTEST(datastore_tests, test_init_binary_subs_alloc_failure)
                 "datastoreUtilAllocateMultiStateSubs should not be called when binary subs allocation fails");
   zassert_equal(datastoreUtilAllocateUintSubs_fake.call_count, 0,
                 "datastoreUtilAllocateUintSubs should not be called when binary subs allocation fails");
+
+  /* Verify buffer pool and thread were not created */
+  zassert_equal(osMemoryPoolNew_fake.call_count, 0,
+                "osMemoryPoolNew should not be called when binary subs allocation fails");
+  zassert_equal(k_thread_create_mock_fake.call_count, 0,
+                "k_thread_create should not be called when binary subs allocation fails");
+  zassert_equal(k_thread_name_set_mock_fake.call_count, 0,
+                "k_thread_name_set should not be called when binary subs allocation fails");
+}
+
+/**
+ * @test  The datastoreInit function must return an error when
+ *        datastoreUtilAllocateButtonSubs fails.
+ */
+ZTEST(datastore_tests, test_init_button_subs_alloc_failure)
+{
+  k_tid_t threadId;
+  int ret;
+  size_t maxSubs[DATAPOINT_TYPE_COUNT] = {1, 1, 1, 1, 1, 1};
+
+  /* Configure binary subs allocation to succeed */
+  datastoreUtilAllocateBinarySubs_fake.return_val = 0;
+
+  /* Configure button subs allocation to fail */
+  datastoreUtilAllocateButtonSubs_fake.return_val = -ENOMEM;
+
+  /* Initialize the datastore */
+  ret = datastoreInit(maxSubs, 5, &threadId);
+
+  /* Verify initialization failed */
+  zassert_equal(ret, -ENOMEM, "datastoreInit should return -ENOMEM when button subs allocation fails");
+
+  /* Verify datastoreUtilAllocateBinarySubs was called */
+  zassert_equal(datastoreUtilAllocateBinarySubs_fake.call_count, 1,
+                "datastoreUtilAllocateBinarySubs should be called once");
+
+  /* Verify datastoreUtilAllocateButtonSubs was called */
+  zassert_equal(datastoreUtilAllocateButtonSubs_fake.call_count, 1,
+                "datastoreUtilAllocateButtonSubs should be called once");
+
+  /* Verify subsequent allocation functions were not called */
+  zassert_equal(datastoreUtilAllocateFloatSubs_fake.call_count, 0,
+                "datastoreUtilAllocateFloatSubs should not be called when button subs allocation fails");
+  zassert_equal(datastoreUtilAllocateIntSubs_fake.call_count, 0,
+                "datastoreUtilAllocateIntSubs should not be called when button subs allocation fails");
+  zassert_equal(datastoreUtilAllocateMultiStateSubs_fake.call_count, 0,
+                "datastoreUtilAllocateMultiStateSubs should not be called when button subs allocation fails");
+  zassert_equal(datastoreUtilAllocateUintSubs_fake.call_count, 0,
+                "datastoreUtilAllocateUintSubs should not be called when button subs allocation fails");
+
+  /* Verify buffer pool and thread were not created */
+  zassert_equal(osMemoryPoolNew_fake.call_count, 0,
+                "osMemoryPoolNew should not be called when button subs allocation fails");
+  zassert_equal(k_thread_create_mock_fake.call_count, 0,
+                "k_thread_create should not be called when button subs allocation fails");
+  zassert_equal(k_thread_name_set_mock_fake.call_count, 0,
+                "k_thread_name_set should not be called when button subs allocation fails");
+}
+
+/**
+ * @test  The datastoreInit function must return an error when
+ *        datastoreUtilAllocateFloatSubs fails.
+ */
+ZTEST(datastore_tests, test_init_float_subs_alloc_failure)
+{
+  k_tid_t threadId;
+  int ret;
+  size_t maxSubs[DATAPOINT_TYPE_COUNT] = {1, 1, 1, 1, 1, 1};
+
+  /* Configure binary and button subs allocation to succeed */
+  datastoreUtilAllocateBinarySubs_fake.return_val = 0;
+  datastoreUtilAllocateButtonSubs_fake.return_val = 0;
+
+  /* Configure float subs allocation to fail */
+  datastoreUtilAllocateFloatSubs_fake.return_val = -ENOMEM;
+
+  /* Initialize the datastore */
+  ret = datastoreInit(maxSubs, 5, &threadId);
+
+  /* Verify initialization failed */
+  zassert_equal(ret, -ENOMEM, "datastoreInit should return -ENOMEM when float subs allocation fails");
+
+  /* Verify previous allocation functions were called */
+  zassert_equal(datastoreUtilAllocateBinarySubs_fake.call_count, 1,
+                "datastoreUtilAllocateBinarySubs should be called once");
+  zassert_equal(datastoreUtilAllocateButtonSubs_fake.call_count, 1,
+                "datastoreUtilAllocateButtonSubs should be called once");
+
+  /* Verify datastoreUtilAllocateFloatSubs was called */
+  zassert_equal(datastoreUtilAllocateFloatSubs_fake.call_count, 1,
+                "datastoreUtilAllocateFloatSubs should be called once");
+
+  /* Verify subsequent allocation functions were not called */
+  zassert_equal(datastoreUtilAllocateIntSubs_fake.call_count, 0,
+                "datastoreUtilAllocateIntSubs should not be called when float subs allocation fails");
+  zassert_equal(datastoreUtilAllocateMultiStateSubs_fake.call_count, 0,
+                "datastoreUtilAllocateMultiStateSubs should not be called when float subs allocation fails");
+  zassert_equal(datastoreUtilAllocateUintSubs_fake.call_count, 0,
+                "datastoreUtilAllocateUintSubs should not be called when float subs allocation fails");
+
+  /* Verify buffer pool and thread were not created */
+  zassert_equal(osMemoryPoolNew_fake.call_count, 0,
+                "osMemoryPoolNew should not be called when float subs allocation fails");
+  zassert_equal(k_thread_create_mock_fake.call_count, 0,
+                "k_thread_create should not be called when float subs allocation fails");
+  zassert_equal(k_thread_name_set_mock_fake.call_count, 0,
+                "k_thread_name_set should not be called when float subs allocation fails");
+}
+
+/**
+ * @test  The datastoreInit function must return an error when
+ *        datastoreUtilAllocateIntSubs fails.
+ */
+ZTEST(datastore_tests, test_init_int_subs_alloc_failure)
+{
+  k_tid_t threadId;
+  int ret;
+  size_t maxSubs[DATAPOINT_TYPE_COUNT] = {1, 1, 1, 1, 1, 1};
+
+  /* Configure binary, button, and float subs allocation to succeed */
+  datastoreUtilAllocateBinarySubs_fake.return_val = 0;
+  datastoreUtilAllocateButtonSubs_fake.return_val = 0;
+  datastoreUtilAllocateFloatSubs_fake.return_val = 0;
+
+  /* Configure int subs allocation to fail */
+  datastoreUtilAllocateIntSubs_fake.return_val = -ENOMEM;
+
+  /* Initialize the datastore */
+  ret = datastoreInit(maxSubs, 5, &threadId);
+
+  /* Verify initialization failed */
+  zassert_equal(ret, -ENOMEM, "datastoreInit should return -ENOMEM when int subs allocation fails");
+
+  /* Verify previous allocation functions were called */
+  zassert_equal(datastoreUtilAllocateBinarySubs_fake.call_count, 1,
+                "datastoreUtilAllocateBinarySubs should be called once");
+  zassert_equal(datastoreUtilAllocateButtonSubs_fake.call_count, 1,
+                "datastoreUtilAllocateButtonSubs should be called once");
+  zassert_equal(datastoreUtilAllocateFloatSubs_fake.call_count, 1,
+                "datastoreUtilAllocateFloatSubs should be called once");
+
+  /* Verify datastoreUtilAllocateIntSubs was called */
+  zassert_equal(datastoreUtilAllocateIntSubs_fake.call_count, 1,
+                "datastoreUtilAllocateIntSubs should be called once");
+
+  /* Verify subsequent allocation functions were not called */
+  zassert_equal(datastoreUtilAllocateMultiStateSubs_fake.call_count, 0,
+                "datastoreUtilAllocateMultiStateSubs should not be called when int subs allocation fails");
+  zassert_equal(datastoreUtilAllocateUintSubs_fake.call_count, 0,
+                "datastoreUtilAllocateUintSubs should not be called when int subs allocation fails");
+
+  /* Verify buffer pool and thread were not created */
+  zassert_equal(osMemoryPoolNew_fake.call_count, 0,
+                "osMemoryPoolNew should not be called when int subs allocation fails");
+  zassert_equal(k_thread_create_mock_fake.call_count, 0,
+                "k_thread_create should not be called when int subs allocation fails");
+  zassert_equal(k_thread_name_set_mock_fake.call_count, 0,
+                "k_thread_name_set should not be called when int subs allocation fails");
+}
+
+/**
+ * @test  The datastoreInit function must return an error when
+ *        datastoreUtilAllocateMultiStateSubs fails.
+ */
+ZTEST(datastore_tests, test_init_multi_state_subs_alloc_failure)
+{
+  k_tid_t threadId;
+  int ret;
+  size_t maxSubs[DATAPOINT_TYPE_COUNT] = {1, 1, 1, 1, 1, 1};
+
+  /* Configure binary, button, float, and int subs allocation to succeed */
+  datastoreUtilAllocateBinarySubs_fake.return_val = 0;
+  datastoreUtilAllocateButtonSubs_fake.return_val = 0;
+  datastoreUtilAllocateFloatSubs_fake.return_val = 0;
+  datastoreUtilAllocateIntSubs_fake.return_val = 0;
+
+  /* Configure multi-state subs allocation to fail */
+  datastoreUtilAllocateMultiStateSubs_fake.return_val = -ENOMEM;
+
+  /* Initialize the datastore */
+  ret = datastoreInit(maxSubs, 5, &threadId);
+
+  /* Verify initialization failed */
+  zassert_equal(ret, -ENOMEM, "datastoreInit should return -ENOMEM when multi-state subs allocation fails");
+
+  /* Verify previous allocation functions were called */
+  zassert_equal(datastoreUtilAllocateBinarySubs_fake.call_count, 1,
+                "datastoreUtilAllocateBinarySubs should be called once");
+  zassert_equal(datastoreUtilAllocateButtonSubs_fake.call_count, 1,
+                "datastoreUtilAllocateButtonSubs should be called once");
+  zassert_equal(datastoreUtilAllocateFloatSubs_fake.call_count, 1,
+                "datastoreUtilAllocateFloatSubs should be called once");
+  zassert_equal(datastoreUtilAllocateIntSubs_fake.call_count, 1,
+                "datastoreUtilAllocateIntSubs should be called once");
+
+  /* Verify datastoreUtilAllocateMultiStateSubs was called */
+  zassert_equal(datastoreUtilAllocateMultiStateSubs_fake.call_count, 1,
+                "datastoreUtilAllocateMultiStateSubs should be called once");
+
+  /* Verify subsequent allocation functions were not called */
+  zassert_equal(datastoreUtilAllocateUintSubs_fake.call_count, 0,
+                "datastoreUtilAllocateUintSubs should not be called when multi-state subs allocation fails");
+
+  /* Verify buffer pool and thread were not created */
+  zassert_equal(osMemoryPoolNew_fake.call_count, 0,
+                "osMemoryPoolNew should not be called when multi-state subs allocation fails");
+  zassert_equal(k_thread_create_mock_fake.call_count, 0,
+                "k_thread_create should not be called when multi-state subs allocation fails");
+  zassert_equal(k_thread_name_set_mock_fake.call_count, 0,
+                "k_thread_name_set should not be called when multi-state subs allocation fails");
+}
+
+/**
+ * @test  The datastoreInit function must return an error when
+ *        k_thread_name_set fails.
+ */
+ZTEST(datastore_tests, test_init_thread_name_set_failure)
+{
+  k_tid_t threadId;
+  k_tid_t mockThreadId = (k_tid_t)0x12345678;
+  int ret;
+  size_t maxSubs[DATAPOINT_TYPE_COUNT] = {1, 1, 1, 1, 1, 1};
+  size_t expectedBufferSize = 100;
+
+  /* Configure all subscription allocations to succeed */
+  datastoreUtilAllocateBinarySubs_fake.return_val = 0;
+  datastoreUtilAllocateButtonSubs_fake.return_val = 0;
+  datastoreUtilAllocateFloatSubs_fake.return_val = 0;
+  datastoreUtilAllocateIntSubs_fake.return_val = 0;
+  datastoreUtilAllocateMultiStateSubs_fake.return_val = 0;
+  datastoreUtilAllocateUintSubs_fake.return_val = 0;
+
+  /* Configure buffer size calculation and pool creation to succeed */
+  datastoreUtilCalculateBufferSize_fake.return_val = expectedBufferSize;
+  osMemoryPoolNew_fake.return_val = (osMemoryPoolId_t)0xABCDEF00;
+
+  /* Configure thread creation to succeed */
+  k_thread_create_mock_fake.return_val = mockThreadId;
+
+  /* Configure thread name set to fail */
+  k_thread_name_set_mock_fake.return_val = -EINVAL;
+
+  /* Initialize the datastore */
+  ret = datastoreInit(maxSubs, 5, &threadId);
+
+  /* Verify initialization failed with k_thread_name_set error */
+  zassert_equal(ret, -EINVAL, "datastoreInit should return -EINVAL when k_thread_name_set fails");
+
+  /* Verify all allocation functions were called */
+  zassert_equal(datastoreUtilAllocateBinarySubs_fake.call_count, 1,
+                "datastoreUtilAllocateBinarySubs should be called once");
+  zassert_equal(datastoreUtilAllocateButtonSubs_fake.call_count, 1,
+                "datastoreUtilAllocateButtonSubs should be called once");
+  zassert_equal(datastoreUtilAllocateFloatSubs_fake.call_count, 1,
+                "datastoreUtilAllocateFloatSubs should be called once");
+  zassert_equal(datastoreUtilAllocateIntSubs_fake.call_count, 1,
+                "datastoreUtilAllocateIntSubs should be called once");
+  zassert_equal(datastoreUtilAllocateMultiStateSubs_fake.call_count, 1,
+                "datastoreUtilAllocateMultiStateSubs should be called once");
+  zassert_equal(datastoreUtilAllocateUintSubs_fake.call_count, 1,
+                "datastoreUtilAllocateUintSubs should be called once");
+
+  /* Verify buffer pool was created */
+  zassert_equal(osMemoryPoolNew_fake.call_count, 1,
+                "osMemoryPoolNew should be called once");
+  zassert_equal(osMemoryPoolNew_fake.arg1_val, expectedBufferSize,
+                "osMemoryPoolNew should be called with correct buffer size");
+
+  /* Verify thread was created */
+  zassert_equal(k_thread_create_mock_fake.call_count, 1,
+                "k_thread_create should be called once");
+
+  /* Verify k_thread_name_set was called and failed */
+  zassert_equal(k_thread_name_set_mock_fake.call_count, 1,
+                "k_thread_name_set should be called once");
+  zassert_equal(k_thread_name_set_mock_fake.arg0_val, mockThreadId,
+                "k_thread_name_set should be called with the thread ID returned by k_thread_create");
+}
+
+/**
+ * @test  The datastoreInit function must return an error when
+ *        datastoreUtilAllocateUintSubs fails.
+ */
+ZTEST(datastore_tests, test_init_uint_subs_alloc_failure)
+{
+  k_tid_t threadId;
+  int ret;
+  size_t maxSubs[DATAPOINT_TYPE_COUNT] = {1, 1, 1, 1, 1, 1};
+
+  /* Configure all previous subs allocation to succeed */
+  datastoreUtilAllocateBinarySubs_fake.return_val = 0;
+  datastoreUtilAllocateButtonSubs_fake.return_val = 0;
+  datastoreUtilAllocateFloatSubs_fake.return_val = 0;
+  datastoreUtilAllocateIntSubs_fake.return_val = 0;
+  datastoreUtilAllocateMultiStateSubs_fake.return_val = 0;
+
+  /* Configure uint subs allocation to fail */
+  datastoreUtilAllocateUintSubs_fake.return_val = -ENOMEM;
+
+  /* Initialize the datastore */
+  ret = datastoreInit(maxSubs, 5, &threadId);
+
+  /* Verify initialization failed */
+  zassert_equal(ret, -ENOMEM, "datastoreInit should return -ENOMEM when uint subs allocation fails");
+
+  /* Verify all allocation functions were called */
+  zassert_equal(datastoreUtilAllocateBinarySubs_fake.call_count, 1,
+                "datastoreUtilAllocateBinarySubs should be called once");
+  zassert_equal(datastoreUtilAllocateButtonSubs_fake.call_count, 1,
+                "datastoreUtilAllocateButtonSubs should be called once");
+  zassert_equal(datastoreUtilAllocateFloatSubs_fake.call_count, 1,
+                "datastoreUtilAllocateFloatSubs should be called once");
+  zassert_equal(datastoreUtilAllocateIntSubs_fake.call_count, 1,
+                "datastoreUtilAllocateIntSubs should be called once");
+  zassert_equal(datastoreUtilAllocateMultiStateSubs_fake.call_count, 1,
+                "datastoreUtilAllocateMultiStateSubs should be called once");
+  zassert_equal(datastoreUtilAllocateUintSubs_fake.call_count, 1,
+                "datastoreUtilAllocateUintSubs should be called once");
+
+  /* Verify buffer pool and thread were not created */
+  zassert_equal(osMemoryPoolNew_fake.call_count, 0,
+                "osMemoryPoolNew should not be called when uint subs allocation fails");
+  zassert_equal(k_thread_create_mock_fake.call_count, 0,
+                "k_thread_create should not be called when uint subs allocation fails");
+  zassert_equal(k_thread_name_set_mock_fake.call_count, 0,
+                "k_thread_name_set should not be called when uint subs allocation fails");
+}
+
+/**
+ * @test  The datastoreInit function must successfully initialize when all
+ *        operations succeed.
+ */
+ZTEST(datastore_tests, test_init_success)
+{
+  k_tid_t threadId;
+  k_tid_t mockThreadId = (k_tid_t)0x12345678;
+  osMemoryPoolId_t mockPoolId = (osMemoryPoolId_t)0xABCDEF00;
+  int ret;
+  size_t maxSubs[DATAPOINT_TYPE_COUNT] = {1, 2, 3, 4, 5, 6};
+  size_t expectedBufferSize = 256;
+  uint32_t priority = 7;
+
+  /* Configure all subscription allocations to succeed */
+  datastoreUtilAllocateBinarySubs_fake.return_val = 0;
+  datastoreUtilAllocateButtonSubs_fake.return_val = 0;
+  datastoreUtilAllocateFloatSubs_fake.return_val = 0;
+  datastoreUtilAllocateIntSubs_fake.return_val = 0;
+  datastoreUtilAllocateMultiStateSubs_fake.return_val = 0;
+  datastoreUtilAllocateUintSubs_fake.return_val = 0;
+
+  /* Configure buffer size calculation and pool creation to succeed */
+  datastoreUtilCalculateBufferSize_fake.return_val = expectedBufferSize;
+  osMemoryPoolNew_fake.return_val = mockPoolId;
+
+  /* Configure thread creation and naming to succeed */
+  k_thread_create_mock_fake.return_val = mockThreadId;
+  k_thread_name_set_mock_fake.return_val = 0;
+
+  /* Initialize the datastore */
+  ret = datastoreInit(maxSubs, priority, &threadId);
+
+  /* Verify initialization succeeded */
+  zassert_equal(ret, 0, "datastoreInit should return 0 on success");
+  zassert_equal(threadId, mockThreadId, "threadId should be set to the value returned by k_thread_create");
+
+  /* Verify all subscription allocations were called with correct parameters */
+  zassert_equal(datastoreUtilAllocateBinarySubs_fake.call_count, 1,
+                "datastoreUtilAllocateBinarySubs should be called once");
+  zassert_equal(datastoreUtilAllocateBinarySubs_fake.arg0_val, maxSubs[DATAPOINT_BINARY],
+                "datastoreUtilAllocateBinarySubs should be called with correct maxSubs");
+
+  zassert_equal(datastoreUtilAllocateButtonSubs_fake.call_count, 1,
+                "datastoreUtilAllocateButtonSubs should be called once");
+  zassert_equal(datastoreUtilAllocateButtonSubs_fake.arg0_val, maxSubs[DATAPOINT_BUTTON],
+                "datastoreUtilAllocateButtonSubs should be called with correct maxSubs");
+
+  zassert_equal(datastoreUtilAllocateFloatSubs_fake.call_count, 1,
+                "datastoreUtilAllocateFloatSubs should be called once");
+  zassert_equal(datastoreUtilAllocateFloatSubs_fake.arg0_val, maxSubs[DATAPOINT_FLOAT],
+                "datastoreUtilAllocateFloatSubs should be called with correct maxSubs");
+
+  zassert_equal(datastoreUtilAllocateIntSubs_fake.call_count, 1,
+                "datastoreUtilAllocateIntSubs should be called once");
+  zassert_equal(datastoreUtilAllocateIntSubs_fake.arg0_val, maxSubs[DATAPOINT_INT],
+                "datastoreUtilAllocateIntSubs should be called with correct maxSubs");
+
+  zassert_equal(datastoreUtilAllocateMultiStateSubs_fake.call_count, 1,
+                "datastoreUtilAllocateMultiStateSubs should be called once");
+  zassert_equal(datastoreUtilAllocateMultiStateSubs_fake.arg0_val, maxSubs[DATAPOINT_MULTI_STATE],
+                "datastoreUtilAllocateMultiStateSubs should be called with correct maxSubs");
+
+  zassert_equal(datastoreUtilAllocateUintSubs_fake.call_count, 1,
+                "datastoreUtilAllocateUintSubs should be called once");
+  zassert_equal(datastoreUtilAllocateUintSubs_fake.arg0_val, maxSubs[DATAPOINT_UINT],
+                "datastoreUtilAllocateUintSubs should be called with correct maxSubs");
+
+  /* Verify buffer pool was created with correct parameters */
+  zassert_equal(datastoreUtilCalculateBufferSize_fake.call_count, 1,
+                "datastoreUtilCalculateBufferSize should be called once");
+  zassert_equal(osMemoryPoolNew_fake.call_count, 1,
+                "osMemoryPoolNew should be called once");
+  zassert_equal(osMemoryPoolNew_fake.arg0_val, DATASTORE_BUFFER_COUNT,
+                "osMemoryPoolNew should be called with DATASTORE_BUFFER_COUNT");
+  zassert_equal(osMemoryPoolNew_fake.arg1_val, expectedBufferSize,
+                "osMemoryPoolNew should be called with buffer size from datastoreUtilCalculateBufferSize");
+
+  /* Verify thread was created with correct parameters */
+  zassert_equal(k_thread_create_mock_fake.call_count, 1,
+                "k_thread_create should be called once");
+  zassert_equal(k_thread_create_mock_fake.arg2_val, DATASTORE_STACK_SIZE,
+                "k_thread_create should be called with DATASTORE_STACK_SIZE");
+  zassert_equal(k_thread_create_mock_fake.arg3_val, run,
+                "k_thread_create should be called with run function");
+
+  /* Verify thread name was set */
+  zassert_equal(k_thread_name_set_mock_fake.call_count, 1,
+                "k_thread_name_set should be called once");
+  zassert_equal(k_thread_name_set_mock_fake.arg0_val, mockThreadId,
+                "k_thread_name_set should be called with thread ID from k_thread_create");
 }
 
 ZTEST_SUITE(datastore_tests, NULL, datastore_tests_setup, datastore_tests_before, NULL, NULL);
