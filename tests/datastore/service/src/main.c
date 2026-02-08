@@ -1453,4 +1453,480 @@ ZTEST(datastore_tests, test_write_success)
                 "osMemoryPoolFree should not be called in datastoreWrite when operation succeeds with response");
 }
 
+/**
+ * @test  The datastoreSubscribeBinary function must return an error when
+ *        datastoreUtilAddBinarySub fails.
+ */
+ZTEST(datastore_tests, test_subscribe_binary_failure)
+{
+  DatastoreSubEntry_t sub;
+  int ret;
+
+  /* Configure datastoreUtilAddBinarySub to fail */
+  datastoreUtilAddBinarySub_fake.return_val = -ENOMEM;
+
+  /* Call datastoreSubscribeBinary */
+  ret = datastoreSubscribeBinary(&sub);
+
+  /* Verify function returned the error from datastoreUtilAddBinarySub */
+  zassert_equal(ret, -ENOMEM, "datastoreSubscribeBinary should return error from datastoreUtilAddBinarySub");
+
+  /* Verify datastoreUtilAddBinarySub was called with correct parameters */
+  zassert_equal(datastoreUtilAddBinarySub_fake.call_count, 1,
+                "datastoreUtilAddBinarySub should be called once");
+  zassert_equal(datastoreUtilAddBinarySub_fake.arg0_val, &sub,
+                "datastoreUtilAddBinarySub should be called with the subscription entry");
+  zassert_equal(datastoreUtilAddBinarySub_fake.arg1_val, bufferPool,
+                "datastoreUtilAddBinarySub should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreSubscribeBinary function must successfully subscribe
+ *        when datastoreUtilAddBinarySub succeeds.
+ */
+ZTEST(datastore_tests, test_subscribe_binary_success)
+{
+  DatastoreSubEntry_t sub;
+  int ret;
+
+  /* Configure datastoreUtilAddBinarySub to succeed */
+  datastoreUtilAddBinarySub_fake.return_val = 0;
+
+  /* Call datastoreSubscribeBinary */
+  ret = datastoreSubscribeBinary(&sub);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreSubscribeBinary should return 0 on success");
+
+  /* Verify datastoreUtilAddBinarySub was called with correct parameters */
+  zassert_equal(datastoreUtilAddBinarySub_fake.call_count, 1,
+                "datastoreUtilAddBinarySub should be called once");
+  zassert_equal(datastoreUtilAddBinarySub_fake.arg0_val, &sub,
+                "datastoreUtilAddBinarySub should be called with the subscription entry");
+  zassert_equal(datastoreUtilAddBinarySub_fake.arg1_val, bufferPool,
+                "datastoreUtilAddBinarySub should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreUnsubscribeBinary function must return an error when
+ *        datastoreUtilRemoveBinarySub fails.
+ */
+ZTEST(datastore_tests, test_unsubscribe_binary_failure)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x12345678;
+  int ret;
+
+  /* Configure datastoreUtilRemoveBinarySub to fail */
+  datastoreUtilRemoveBinarySub_fake.return_val = -ENOENT;
+
+  /* Call datastoreUnsubscribeBinary */
+  ret = datastoreUnsubscribeBinary(callback);
+
+  /* Verify function returned the error from datastoreUtilRemoveBinarySub */
+  zassert_equal(ret, -ENOENT, "datastoreUnsubscribeBinary should return error from datastoreUtilRemoveBinarySub");
+
+  /* Verify datastoreUtilRemoveBinarySub was called with correct parameters */
+  zassert_equal(datastoreUtilRemoveBinarySub_fake.call_count, 1,
+                "datastoreUtilRemoveBinarySub should be called once");
+  zassert_equal(datastoreUtilRemoveBinarySub_fake.arg0_val, callback,
+                "datastoreUtilRemoveBinarySub should be called with the callback");
+}
+
+/**
+ * @test  The datastoreUnsubscribeBinary function must successfully unsubscribe
+ *        when datastoreUtilRemoveBinarySub succeeds.
+ */
+ZTEST(datastore_tests, test_unsubscribe_binary_success)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x87654321;
+  int ret;
+
+  /* Configure datastoreUtilRemoveBinarySub to succeed */
+  datastoreUtilRemoveBinarySub_fake.return_val = 0;
+
+  /* Call datastoreUnsubscribeBinary */
+  ret = datastoreUnsubscribeBinary(callback);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreUnsubscribeBinary should return 0 on success");
+
+  /* Verify datastoreUtilRemoveBinarySub was called with correct parameters */
+  zassert_equal(datastoreUtilRemoveBinarySub_fake.call_count, 1,
+                "datastoreUtilRemoveBinarySub should be called once");
+  zassert_equal(datastoreUtilRemoveBinarySub_fake.arg0_val, callback,
+                "datastoreUtilRemoveBinarySub should be called with the callback");
+}
+
+/**
+ * @test  The datastorePauseSubBinary function must return an error when
+ *        datastoreUtilSetBinarySubPauseState fails.
+ */
+ZTEST(datastore_tests, test_pause_sub_binary_failure)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0xABCDEF00;
+  int ret;
+
+  /* Configure datastoreUtilSetBinarySubPauseState to fail */
+  datastoreUtilSetBinarySubPauseState_fake.return_val = -ENOENT;
+
+  /* Call datastorePauseSubBinary */
+  ret = datastorePauseSubBinary(callback);
+
+  /* Verify function returned the error from datastoreUtilSetBinarySubPauseState */
+  zassert_equal(ret, -ENOENT, "datastorePauseSubBinary should return error from datastoreUtilSetBinarySubPauseState");
+
+  /* Verify datastoreUtilSetBinarySubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetBinarySubPauseState_fake.call_count, 1,
+                "datastoreUtilSetBinarySubPauseState should be called once");
+  zassert_equal(datastoreUtilSetBinarySubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetBinarySubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetBinarySubPauseState_fake.arg1_val, true,
+                "datastoreUtilSetBinarySubPauseState should be called with true (pause)");
+  zassert_equal(datastoreUtilSetBinarySubPauseState_fake.arg2_val, bufferPool,
+                "datastoreUtilSetBinarySubPauseState should be called with bufferPool");
+}
+
+/**
+ * @test  The datastorePauseSubBinary function must successfully pause subscription
+ *        when datastoreUtilSetBinarySubPauseState succeeds.
+ */
+ZTEST(datastore_tests, test_pause_sub_binary_success)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x11223344;
+  int ret;
+
+  /* Configure datastoreUtilSetBinarySubPauseState to succeed */
+  datastoreUtilSetBinarySubPauseState_fake.return_val = 0;
+
+  /* Call datastorePauseSubBinary */
+  ret = datastorePauseSubBinary(callback);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastorePauseSubBinary should return 0 on success");
+
+  /* Verify datastoreUtilSetBinarySubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetBinarySubPauseState_fake.call_count, 1,
+                "datastoreUtilSetBinarySubPauseState should be called once");
+  zassert_equal(datastoreUtilSetBinarySubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetBinarySubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetBinarySubPauseState_fake.arg1_val, true,
+                "datastoreUtilSetBinarySubPauseState should be called with true (pause)");
+  zassert_equal(datastoreUtilSetBinarySubPauseState_fake.arg2_val, bufferPool,
+                "datastoreUtilSetBinarySubPauseState should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreUnpauseSubBinary function must return an error when
+ *        datastoreUtilSetBinarySubPauseState fails.
+ */
+ZTEST(datastore_tests, test_unpause_sub_binary_failure)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x55667788;
+  int ret;
+
+  /* Configure datastoreUtilSetBinarySubPauseState to fail */
+  datastoreUtilSetBinarySubPauseState_fake.return_val = -ENOENT;
+
+  /* Call datastoreUnpauseSubBinary */
+  ret = datastoreUnpauseSubBinary(callback);
+
+  /* Verify function returned the error from datastoreUtilSetBinarySubPauseState */
+  zassert_equal(ret, -ENOENT, "datastoreUnpauseSubBinary should return error from datastoreUtilSetBinarySubPauseState");
+
+  /* Verify datastoreUtilSetBinarySubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetBinarySubPauseState_fake.call_count, 1,
+                "datastoreUtilSetBinarySubPauseState should be called once");
+  zassert_equal(datastoreUtilSetBinarySubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetBinarySubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetBinarySubPauseState_fake.arg1_val, false,
+                "datastoreUtilSetBinarySubPauseState should be called with false (unpause)");
+  zassert_equal(datastoreUtilSetBinarySubPauseState_fake.arg2_val, bufferPool,
+                "datastoreUtilSetBinarySubPauseState should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreUnpauseSubBinary function must successfully unpause subscription
+ *        when datastoreUtilSetBinarySubPauseState succeeds.
+ */
+ZTEST(datastore_tests, test_unpause_sub_binary_success)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x99AABBCC;
+  int ret;
+
+  /* Configure datastoreUtilSetBinarySubPauseState to succeed */
+  datastoreUtilSetBinarySubPauseState_fake.return_val = 0;
+
+  /* Call datastoreUnpauseSubBinary */
+  ret = datastoreUnpauseSubBinary(callback);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreUnpauseSubBinary should return 0 on success");
+
+  /* Verify datastoreUtilSetBinarySubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetBinarySubPauseState_fake.call_count, 1,
+                "datastoreUtilSetBinarySubPauseState should be called once");
+  zassert_equal(datastoreUtilSetBinarySubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetBinarySubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetBinarySubPauseState_fake.arg1_val, false,
+                "datastoreUtilSetBinarySubPauseState should be called with false (unpause)");
+  zassert_equal(datastoreUtilSetBinarySubPauseState_fake.arg2_val, bufferPool,
+                "datastoreUtilSetBinarySubPauseState should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreReadBinary function must return -EINVAL when values
+ *        parameter is NULL.
+ */
+ZTEST(datastore_tests, test_read_binary_invalid_values)
+{
+  uint32_t datapointId = 10;
+  size_t valCount = 5;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreReadBinary with NULL values */
+  ret = datastoreReadBinary(datapointId, valCount, &responseQueue, NULL);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreReadBinary should return -EINVAL when values is NULL");
+
+  /* Verify no buffer allocation was attempted */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 0,
+                "osMemoryPoolAlloc should not be called when parameter validation fails");
+
+  /* Verify no message was put in the queue */
+  DatastoreMsg_t dummy;
+  ret = k_msgq_get(&datastoreQueue, &dummy, K_NO_WAIT);
+  zassert_equal(ret, -ENOMSG, "No message should be in the datastore queue when parameter validation fails");
+}
+
+/**
+ * @test  The datastoreReadBinary function must return -EINVAL when valCount
+ *        parameter is 0.
+ */
+ZTEST(datastore_tests, test_read_binary_invalid_valcount)
+{
+  uint32_t datapointId = 15;
+  size_t valCount = 0;
+  bool values[1];
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreReadBinary with valCount = 0 */
+  ret = datastoreReadBinary(datapointId, valCount, &responseQueue, values);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreReadBinary should return -EINVAL when valCount is 0");
+
+  /* Verify no buffer allocation was attempted */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 0,
+                "osMemoryPoolAlloc should not be called when parameter validation fails");
+
+  /* Verify no message was put in the queue */
+  DatastoreMsg_t dummy;
+  ret = k_msgq_get(&datastoreQueue, &dummy, K_NO_WAIT);
+  zassert_equal(ret, -ENOMSG, "No message should be in the datastore queue when parameter validation fails");
+}
+
+/**
+ * @test  The datastoreReadBinary function must successfully read binary data
+ *        when all parameters are valid and the operation succeeds.
+ */
+ZTEST(datastore_tests, test_read_binary_success)
+{
+  uint32_t datapointId = 20;
+  size_t valCount = 3;
+  /* Allocate enough storage for Data_t array that will be memcpy'd, then cast to bool */
+  Data_t valueStorage[3];
+  bool *values = (bool *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  uint8_t payloadBuffer[sizeof(SrvMsgPayload_t) + (valCount * sizeof(Data_t))];
+  SrvMsgPayload_t *mockPayload = (SrvMsgPayload_t *)payloadBuffer;
+  Data_t *payloadData = (Data_t *)mockPayload->data;
+  int ret;
+  int successStatus = 0;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to succeed */
+  osMemoryPoolAlloc_fake.return_val = mockPayload;
+
+  /* Configure osMemoryPoolFree to succeed */
+  osMemoryPoolFree_fake.return_val = osOK;
+
+  /* Setup mock payload with test data (bool values stored as uintVal) */
+  mockPayload->dataLen = valCount * sizeof(Data_t);
+  payloadData[0].uintVal = 1;  /* true */
+  payloadData[1].uintVal = 0;  /* false */
+  payloadData[2].uintVal = 1;  /* true */
+
+  /* Put success status in response queue */
+  ret = k_msgq_put(&responseQueue, &successStatus, K_NO_WAIT);
+  zassert_equal(ret, 0, "Failed to put success status in response queue");
+
+  /* Call datastoreReadBinary - should succeed */
+  ret = datastoreReadBinary(datapointId, valCount, &responseQueue, values);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreReadBinary should return 0 on success");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+
+  /* Verify message was put in the datastore queue */
+  DatastoreMsg_t msg;
+  ret = k_msgq_get(&datastoreQueue, &msg, K_NO_WAIT);
+  zassert_equal(ret, 0, "Message should be in the datastore queue");
+  zassert_equal(msg.msgType, DATASTORE_READ, "Message type should be DATASTORE_READ");
+  zassert_equal(msg.datapointType, DATAPOINT_BINARY, "Message should have DATAPOINT_BINARY type");
+  zassert_equal(msg.datapointId, datapointId, "Message should have correct datapoint ID");
+  zassert_equal(msg.valCount, valCount, "Message should have correct value count");
+
+  /* Verify data was copied - access as Data_t to read the full values */
+  Data_t *dataValues = (Data_t *)values;
+  zassert_equal(dataValues[0].uintVal, 1, "First value should be 1 (true)");
+  zassert_equal(dataValues[1].uintVal, 0, "Second value should be 0 (false)");
+  zassert_equal(dataValues[2].uintVal, 1, "Third value should be 1 (true)");
+
+  /* Verify osMemoryPoolFree was called to free the buffer */
+  zassert_equal(osMemoryPoolFree_fake.call_count, 1,
+                "osMemoryPoolFree should be called once to free the buffer");
+}
+
+/**
+ * @test  The datastoreWriteBinary function must return -EINVAL when values
+ *        parameter is NULL.
+ */
+ZTEST(datastore_tests, test_write_binary_invalid_values)
+{
+  uint32_t datapointId = 25;
+  size_t valCount = 4;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreWriteBinary with NULL values */
+  ret = datastoreWriteBinary(datapointId, NULL, valCount, &responseQueue);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreWriteBinary should return -EINVAL when values is NULL");
+
+  /* Verify no buffer allocation was attempted */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 0,
+                "osMemoryPoolAlloc should not be called when parameter validation fails");
+
+  /* Verify no message was put in the queue */
+  DatastoreMsg_t dummy;
+  ret = k_msgq_get(&datastoreQueue, &dummy, K_NO_WAIT);
+  zassert_equal(ret, -ENOMSG, "No message should be in the datastore queue when parameter validation fails");
+}
+
+/**
+ * @test  The datastoreWriteBinary function must return -EINVAL when valCount
+ *        parameter is 0.
+ */
+ZTEST(datastore_tests, test_write_binary_invalid_valcount)
+{
+  uint32_t datapointId = 30;
+  size_t valCount = 0;
+  bool values[1];
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreWriteBinary with valCount = 0 */
+  ret = datastoreWriteBinary(datapointId, values, valCount, &responseQueue);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreWriteBinary should return -EINVAL when valCount is 0");
+
+  /* Verify no buffer allocation was attempted */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 0,
+                "osMemoryPoolAlloc should not be called when parameter validation fails");
+
+  /* Verify no message was put in the queue */
+  DatastoreMsg_t dummy;
+  ret = k_msgq_get(&datastoreQueue, &dummy, K_NO_WAIT);
+  zassert_equal(ret, -ENOMSG, "No message should be in the datastore queue when parameter validation fails");
+}
+
+/**
+ * @test  The datastoreWriteBinary function must successfully write binary data
+ *        when all parameters are valid and the operation succeeds.
+ */
+ZTEST(datastore_tests, test_write_binary_success)
+{
+  uint32_t datapointId = 35;
+  size_t valCount = 3;
+  /* Allocate enough storage for Data_t array that will be cast from bool */
+  Data_t valueStorage[3] = {{.uintVal = 1}, {.uintVal = 0}, {.uintVal = 1}};
+  bool *values = (bool *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  uint8_t payloadBuffer[sizeof(SrvMsgPayload_t) + (valCount * sizeof(Data_t))];
+  SrvMsgPayload_t *mockPayload = (SrvMsgPayload_t *)payloadBuffer;
+  Data_t *payloadData = (Data_t *)mockPayload->data;
+  int ret;
+  int successStatus = 0;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to succeed */
+  osMemoryPoolAlloc_fake.return_val = mockPayload;
+
+  /* Configure osMemoryPoolFree to succeed */
+  osMemoryPoolFree_fake.return_val = osOK;
+
+  /* Put success status in response queue */
+  ret = k_msgq_put(&responseQueue, &successStatus, K_NO_WAIT);
+  zassert_equal(ret, 0, "Failed to put success status in response queue");
+
+  /* Call datastoreWriteBinary - should succeed */
+  ret = datastoreWriteBinary(datapointId, values, valCount, &responseQueue);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreWriteBinary should return 0 on success");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+
+  /* Verify message was put in the datastore queue */
+  DatastoreMsg_t msg;
+  ret = k_msgq_get(&datastoreQueue, &msg, K_NO_WAIT);
+  zassert_equal(ret, 0, "Message should be in the datastore queue");
+  zassert_equal(msg.msgType, DATASTORE_WRITE, "Message type should be DATASTORE_WRITE");
+  zassert_equal(msg.datapointType, DATAPOINT_BINARY, "Message should have DATAPOINT_BINARY type");
+  zassert_equal(msg.datapointId, datapointId, "Message should have correct datapoint ID");
+  zassert_equal(msg.valCount, valCount, "Message should have correct value count");
+  zassert_equal(msg.response, &responseQueue, "Response queue should be set correctly");
+
+  /* Verify data was copied to payload */
+  zassert_equal(payloadData[0].uintVal, 1, "First value should be 1 (true)");
+  zassert_equal(payloadData[1].uintVal, 0, "Second value should be 0 (false)");
+  zassert_equal(payloadData[2].uintVal, 1, "Third value should be 1 (true)");
+
+  /* Verify osMemoryPoolFree was NOT called (buffer ownership transferred to queue) */
+  zassert_equal(osMemoryPoolFree_fake.call_count, 0,
+                "osMemoryPoolFree should not be called when response is expected");
+}
+
 ZTEST_SUITE(datastore_tests, NULL, datastore_tests_setup, datastore_tests_before, NULL, NULL);
