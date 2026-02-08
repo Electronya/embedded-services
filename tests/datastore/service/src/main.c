@@ -2026,4 +2026,577 @@ ZTEST(datastore_tests, test_write_binary_success)
                 "osMemoryPoolFree should not be called when response is expected");
 }
 
+/**
+ * @test  The datastoreSubscribeButton function must return an error when
+ *        datastoreUtilAddButtonSub fails.
+ */
+ZTEST(datastore_tests, test_subscribe_button_failure)
+{
+  DatastoreSubEntry_t sub;
+  int ret;
+
+  /* Configure datastoreUtilAddButtonSub to fail */
+  datastoreUtilAddButtonSub_fake.return_val = -ENOMEM;
+
+  /* Call datastoreSubscribeButton */
+  ret = datastoreSubscribeButton(&sub);
+
+  /* Verify function returned the error from datastoreUtilAddButtonSub */
+  zassert_equal(ret, -ENOMEM, "datastoreSubscribeButton should return error from datastoreUtilAddButtonSub");
+
+  /* Verify datastoreUtilAddButtonSub was called with correct parameters */
+  zassert_equal(datastoreUtilAddButtonSub_fake.call_count, 1,
+                "datastoreUtilAddButtonSub should be called once");
+  zassert_equal(datastoreUtilAddButtonSub_fake.arg0_val, &sub,
+                "datastoreUtilAddButtonSub should be called with the subscription entry");
+  zassert_equal(datastoreUtilAddButtonSub_fake.arg1_val, bufferPool,
+                "datastoreUtilAddButtonSub should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreSubscribeButton function must successfully subscribe
+ *        when datastoreUtilAddButtonSub succeeds.
+ */
+ZTEST(datastore_tests, test_subscribe_button_success)
+{
+  DatastoreSubEntry_t sub;
+  int ret;
+
+  /* Configure datastoreUtilAddButtonSub to succeed */
+  datastoreUtilAddButtonSub_fake.return_val = 0;
+
+  /* Call datastoreSubscribeButton */
+  ret = datastoreSubscribeButton(&sub);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreSubscribeButton should return 0 on success");
+
+  /* Verify datastoreUtilAddButtonSub was called with correct parameters */
+  zassert_equal(datastoreUtilAddButtonSub_fake.call_count, 1,
+                "datastoreUtilAddButtonSub should be called once");
+  zassert_equal(datastoreUtilAddButtonSub_fake.arg0_val, &sub,
+                "datastoreUtilAddButtonSub should be called with the subscription entry");
+  zassert_equal(datastoreUtilAddButtonSub_fake.arg1_val, bufferPool,
+                "datastoreUtilAddButtonSub should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreUnsubscribeButton function must return an error when
+ *        datastoreUtilRemoveButtonSub fails.
+ */
+ZTEST(datastore_tests, test_unsubscribe_button_failure)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0xDEADBEEF;
+  int ret;
+
+  /* Configure datastoreUtilRemoveButtonSub to fail */
+  datastoreUtilRemoveButtonSub_fake.return_val = -ENOENT;
+
+  /* Call datastoreUnsubscribeButton */
+  ret = datastoreUnsubscribeButton(callback);
+
+  /* Verify function returned the error from datastoreUtilRemoveButtonSub */
+  zassert_equal(ret, -ENOENT, "datastoreUnsubscribeButton should return error from datastoreUtilRemoveButtonSub");
+
+  /* Verify datastoreUtilRemoveButtonSub was called with correct parameters */
+  zassert_equal(datastoreUtilRemoveButtonSub_fake.call_count, 1,
+                "datastoreUtilRemoveButtonSub should be called once");
+  zassert_equal(datastoreUtilRemoveButtonSub_fake.arg0_val, callback,
+                "datastoreUtilRemoveButtonSub should be called with the callback");
+}
+
+/**
+ * @test  The datastoreUnsubscribeButton function must successfully unsubscribe
+ *        when datastoreUtilRemoveButtonSub succeeds.
+ */
+ZTEST(datastore_tests, test_unsubscribe_button_success)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0xCAFEBABE;
+  int ret;
+
+  /* Configure datastoreUtilRemoveButtonSub to succeed */
+  datastoreUtilRemoveButtonSub_fake.return_val = 0;
+
+  /* Call datastoreUnsubscribeButton */
+  ret = datastoreUnsubscribeButton(callback);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreUnsubscribeButton should return 0 on success");
+
+  /* Verify datastoreUtilRemoveButtonSub was called with correct parameters */
+  zassert_equal(datastoreUtilRemoveButtonSub_fake.call_count, 1,
+                "datastoreUtilRemoveButtonSub should be called once");
+  zassert_equal(datastoreUtilRemoveButtonSub_fake.arg0_val, callback,
+                "datastoreUtilRemoveButtonSub should be called with the callback");
+}
+
+/**
+ * @test  The datastorePauseSubButton function must return an error when
+ *        datastoreUtilSetButtonSubPauseState fails.
+ */
+ZTEST(datastore_tests, test_pause_sub_button_failure)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0xFEEDFACE;
+  int ret;
+
+  /* Configure datastoreUtilSetButtonSubPauseState to fail */
+  datastoreUtilSetButtonSubPauseState_fake.return_val = -ENOENT;
+
+  /* Call datastorePauseSubButton */
+  ret = datastorePauseSubButton(callback);
+
+  /* Verify function returned the error from datastoreUtilSetButtonSubPauseState */
+  zassert_equal(ret, -ENOENT, "datastorePauseSubButton should return error from datastoreUtilSetButtonSubPauseState");
+
+  /* Verify datastoreUtilSetButtonSubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetButtonSubPauseState_fake.call_count, 1,
+                "datastoreUtilSetButtonSubPauseState should be called once");
+  zassert_equal(datastoreUtilSetButtonSubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetButtonSubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetButtonSubPauseState_fake.arg1_val, true,
+                "datastoreUtilSetButtonSubPauseState should be called with true (pause)");
+  zassert_equal(datastoreUtilSetButtonSubPauseState_fake.arg2_val, bufferPool,
+                "datastoreUtilSetButtonSubPauseState should be called with bufferPool");
+}
+
+/**
+ * @test  The datastorePauseSubButton function must successfully pause subscription
+ *        when datastoreUtilSetButtonSubPauseState succeeds.
+ */
+ZTEST(datastore_tests, test_pause_sub_button_success)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0xBAADF00D;
+  int ret;
+
+  /* Configure datastoreUtilSetButtonSubPauseState to succeed */
+  datastoreUtilSetButtonSubPauseState_fake.return_val = 0;
+
+  /* Call datastorePauseSubButton */
+  ret = datastorePauseSubButton(callback);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastorePauseSubButton should return 0 on success");
+
+  /* Verify datastoreUtilSetButtonSubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetButtonSubPauseState_fake.call_count, 1,
+                "datastoreUtilSetButtonSubPauseState should be called once");
+  zassert_equal(datastoreUtilSetButtonSubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetButtonSubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetButtonSubPauseState_fake.arg1_val, true,
+                "datastoreUtilSetButtonSubPauseState should be called with true (pause)");
+  zassert_equal(datastoreUtilSetButtonSubPauseState_fake.arg2_val, bufferPool,
+                "datastoreUtilSetButtonSubPauseState should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreUnpauseSubButton function must return an error when
+ *        datastoreUtilSetButtonSubPauseState fails.
+ */
+ZTEST(datastore_tests, test_unpause_sub_button_failure)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x8BADF00D;
+  int ret;
+
+  /* Configure datastoreUtilSetButtonSubPauseState to fail */
+  datastoreUtilSetButtonSubPauseState_fake.return_val = -ENOENT;
+
+  /* Call datastoreUnpauseSubButton */
+  ret = datastoreUnpauseSubButton(callback);
+
+  /* Verify function returned the error from datastoreUtilSetButtonSubPauseState */
+  zassert_equal(ret, -ENOENT, "datastoreUnpauseSubButton should return error from datastoreUtilSetButtonSubPauseState");
+
+  /* Verify datastoreUtilSetButtonSubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetButtonSubPauseState_fake.call_count, 1,
+                "datastoreUtilSetButtonSubPauseState should be called once");
+  zassert_equal(datastoreUtilSetButtonSubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetButtonSubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetButtonSubPauseState_fake.arg1_val, false,
+                "datastoreUtilSetButtonSubPauseState should be called with false (unpause)");
+  zassert_equal(datastoreUtilSetButtonSubPauseState_fake.arg2_val, bufferPool,
+                "datastoreUtilSetButtonSubPauseState should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreUnpauseSubButton function must successfully unpause subscription
+ *        when datastoreUtilSetButtonSubPauseState succeeds.
+ */
+ZTEST(datastore_tests, test_unpause_sub_button_success)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0xC0FFEEEE;
+  int ret;
+
+  /* Configure datastoreUtilSetButtonSubPauseState to succeed */
+  datastoreUtilSetButtonSubPauseState_fake.return_val = 0;
+
+  /* Call datastoreUnpauseSubButton */
+  ret = datastoreUnpauseSubButton(callback);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreUnpauseSubButton should return 0 on success");
+
+  /* Verify datastoreUtilSetButtonSubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetButtonSubPauseState_fake.call_count, 1,
+                "datastoreUtilSetButtonSubPauseState should be called once");
+  zassert_equal(datastoreUtilSetButtonSubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetButtonSubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetButtonSubPauseState_fake.arg1_val, false,
+                "datastoreUtilSetButtonSubPauseState should be called with false (unpause)");
+  zassert_equal(datastoreUtilSetButtonSubPauseState_fake.arg2_val, bufferPool,
+                "datastoreUtilSetButtonSubPauseState should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreReadButton function must return -EINVAL when values
+ *        parameter is NULL.
+ */
+ZTEST(datastore_tests, test_read_button_invalid_values)
+{
+  uint32_t datapointId = 40;
+  size_t valCount = 5;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreReadButton with NULL values */
+  ret = datastoreReadButton(datapointId, valCount, &responseQueue, NULL);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreReadButton should return -EINVAL when values is NULL");
+
+  /* Verify no buffer allocation was attempted */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 0,
+                "osMemoryPoolAlloc should not be called when parameter validation fails");
+
+  /* Verify no message was put in the queue */
+  DatastoreMsg_t dummy;
+  ret = k_msgq_get(&datastoreQueue, &dummy, K_NO_WAIT);
+  zassert_equal(ret, -ENOMSG, "No message should be in the datastore queue when parameter validation fails");
+}
+
+/**
+ * @test  The datastoreReadButton function must return -EINVAL when valCount
+ *        parameter is 0.
+ */
+ZTEST(datastore_tests, test_read_button_invalid_valcount)
+{
+  uint32_t datapointId = 45;
+  size_t valCount = 0;
+  ButtonState_t values[1];
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreReadButton with valCount = 0 */
+  ret = datastoreReadButton(datapointId, valCount, &responseQueue, values);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreReadButton should return -EINVAL when valCount is 0");
+
+  /* Verify no buffer allocation was attempted */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 0,
+                "osMemoryPoolAlloc should not be called when parameter validation fails");
+
+  /* Verify no message was put in the queue */
+  DatastoreMsg_t dummy;
+  ret = k_msgq_get(&datastoreQueue, &dummy, K_NO_WAIT);
+  zassert_equal(ret, -ENOMSG, "No message should be in the datastore queue when parameter validation fails");
+}
+
+/**
+ * @test  The datastoreReadButton function must return -EINVAL when response
+ *        parameter is NULL.
+ */
+ZTEST(datastore_tests, test_read_button_invalid_response)
+{
+  uint32_t datapointId = 50;
+  size_t valCount = 3;
+  ButtonState_t values[3];
+  int ret;
+
+  /* Call datastoreReadButton with NULL response */
+  ret = datastoreReadButton(datapointId, valCount, NULL, values);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreReadButton should return -EINVAL when response is NULL");
+
+  /* Verify no buffer allocation was attempted */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 0,
+                "osMemoryPoolAlloc should not be called when parameter validation fails");
+
+  /* Verify no message was put in the queue */
+  DatastoreMsg_t dummy;
+  ret = k_msgq_get(&datastoreQueue, &dummy, K_NO_WAIT);
+  zassert_equal(ret, -ENOMSG, "No message should be in the datastore queue when parameter validation fails");
+}
+
+/**
+ * @test  The datastoreReadButton function must return an error when the
+ *        underlying datastoreRead operation fails.
+ */
+ZTEST(datastore_tests, test_read_button_operation_failure)
+{
+  uint32_t datapointId = 55;
+  size_t valCount = 2;
+  ButtonState_t values[2];
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to fail */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call datastoreReadButton - should fail due to buffer allocation failure */
+  ret = datastoreReadButton(datapointId, valCount, &responseQueue, values);
+
+  /* Verify function returned -ENOSPC (buffer allocation error) */
+  zassert_equal(ret, -ENOSPC, "datastoreReadButton should return -ENOSPC when buffer allocation fails");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+
+  /* Verify no message was put in the queue */
+  DatastoreMsg_t dummy;
+  ret = k_msgq_get(&datastoreQueue, &dummy, K_NO_WAIT);
+  zassert_equal(ret, -ENOMSG, "No message should be in the datastore queue when buffer allocation fails");
+}
+
+/**
+ * @test  The datastoreReadButton function must successfully read button data
+ *        when all parameters are valid and the operation succeeds.
+ */
+ZTEST(datastore_tests, test_read_button_success)
+{
+  uint32_t datapointId = 60;
+  size_t valCount = 3;
+  /* Allocate enough storage for Data_t array that will be memcpy'd, then cast to ButtonState_t */
+  Data_t valueStorage[3];
+  ButtonState_t *values = (ButtonState_t *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  uint8_t payloadBuffer[sizeof(SrvMsgPayload_t) + (valCount * sizeof(Data_t))];
+  SrvMsgPayload_t *mockPayload = (SrvMsgPayload_t *)payloadBuffer;
+  Data_t *payloadData = (Data_t *)mockPayload->data;
+  int ret;
+  int successStatus = 0;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to succeed */
+  osMemoryPoolAlloc_fake.return_val = mockPayload;
+
+  /* Configure osMemoryPoolFree to succeed */
+  osMemoryPoolFree_fake.return_val = osOK;
+
+  /* Setup mock payload with test data (ButtonState_t values stored as uintVal) */
+  mockPayload->dataLen = valCount * sizeof(Data_t);
+  payloadData[0].uintVal = BUTTON_SHORT_PRESSED;
+  payloadData[1].uintVal = BUTTON_UNPRESSED;
+  payloadData[2].uintVal = BUTTON_LONG_PRESSED;
+
+  /* Put success status in response queue */
+  ret = k_msgq_put(&responseQueue, &successStatus, K_NO_WAIT);
+  zassert_equal(ret, 0, "Failed to put success status in response queue");
+
+  /* Call datastoreReadButton - should succeed */
+  ret = datastoreReadButton(datapointId, valCount, &responseQueue, values);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreReadButton should return 0 on success");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+
+  /* Verify message was put in the datastore queue */
+  DatastoreMsg_t msg;
+  ret = k_msgq_get(&datastoreQueue, &msg, K_NO_WAIT);
+  zassert_equal(ret, 0, "Message should be in the datastore queue");
+  zassert_equal(msg.msgType, DATASTORE_READ, "Message type should be DATASTORE_READ");
+  zassert_equal(msg.datapointType, DATAPOINT_BUTTON, "Message should have DATAPOINT_BUTTON type");
+  zassert_equal(msg.datapointId, datapointId, "Message should have correct datapoint ID");
+  zassert_equal(msg.valCount, valCount, "Message should have correct value count");
+
+  /* Verify data was copied - access as Data_t to read the full values */
+  Data_t *dataValues = (Data_t *)values;
+  zassert_equal(dataValues[0].uintVal, BUTTON_SHORT_PRESSED, "First value should be BUTTON_SHORT_PRESSED");
+  zassert_equal(dataValues[1].uintVal, BUTTON_UNPRESSED, "Second value should be BUTTON_UNPRESSED");
+  zassert_equal(dataValues[2].uintVal, BUTTON_LONG_PRESSED, "Third value should be BUTTON_LONG_PRESSED");
+
+  /* Verify osMemoryPoolFree was called to free the buffer */
+  zassert_equal(osMemoryPoolFree_fake.call_count, 1,
+                "osMemoryPoolFree should be called once to free the buffer");
+}
+
+/**
+ * @test  The datastoreWriteButton function must return -EINVAL when values
+ *        parameter is NULL.
+ */
+ZTEST(datastore_tests, test_write_button_invalid_values)
+{
+  uint32_t datapointId = 65;
+  size_t valCount = 4;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreWriteButton with NULL values */
+  ret = datastoreWriteButton(datapointId, NULL, valCount, &responseQueue);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreWriteButton should return -EINVAL when values is NULL");
+
+  /* Verify no buffer allocation was attempted */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 0,
+                "osMemoryPoolAlloc should not be called when parameter validation fails");
+
+  /* Verify no message was put in the queue */
+  DatastoreMsg_t dummy;
+  ret = k_msgq_get(&datastoreQueue, &dummy, K_NO_WAIT);
+  zassert_equal(ret, -ENOMSG, "No message should be in the datastore queue when parameter validation fails");
+}
+
+/**
+ * @test  The datastoreWriteButton function must return -EINVAL when valCount
+ *        parameter is 0.
+ */
+ZTEST(datastore_tests, test_write_button_invalid_valcount)
+{
+  uint32_t datapointId = 70;
+  size_t valCount = 0;
+  ButtonState_t values[1];
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreWriteButton with valCount = 0 */
+  ret = datastoreWriteButton(datapointId, values, valCount, &responseQueue);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreWriteButton should return -EINVAL when valCount is 0");
+
+  /* Verify no buffer allocation was attempted */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 0,
+                "osMemoryPoolAlloc should not be called when parameter validation fails");
+
+  /* Verify no message was put in the queue */
+  DatastoreMsg_t dummy;
+  ret = k_msgq_get(&datastoreQueue, &dummy, K_NO_WAIT);
+  zassert_equal(ret, -ENOMSG, "No message should be in the datastore queue when parameter validation fails");
+}
+
+/**
+ * @test  The datastoreWriteButton function must return an error when the
+ *        underlying datastoreWrite operation fails.
+ */
+ZTEST(datastore_tests, test_write_button_operation_failure)
+{
+  uint32_t datapointId = 75;
+  size_t valCount = 2;
+  ButtonState_t values[2];
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to fail */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call datastoreWriteButton - should fail due to buffer allocation failure */
+  ret = datastoreWriteButton(datapointId, values, valCount, &responseQueue);
+
+  /* Verify function returned -ENOSPC (buffer allocation error) */
+  zassert_equal(ret, -ENOSPC, "datastoreWriteButton should return -ENOSPC when buffer allocation fails");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+
+  /* Verify no message was put in the queue */
+  DatastoreMsg_t dummy;
+  ret = k_msgq_get(&datastoreQueue, &dummy, K_NO_WAIT);
+  zassert_equal(ret, -ENOMSG, "No message should be in the datastore queue when buffer allocation fails");
+}
+
+/**
+ * @test  The datastoreWriteButton function must successfully write button data
+ *        when all parameters are valid and the operation succeeds.
+ */
+ZTEST(datastore_tests, test_write_button_success)
+{
+  uint32_t datapointId = 80;
+  size_t valCount = 3;
+  /* Allocate enough storage for Data_t array that will be cast from ButtonState_t */
+  Data_t valueStorage[3] = {{.uintVal = BUTTON_SHORT_PRESSED}, {.uintVal = BUTTON_UNPRESSED}, {.uintVal = BUTTON_LONG_PRESSED}};
+  ButtonState_t *values = (ButtonState_t *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  uint8_t payloadBuffer[sizeof(SrvMsgPayload_t) + (valCount * sizeof(Data_t))];
+  SrvMsgPayload_t *mockPayload = (SrvMsgPayload_t *)payloadBuffer;
+  Data_t *payloadData = (Data_t *)mockPayload->data;
+  int ret;
+  int successStatus = 0;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to succeed */
+  osMemoryPoolAlloc_fake.return_val = mockPayload;
+
+  /* Configure osMemoryPoolFree to succeed */
+  osMemoryPoolFree_fake.return_val = osOK;
+
+  /* Put success status in response queue */
+  ret = k_msgq_put(&responseQueue, &successStatus, K_NO_WAIT);
+  zassert_equal(ret, 0, "Failed to put success status in response queue");
+
+  /* Call datastoreWriteButton - should succeed */
+  ret = datastoreWriteButton(datapointId, values, valCount, &responseQueue);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreWriteButton should return 0 on success");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+
+  /* Verify message was put in the datastore queue */
+  DatastoreMsg_t msg;
+  ret = k_msgq_get(&datastoreQueue, &msg, K_NO_WAIT);
+  zassert_equal(ret, 0, "Message should be in the datastore queue");
+  zassert_equal(msg.msgType, DATASTORE_WRITE, "Message type should be DATASTORE_WRITE");
+  zassert_equal(msg.datapointType, DATAPOINT_BUTTON, "Message should have DATAPOINT_BUTTON type");
+  zassert_equal(msg.datapointId, datapointId, "Message should have correct datapoint ID");
+  zassert_equal(msg.valCount, valCount, "Message should have correct value count");
+  zassert_equal(msg.response, &responseQueue, "Response queue should be set correctly");
+
+  /* Verify data was copied to payload */
+  zassert_equal(payloadData[0].uintVal, BUTTON_SHORT_PRESSED, "First value should be BUTTON_SHORT_PRESSED");
+  zassert_equal(payloadData[1].uintVal, BUTTON_UNPRESSED, "Second value should be BUTTON_UNPRESSED");
+  zassert_equal(payloadData[2].uintVal, BUTTON_LONG_PRESSED, "Third value should be BUTTON_LONG_PRESSED");
+
+  /* Verify osMemoryPoolFree was NOT called (buffer ownership transferred to queue) */
+  zassert_equal(osMemoryPoolFree_fake.call_count, 0,
+                "osMemoryPoolFree should not be called when response is expected");
+}
+
 ZTEST_SUITE(datastore_tests, NULL, datastore_tests_setup, datastore_tests_before, NULL, NULL);
