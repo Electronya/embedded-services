@@ -4176,4 +4176,479 @@ ZTEST(datastore_tests, test_write_multi_state_success)
   zassert_equal(payloadData[2].uintVal, 30, "Third value should be 30");
 }
 
+/**
+ * @test  The datastoreSubscribeUint function must return an error when
+ *        datastoreUtilAddUintSub fails.
+ */
+ZTEST(datastore_tests, test_subscribe_uint_failure)
+{
+  DatastoreSubEntry_t subEntry;
+  int ret;
+
+  subEntry.callback = (DatastoreSubCb_t)0x1234ABCD;
+
+  /* Configure datastoreUtilAddUintSub to fail */
+  datastoreUtilAddUintSub_fake.return_val = -ENOMEM;
+
+  /* Call datastoreSubscribeUint */
+  ret = datastoreSubscribeUint(&subEntry);
+
+  /* Verify function returned the error from datastoreUtilAddUintSub */
+  zassert_equal(ret, -ENOMEM, "datastoreSubscribeUint should return error from datastoreUtilAddUintSub");
+}
+
+/**
+ * @test  The datastoreSubscribeUint function must return success when
+ *        datastoreUtilAddUintSub succeeds.
+ */
+ZTEST(datastore_tests, test_subscribe_uint_success)
+{
+  DatastoreSubEntry_t subEntry;
+  int ret;
+
+  subEntry.callback = (DatastoreSubCb_t)0x1234ABCD;
+
+  /* Configure datastoreUtilAddUintSub to succeed */
+  datastoreUtilAddUintSub_fake.return_val = 0;
+
+  /* Call datastoreSubscribeUint */
+  ret = datastoreSubscribeUint(&subEntry);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreSubscribeUint should return 0 on success");
+}
+
+/**
+ * @test  The datastoreUnsubscribeUint function must return an error when
+ *        datastoreUtilRemoveUintSub fails.
+ */
+ZTEST(datastore_tests, test_unsubscribe_uint_failure)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilRemoveUintSub to fail */
+  datastoreUtilRemoveUintSub_fake.return_val = -ENOENT;
+
+  /* Call datastoreUnsubscribeUint */
+  ret = datastoreUnsubscribeUint(callback);
+
+  /* Verify function returned the error from datastoreUtilRemoveUintSub */
+  zassert_equal(ret, -ENOENT, "datastoreUnsubscribeUint should return error from datastoreUtilRemoveUintSub");
+
+  /* Verify datastoreUtilRemoveUintSub was called with correct parameters */
+  zassert_equal(datastoreUtilRemoveUintSub_fake.call_count, 1,
+                "datastoreUtilRemoveUintSub should be called once");
+  zassert_equal(datastoreUtilRemoveUintSub_fake.arg0_val, callback,
+                "datastoreUtilRemoveUintSub should be called with correct callback");
+}
+
+/**
+ * @test  The datastoreUnsubscribeUint function must return success when
+ *        datastoreUtilRemoveUintSub succeeds.
+ */
+ZTEST(datastore_tests, test_unsubscribe_uint_success)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilRemoveUintSub to succeed */
+  datastoreUtilRemoveUintSub_fake.return_val = 0;
+
+  /* Call datastoreUnsubscribeUint */
+  ret = datastoreUnsubscribeUint(callback);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreUnsubscribeUint should return 0 on success");
+
+  /* Verify datastoreUtilRemoveUintSub was called with correct parameters */
+  zassert_equal(datastoreUtilRemoveUintSub_fake.call_count, 1,
+                "datastoreUtilRemoveUintSub should be called once");
+  zassert_equal(datastoreUtilRemoveUintSub_fake.arg0_val, callback,
+                "datastoreUtilRemoveUintSub should be called with correct callback");
+}
+
+/**
+ * @test  The datastorePauseSubUint function must return an error when
+ *        datastoreUtilSetUintSubPauseState fails.
+ */
+ZTEST(datastore_tests, test_pause_sub_uint_failure)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilSetUintSubPauseState to fail */
+  datastoreUtilSetUintSubPauseState_fake.return_val = -ENOMEM;
+
+  /* Call datastorePauseSubUint */
+  ret = datastorePauseSubUint(callback);
+
+  /* Verify function returned the error from datastoreUtilSetUintSubPauseState */
+  zassert_equal(ret, -ENOMEM, "datastorePauseSubUint should return error from datastoreUtilSetUintSubPauseState");
+
+  /* Verify datastoreUtilSetUintSubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetUintSubPauseState_fake.call_count, 1,
+                "datastoreUtilSetUintSubPauseState should be called once");
+  zassert_equal(datastoreUtilSetUintSubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetUintSubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetUintSubPauseState_fake.arg1_val, true,
+                "datastoreUtilSetUintSubPauseState should be called with true for pause state");
+}
+
+/**
+ * @test  The datastorePauseSubUint function must return success when
+ *        datastoreUtilSetUintSubPauseState succeeds.
+ */
+ZTEST(datastore_tests, test_pause_sub_uint_success)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilSetUintSubPauseState to succeed */
+  datastoreUtilSetUintSubPauseState_fake.return_val = 0;
+
+  /* Call datastorePauseSubUint */
+  ret = datastorePauseSubUint(callback);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastorePauseSubUint should return 0 on success");
+
+  /* Verify datastoreUtilSetUintSubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetUintSubPauseState_fake.call_count, 1,
+                "datastoreUtilSetUintSubPauseState should be called once");
+  zassert_equal(datastoreUtilSetUintSubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetUintSubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetUintSubPauseState_fake.arg1_val, true,
+                "datastoreUtilSetUintSubPauseState should be called with true for pause state");
+}
+
+/**
+ * @test  The datastoreUnpauseSubUint function must return an error when
+ *        datastoreUtilSetUintSubPauseState fails.
+ */
+ZTEST(datastore_tests, test_unpause_sub_uint_failure)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilSetUintSubPauseState to fail */
+  datastoreUtilSetUintSubPauseState_fake.return_val = -ENOENT;
+
+  /* Call datastoreUnpauseSubUint */
+  ret = datastoreUnpauseSubUint(callback);
+
+  /* Verify function returned the error from datastoreUtilSetUintSubPauseState */
+  zassert_equal(ret, -ENOENT, "datastoreUnpauseSubUint should return error from datastoreUtilSetUintSubPauseState");
+
+  /* Verify datastoreUtilSetUintSubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetUintSubPauseState_fake.call_count, 1,
+                "datastoreUtilSetUintSubPauseState should be called once");
+  zassert_equal(datastoreUtilSetUintSubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetUintSubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetUintSubPauseState_fake.arg1_val, false,
+                "datastoreUtilSetUintSubPauseState should be called with false for unpause state");
+}
+
+/**
+ * @test  The datastoreUnpauseSubUint function must return success when
+ *        datastoreUtilSetUintSubPauseState succeeds.
+ */
+ZTEST(datastore_tests, test_unpause_sub_uint_success)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilSetUintSubPauseState to succeed */
+  datastoreUtilSetUintSubPauseState_fake.return_val = 0;
+
+  /* Call datastoreUnpauseSubUint */
+  ret = datastoreUnpauseSubUint(callback);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreUnpauseSubUint should return 0 on success");
+
+  /* Verify datastoreUtilSetUintSubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetUintSubPauseState_fake.call_count, 1,
+                "datastoreUtilSetUintSubPauseState should be called once");
+  zassert_equal(datastoreUtilSetUintSubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetUintSubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetUintSubPauseState_fake.arg1_val, false,
+                "datastoreUtilSetUintSubPauseState should be called with false for unpause state");
+}
+
+/**
+ * @test  The datastoreReadUint function must return an error when
+ *        the values parameter is NULL.
+ */
+ZTEST(datastore_tests, test_read_uint_invalid_values)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreReadUint with NULL values */
+  ret = datastoreReadUint(datapointId, valCount, &responseQueue, NULL);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreReadUint should return -EINVAL when values is NULL");
+}
+
+/**
+ * @test  The datastoreReadUint function must return an error when
+ *        the valCount parameter is 0.
+ */
+ZTEST(datastore_tests, test_read_uint_invalid_valcount)
+{
+  uint32_t datapointId = 1;
+  Data_t valueStorage[3];
+  uint32_t *values = (uint32_t *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreReadUint with valCount = 0 */
+  ret = datastoreReadUint(datapointId, 0, &responseQueue, values);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreReadUint should return -EINVAL when valCount is 0");
+}
+
+/**
+ * @test  The datastoreReadUint function must return an error when
+ *        the response parameter is NULL.
+ */
+ZTEST(datastore_tests, test_read_uint_invalid_response)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  Data_t valueStorage[3];
+  uint32_t *values = (uint32_t *)valueStorage;
+  int ret;
+
+  /* Call datastoreReadUint with NULL response */
+  ret = datastoreReadUint(datapointId, valCount, NULL, values);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreReadUint should return -EINVAL when response is NULL");
+}
+
+/**
+ * @test  The datastoreReadUint function must return an error when
+ *        the underlying datastoreRead operation fails.
+ */
+ZTEST(datastore_tests, test_read_uint_operation_failure)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  Data_t valueStorage[3];
+  uint32_t *values = (uint32_t *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure osMemoryPoolAlloc to fail (simulate buffer allocation failure) */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call datastoreReadUint */
+  ret = datastoreReadUint(datapointId, valCount, &responseQueue, values);
+
+  /* Verify function returned error from datastoreRead */
+  zassert_equal(ret, -ENOSPC, "datastoreReadUint should return -ENOSPC when buffer allocation fails");
+}
+
+/**
+ * @test  The datastoreReadUint function must successfully read uint values
+ *        when all parameters are valid and operations succeed.
+ */
+ZTEST(datastore_tests, test_read_uint_success)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  /* Allocate enough storage for Data_t array that will be memcpy'd, then cast to uint32_t */
+  Data_t valueStorage[3];
+  uint32_t *values = (uint32_t *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  uint8_t payloadBuffer[sizeof(SrvMsgPayload_t) + (valCount * sizeof(Data_t))];
+  SrvMsgPayload_t *mockPayload = (SrvMsgPayload_t *)payloadBuffer;
+  Data_t *payloadData = (Data_t *)mockPayload->data;
+  int ret;
+  int successStatus = 0;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to succeed */
+  osMemoryPoolAlloc_fake.return_val = mockPayload;
+
+  /* Configure osMemoryPoolFree to succeed */
+  osMemoryPoolFree_fake.return_val = osOK;
+
+  /* Setup mock payload with test data (uint values stored as uintVal) */
+  mockPayload->dataLen = valCount * sizeof(Data_t);
+  payloadData[0].uintVal = 10;
+  payloadData[1].uintVal = 20;
+  payloadData[2].uintVal = 30;
+
+  /* Put success status in response queue */
+  ret = k_msgq_put(&responseQueue, &successStatus, K_NO_WAIT);
+  zassert_equal(ret, 0, "Failed to put success status in response queue");
+
+  /* Call datastoreReadUint - should succeed */
+  ret = datastoreReadUint(datapointId, valCount, &responseQueue, values);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreReadUint should return 0 on success");
+
+  /* Verify the uint values were correctly read */
+  Data_t *dataValues = (Data_t *)values;
+  zassert_equal(dataValues[0].uintVal, 10, "values[0] should be 10");
+  zassert_equal(dataValues[1].uintVal, 20, "values[1] should be 20");
+  zassert_equal(dataValues[2].uintVal, 30, "values[2] should be 30");
+}
+
+/**
+ * @test  The datastoreWriteUint function must return an error when
+ *        the values parameter is NULL.
+ */
+ZTEST(datastore_tests, test_write_uint_invalid_values)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreWriteUint with NULL values */
+  ret = datastoreWriteUint(datapointId, NULL, valCount, &responseQueue);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreWriteUint should return -EINVAL when values is NULL");
+}
+
+/**
+ * @test  The datastoreWriteUint function must return an error when
+ *        the valCount parameter is 0.
+ */
+ZTEST(datastore_tests, test_write_uint_invalid_valcount)
+{
+  uint32_t datapointId = 1;
+  Data_t valueStorage[3];
+  uint32_t *values = (uint32_t *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreWriteUint with valCount = 0 */
+  ret = datastoreWriteUint(datapointId, values, 0, &responseQueue);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreWriteUint should return -EINVAL when valCount is 0");
+}
+
+/**
+ * @test  The datastoreWriteUint function must return an error when
+ *        the underlying datastoreWrite operation fails.
+ */
+ZTEST(datastore_tests, test_write_uint_operation_failure)
+{
+  uint32_t datapointId = 1;
+  Data_t valueStorage[3];
+  uint32_t *values = (uint32_t *)valueStorage;
+  values[0] = 10;
+  values[1] = 20;
+  values[2] = 30;
+  uint8_t valCount = 3;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure osMemoryPoolAlloc to fail */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call datastoreWriteUint with valid parameters but allocation will fail */
+  ret = datastoreWriteUint(datapointId, values, valCount, &responseQueue);
+
+  /* Verify function returned -ENOSPC */
+  zassert_equal(ret, -ENOSPC, "datastoreWriteUint should return -ENOSPC when buffer allocation fails");
+}
+
+/**
+ * @test  The datastoreWriteUint function must successfully write uint values
+ *        when all parameters are valid and operations succeed.
+ */
+ZTEST(datastore_tests, test_write_uint_success)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  /* Allocate enough storage for Data_t array that will be cast to uint32_t */
+  Data_t valueStorage[3] = {{.uintVal = 10}, {.uintVal = 20}, {.uintVal = 30}};
+  uint32_t *values = (uint32_t *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  uint8_t payloadBuffer[sizeof(SrvMsgPayload_t) + (valCount * sizeof(Data_t))];
+  SrvMsgPayload_t *mockPayload = (SrvMsgPayload_t *)payloadBuffer;
+  Data_t *payloadData = (Data_t *)mockPayload->data;
+  int ret;
+  int successStatus = 0;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to succeed */
+  osMemoryPoolAlloc_fake.return_val = mockPayload;
+
+  /* Configure osMemoryPoolFree to succeed */
+  osMemoryPoolFree_fake.return_val = osOK;
+
+  /* Put success status in response queue */
+  ret = k_msgq_put(&responseQueue, &successStatus, K_NO_WAIT);
+  zassert_equal(ret, 0, "Failed to put success status in response queue");
+
+  /* Call datastoreWriteUint - should succeed */
+  ret = datastoreWriteUint(datapointId, values, valCount, &responseQueue);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreWriteUint should return 0 on success");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+
+  /* Verify message was put in the datastore queue */
+  DatastoreMsg_t msg;
+  ret = k_msgq_get(&datastoreQueue, &msg, K_NO_WAIT);
+  zassert_equal(ret, 0, "Message should be in the datastore queue");
+  zassert_equal(msg.msgType, DATASTORE_WRITE, "Message type should be DATASTORE_WRITE");
+  zassert_equal(msg.datapointType, DATAPOINT_UINT, "Message should have DATAPOINT_UINT type");
+  zassert_equal(msg.datapointId, datapointId, "Message should have correct datapoint ID");
+  zassert_equal(msg.valCount, valCount, "Message should have correct value count");
+  zassert_equal(msg.response, &responseQueue, "Response queue should be set correctly");
+
+  /* Verify data was copied to payload */
+  zassert_equal(payloadData[0].uintVal, 10, "First value should be 10");
+  zassert_equal(payloadData[1].uintVal, 20, "Second value should be 20");
+  zassert_equal(payloadData[2].uintVal, 30, "Third value should be 30");
+}
+
 ZTEST_SUITE(datastore_tests, NULL, datastore_tests_setup, datastore_tests_before, NULL, NULL);
