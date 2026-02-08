@@ -141,7 +141,7 @@ static struct DatastoreSubs uintSubs  = {.entries = NULL, .maxCount = 0, .active
  */
 static inline bool isBinaryDatapointInSubRange(uint32_t datapointId, DatastoreSubEntry_t *sub)
 {
-  return datapointId >= sub->datapointId && datapointId < sub->valCount;
+  return datapointId >= sub->datapointId && datapointId < (sub->datapointId + sub->valCount);
 }
 
 /**
@@ -209,7 +209,7 @@ static inline int notifyBinarySubs(uint32_t datapointId, osMemoryPoolId_t pool)
  */
 static inline bool isButtonDatapointInSubRange(uint32_t datapointId, DatastoreSubEntry_t *sub)
 {
-  return datapointId >= sub->datapointId && datapointId < sub->valCount;
+  return datapointId >= sub->datapointId && datapointId < (sub->datapointId + sub->valCount);
 }
 
 /**
@@ -277,7 +277,7 @@ static inline int notifyButtonSubs(uint32_t datapointId, osMemoryPoolId_t pool)
  */
 static inline bool isFloatDatapointInSubRange(uint32_t datapointId, DatastoreSubEntry_t *sub)
 {
-  return datapointId >= sub->datapointId && datapointId < sub->valCount;
+  return datapointId >= sub->datapointId && datapointId < (sub->datapointId + sub->valCount);
 }
 
 /**
@@ -345,7 +345,7 @@ static inline int notifyFloatSubs(uint32_t datapointId, osMemoryPoolId_t pool)
  */
 static inline bool isIntDatapointInSubRange(uint32_t datapointId, DatastoreSubEntry_t *sub)
 {
-  return datapointId >= sub->datapointId && datapointId < sub->valCount;
+  return datapointId >= sub->datapointId && datapointId < (sub->datapointId + sub->valCount);
 }
 
 /**
@@ -413,7 +413,7 @@ static inline int notifyIntSubs(uint32_t datapointId, osMemoryPoolId_t pool)
  */
 static inline bool isMultiStateDatapointInSubRange(uint32_t datapointId, DatastoreSubEntry_t *sub)
 {
-  return datapointId >= sub->datapointId && datapointId < sub->valCount;
+  return datapointId >= sub->datapointId && datapointId < (sub->datapointId + sub->valCount);
 }
 
 /**
@@ -481,7 +481,7 @@ static inline int notifyMultiStateSubs(uint32_t datapointId, osMemoryPoolId_t po
  */
 static inline bool isUintDatapointInSubRange(uint32_t datapointId, DatastoreSubEntry_t *sub)
 {
-  return datapointId >= sub->datapointId && datapointId < sub->valCount;
+  return datapointId >= sub->datapointId && datapointId < (sub->datapointId + sub->valCount);
 }
 
 /**
@@ -678,8 +678,8 @@ int datastoreUtilAddBinarySub(DatastoreSubEntry_t *sub, osMemoryPoolId_t pool)
     return err;
   }
 
-  ++binarySubs.activeCount;
   memcpy(binarySubs.entries + binarySubs.activeCount, sub, sizeof(DatastoreSubEntry_t));
+  ++binarySubs.activeCount;
 
   err = notifyBinarySub(sub, pool);
   if(err < 0)
@@ -772,7 +772,7 @@ int datastoreUtilAddButtonSub(DatastoreSubEntry_t *sub, osMemoryPoolId_t pool)
   if(err < 0)
     LOG_ERR("ERROR %d: unable to notify for new button entry", err);
 
-  return 0;
+  return err;
 }
 
 int datastoreUtilRemoveButtonSub(DatastoreSubCb_t callback)
@@ -859,7 +859,7 @@ int datastoreUtilAddFloatSub(DatastoreSubEntry_t *sub, osMemoryPoolId_t pool)
   if(err < 0)
     LOG_ERR("ERROR %d: unable to notify for new float entry", err);
 
-  return 0;
+  return err;
 }
 
 int datastoreUtilRemoveFloatSub(DatastoreSubCb_t callback)
@@ -946,7 +946,7 @@ int datastoreUtilAddIntSub(DatastoreSubEntry_t *sub, osMemoryPoolId_t pool)
   if(err < 0)
     LOG_ERR("ERROR %d: unable to notify for new signed integer entry", err);
 
-  return 0;
+  return err;
 }
 
 int datastoreUtilRemoveIntSub(DatastoreSubCb_t callback)
@@ -1033,7 +1033,7 @@ int datastoreUtilAddMultiStateSub(DatastoreSubEntry_t *sub, osMemoryPoolId_t poo
   if(err < 0)
     LOG_ERR("ERROR %d: unable to notify for new multi-state entry", err);
 
-  return 0;
+  return err;
 }
 
 int datastoreUtilRemoveMultiStateSub(DatastoreSubCb_t callback)
@@ -1120,7 +1120,7 @@ int datastoreUtilAddUintSub(DatastoreSubEntry_t *sub, osMemoryPoolId_t pool)
   if(err < 0)
     LOG_ERR("ERROR %d: unable to notify for new unsigned integer entry", err);
 
-  return 0;
+  return err;
 }
 
 int datastoreUtilRemoveUintSub(DatastoreSubCb_t callback)
@@ -1223,7 +1223,7 @@ int datastoreUtilWrite(DatapointType_t type, uint32_t datapointId, Data_t values
   {
     for(size_t i = 0; i < valCount; ++i)
     {
-      needToNotify = !needToNotify && values[i].uintVal == root[datapointId + i].value.uintVal ? true : needToNotify;
+      needToNotify = needToNotify || values[i].uintVal != root[datapointId + i].value.uintVal;
       root[datapointId + i].value = values[i];
     }
   }

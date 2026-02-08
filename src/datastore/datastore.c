@@ -21,6 +21,12 @@
 /* Setting module logging */
 LOG_MODULE_REGISTER(DATASTORE_LOGGER_NAME, CONFIG_ENYA_DATASTORE_LOG_LEVEL);
 
+#ifdef CONFIG_ZTEST
+#ifndef DATASTORE_RUN_ITERATIONS
+#define DATASTORE_RUN_ITERATIONS 1
+#endif
+#endif
+
 /**
  * @brief   The datastore service stack size.
  */
@@ -96,9 +102,13 @@ static void run(void *p1, void *p2, void *p3)
 
   // TODO: Initialize the datapoints from the NVM.
 
+#ifdef CONFIG_ZTEST
+  for(size_t i = 0; i < DATASTORE_RUN_ITERATIONS; ++i)
+#else
   for(;;)
+#endif
   {
-    err = k_msgq_get(&datastoreQueue, &msg, K_FOREVER);
+    err = k_msgq_get(&datastoreQueue, &msg, K_MSEC(CONFIG_ENYA_DATASTORE_MSGQ_TIMEOUT));
     if(err < 0)
     {
       LOG_ERR("ERROR %d: unable to get a message", err);
@@ -160,6 +170,8 @@ int datastoreInit(size_t maxSubs[DATAPOINT_TYPE_COUNT], uint32_t priority, k_tid
     return err;
 
   bufferPool = osMemoryPoolNew(DATASTORE_BUFFER_COUNT, datastoreUtilCalculateBufferSize(datapointCounts), NULL);
+  if(!bufferPool)
+    return -ENOSPC;
 
   *threadId = k_thread_create(&thread, datastoreStack, DATASTORE_STACK_SIZE, run,
                               NULL, NULL, NULL, K_PRIO_PREEMPT(priority), 0, K_FOREVER);

@@ -28,6 +28,12 @@ LOG_MODULE_REGISTER(ADC_AQC_SERVICE_NAME, CONFIG_ENYA_ADC_ACQUISITION_LOG_LEVEL)
  */
 K_THREAD_STACK_DEFINE(adcStack, CONFIG_ENYA_ADC_ACQUISITION_STACK_SIZE);
 
+#ifdef CONFIG_ZTEST
+#ifndef ADC_ACQ_RUN_ITERATIONS
+#define ADC_ACQ_RUN_ITERATIONS 1
+#endif
+#endif
+
 /**
  * @brief   The ADC thread.
  */
@@ -40,12 +46,6 @@ static struct k_thread thread;
  * @param[in]   p2: The second parameter.
  * @param[in]   p3: The third parameter.
  */
-#ifdef CONFIG_ZTEST
-#ifndef ADC_ACQ_RUN_ITERATIONS
-#define ADC_ACQ_RUN_ITERATIONS 1
-#endif
-#endif
-
 void run(void *p1, void *p2, void *p3)
 {
   int err;
