@@ -1737,6 +1737,68 @@ ZTEST(datastore_tests, test_read_binary_invalid_valcount)
 }
 
 /**
+ * @test  The datastoreReadBinary function must return -EINVAL when response
+ *        parameter is NULL.
+ */
+ZTEST(datastore_tests, test_read_binary_invalid_response)
+{
+  uint32_t datapointId = 16;
+  size_t valCount = 3;
+  bool values[3];
+  int ret;
+
+  /* Call datastoreReadBinary with NULL response */
+  ret = datastoreReadBinary(datapointId, valCount, NULL, values);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreReadBinary should return -EINVAL when response is NULL");
+
+  /* Verify no buffer allocation was attempted */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 0,
+                "osMemoryPoolAlloc should not be called when parameter validation fails");
+
+  /* Verify no message was put in the queue */
+  DatastoreMsg_t dummy;
+  ret = k_msgq_get(&datastoreQueue, &dummy, K_NO_WAIT);
+  zassert_equal(ret, -ENOMSG, "No message should be in the datastore queue when parameter validation fails");
+}
+
+/**
+ * @test  The datastoreReadBinary function must return an error when the
+ *        underlying datastoreRead operation fails.
+ */
+ZTEST(datastore_tests, test_read_binary_operation_failure)
+{
+  uint32_t datapointId = 18;
+  size_t valCount = 2;
+  bool values[2];
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to fail */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call datastoreReadBinary - should fail due to buffer allocation failure */
+  ret = datastoreReadBinary(datapointId, valCount, &responseQueue, values);
+
+  /* Verify function returned -ENOSPC (buffer allocation error) */
+  zassert_equal(ret, -ENOSPC, "datastoreReadBinary should return -ENOSPC when buffer allocation fails");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+
+  /* Verify no message was put in the queue */
+  DatastoreMsg_t dummy;
+  ret = k_msgq_get(&datastoreQueue, &dummy, K_NO_WAIT);
+  zassert_equal(ret, -ENOMSG, "No message should be in the datastore queue when buffer allocation fails");
+}
+
+/**
  * @test  The datastoreReadBinary function must successfully read binary data
  *        when all parameters are valid and the operation succeeds.
  */
@@ -1865,6 +1927,41 @@ ZTEST(datastore_tests, test_write_binary_invalid_valcount)
   DatastoreMsg_t dummy;
   ret = k_msgq_get(&datastoreQueue, &dummy, K_NO_WAIT);
   zassert_equal(ret, -ENOMSG, "No message should be in the datastore queue when parameter validation fails");
+}
+
+/**
+ * @test  The datastoreWriteBinary function must return an error when the
+ *        underlying datastoreWrite operation fails.
+ */
+ZTEST(datastore_tests, test_write_binary_operation_failure)
+{
+  uint32_t datapointId = 32;
+  size_t valCount = 2;
+  bool values[2];
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to fail */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call datastoreWriteBinary - should fail due to buffer allocation failure */
+  ret = datastoreWriteBinary(datapointId, values, valCount, &responseQueue);
+
+  /* Verify function returned -ENOSPC (buffer allocation error) */
+  zassert_equal(ret, -ENOSPC, "datastoreWriteBinary should return -ENOSPC when buffer allocation fails");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+
+  /* Verify no message was put in the queue */
+  DatastoreMsg_t dummy;
+  ret = k_msgq_get(&datastoreQueue, &dummy, K_NO_WAIT);
+  zassert_equal(ret, -ENOMSG, "No message should be in the datastore queue when buffer allocation fails");
 }
 
 /**
