@@ -1138,4 +1138,319 @@ ZTEST(datastore_tests, test_read_success)
                 "osMemoryPoolFree should be called with the allocated payload");
 }
 
+/**
+ * @test  The datastoreWrite function must return an error when buffer allocation
+ *        fails (osMemoryPoolAlloc returns NULL).
+ */
+ZTEST(datastore_tests, test_write_buffer_alloc_failure)
+{
+  DatapointType_t datapointType = DATAPOINT_UINT;
+  uint32_t datapointId = 10;
+  size_t valCount = 2;
+  Data_t values[2] = {{.uintVal = 0x11111111}, {.uintVal = 0x22222222}};
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to fail */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call datastoreWrite */
+  ret = datastoreWrite(datapointType, datapointId, values, valCount, &responseQueue);
+
+  /* Verify function returned -ENOSPC */
+  zassert_equal(ret, -ENOSPC, "datastoreWrite should return -ENOSPC when buffer allocation fails");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+  zassert_equal(osMemoryPoolAlloc_fake.arg0_val, bufferPool,
+                "osMemoryPoolAlloc should be called with bufferPool");
+  zassert_equal(osMemoryPoolAlloc_fake.arg1_val, DATASTORE_BUFFER_ALLOC_TIMEOUT,
+                "osMemoryPoolAlloc should be called with DATASTORE_BUFFER_ALLOC_TIMEOUT");
+
+  /* Verify no message was put in the queue */
+  DatastoreMsg_t dummy;
+  ret = k_msgq_get(&datastoreQueue, &dummy, K_NO_WAIT);
+  zassert_equal(ret, -ENOMSG, "No message should be in the datastore queue when buffer allocation fails");
+
+  /* Verify osMemoryPoolFree was not called */
+  zassert_equal(osMemoryPoolFree_fake.call_count, 0,
+                "osMemoryPoolFree should not be called when buffer allocation fails");
+}
+
+/**
+ * @test  The datastoreWrite function must return an error when k_msgq_put fails
+ *        (datastore queue is full) and free the allocated buffer.
+ */
+ZTEST(datastore_tests, test_write_msgq_put_failure)
+{
+  DatapointType_t datapointType = DATAPOINT_INT;
+  uint32_t datapointId = 7;
+  size_t valCount = 1;
+  Data_t values[1] = {{.intVal = -42}};
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  uint8_t payloadBuffer[sizeof(SrvMsgPayload_t) + (valCount * sizeof(Data_t))];
+  SrvMsgPayload_t *mockPayload = (SrvMsgPayload_t *)payloadBuffer;
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to succeed */
+  osMemoryPoolAlloc_fake.return_val = mockPayload;
+
+  /* Configure osMemoryPoolFree to succeed */
+  osMemoryPoolFree_fake.return_val = osOK;
+
+  /* Fill the datastore queue to make k_msgq_put fail */
+  DatastoreMsg_t dummyMsg;
+  for (int i = 0; i < DATASTORE_MSG_COUNT; i++) {
+    ret = k_msgq_put(&datastoreQueue, &dummyMsg, K_NO_WAIT);
+    zassert_equal(ret, 0, "Failed to fill datastore queue");
+  }
+
+  /* Call datastoreWrite - k_msgq_put should fail */
+  ret = datastoreWrite(datapointType, datapointId, values, valCount, &responseQueue);
+
+  /* Verify function returned error from k_msgq_put */
+  zassert_true(ret < 0, "datastoreWrite should return error when k_msgq_put fails");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+
+  /* Verify osMemoryPoolFree was called to clean up the allocated buffer */
+  zassert_equal(osMemoryPoolFree_fake.call_count, 1,
+                "osMemoryPoolFree should be called once to free the buffer when k_msgq_put fails");
+  zassert_equal(osMemoryPoolFree_fake.arg0_val, bufferPool,
+                "osMemoryPoolFree should be called with bufferPool");
+  zassert_equal(osMemoryPoolFree_fake.arg1_val, mockPayload,
+                "osMemoryPoolFree should be called with the allocated payload");
+}
+
+/**
+ * @test  The datastoreWrite function must return an error when k_msgq_get times
+ *        out waiting for a response and free the allocated buffer.
+ */
+ZTEST(datastore_tests, test_write_response_timeout)
+{
+  DatapointType_t datapointType = DATAPOINT_FLOAT;
+  uint32_t datapointId = 15;
+  size_t valCount = 2;
+  Data_t values[2] = {{.floatVal = 3.14f}, {.floatVal = 2.71f}};
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  uint8_t payloadBuffer[sizeof(SrvMsgPayload_t) + (valCount * sizeof(Data_t))];
+  SrvMsgPayload_t *mockPayload = (SrvMsgPayload_t *)payloadBuffer;
+  int ret;
+
+  /* Initialize response queue (empty - no response will be sent) */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to succeed */
+  osMemoryPoolAlloc_fake.return_val = mockPayload;
+
+  /* Configure osMemoryPoolFree to succeed */
+  osMemoryPoolFree_fake.return_val = osOK;
+
+  /* Call datastoreWrite - k_msgq_get should timeout on empty response queue */
+  ret = datastoreWrite(datapointType, datapointId, values, valCount, &responseQueue);
+
+  /* Verify function returned timeout error from k_msgq_get */
+  zassert_equal(ret, -EAGAIN, "datastoreWrite should return -EAGAIN when response times out");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+
+  /* Verify message was put in the datastore queue */
+  DatastoreMsg_t msg;
+  ret = k_msgq_get(&datastoreQueue, &msg, K_NO_WAIT);
+  zassert_equal(ret, 0, "Message should be in the datastore queue");
+  zassert_equal(msg.msgType, DATASTORE_WRITE, "Message type should be DATASTORE_WRITE");
+  zassert_equal(msg.datapointType, datapointType, "Message should have correct datapoint type");
+  zassert_equal(msg.datapointId, datapointId, "Message should have correct datapoint ID");
+  zassert_equal(msg.valCount, valCount, "Message should have correct value count");
+
+  /* Verify osMemoryPoolFree was called to clean up the allocated buffer */
+  zassert_equal(osMemoryPoolFree_fake.call_count, 1,
+                "osMemoryPoolFree should be called once to free the buffer when response times out");
+  zassert_equal(osMemoryPoolFree_fake.arg0_val, bufferPool,
+                "osMemoryPoolFree should be called with bufferPool");
+  zassert_equal(osMemoryPoolFree_fake.arg1_val, mockPayload,
+                "osMemoryPoolFree should be called with the allocated payload");
+}
+
+/**
+ * @test  The datastoreWrite function must successfully write data when no
+ *        response is expected (response queue is NULL).
+ */
+ZTEST(datastore_tests, test_write_success_no_response)
+{
+  DatapointType_t datapointType = DATAPOINT_UINT;
+  uint32_t datapointId = 20;
+  size_t valCount = 3;
+  Data_t values[3] = {{.uintVal = 0xAAAAAAAA}, {.uintVal = 0xBBBBBBBB}, {.uintVal = 0xCCCCCCCC}};
+  uint8_t payloadBuffer[sizeof(SrvMsgPayload_t) + (valCount * sizeof(Data_t))];
+  SrvMsgPayload_t *mockPayload = (SrvMsgPayload_t *)payloadBuffer;
+  Data_t *payloadData = (Data_t *)mockPayload->data;
+  int ret;
+
+  /* Configure buffer allocation to succeed */
+  osMemoryPoolAlloc_fake.return_val = mockPayload;
+
+  /* Call datastoreWrite with NULL response queue */
+  ret = datastoreWrite(datapointType, datapointId, values, valCount, NULL);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreWrite should return 0 on success with no response");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+
+  /* Verify message was put in the datastore queue */
+  DatastoreMsg_t msg;
+  ret = k_msgq_get(&datastoreQueue, &msg, K_NO_WAIT);
+  zassert_equal(ret, 0, "Message should be in the datastore queue");
+  zassert_equal(msg.msgType, DATASTORE_WRITE, "Message type should be DATASTORE_WRITE");
+  zassert_equal(msg.datapointType, datapointType, "Message should have correct datapoint type");
+  zassert_equal(msg.datapointId, datapointId, "Message should have correct datapoint ID");
+  zassert_equal(msg.valCount, valCount, "Message should have correct value count");
+  zassert_equal(msg.response, NULL, "Response queue should be NULL");
+
+  /* Verify data was copied to payload */
+  zassert_equal(payloadData[0].uintVal, 0xAAAAAAAA, "First value should be copied to payload");
+  zassert_equal(payloadData[1].uintVal, 0xBBBBBBBB, "Second value should be copied to payload");
+  zassert_equal(payloadData[2].uintVal, 0xCCCCCCCC, "Third value should be copied to payload");
+
+  /* Verify osMemoryPoolFree was NOT called (buffer ownership transferred to queue) */
+  zassert_equal(osMemoryPoolFree_fake.call_count, 0,
+                "osMemoryPoolFree should not be called when no response is expected");
+}
+
+/**
+ * @test  The datastoreWrite function must handle operation failure gracefully
+ *        when communication succeeds but the datastore operation returns an error.
+ */
+ZTEST(datastore_tests, test_write_operation_failure)
+{
+  DatapointType_t datapointType = DATAPOINT_INT;
+  uint32_t datapointId = 25;
+  size_t valCount = 2;
+  Data_t values[2] = {{.intVal = -100}, {.intVal = 200}};
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  uint8_t payloadBuffer[sizeof(SrvMsgPayload_t) + (valCount * sizeof(Data_t))];
+  SrvMsgPayload_t *mockPayload = (SrvMsgPayload_t *)payloadBuffer;
+  Data_t *payloadData = (Data_t *)mockPayload->data;
+  int ret;
+  int errorStatus = -EINVAL;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to succeed */
+  osMemoryPoolAlloc_fake.return_val = mockPayload;
+
+  /* Configure osMemoryPoolFree to succeed */
+  osMemoryPoolFree_fake.return_val = osOK;
+
+  /* Put error status in response queue (simulating operation failure) */
+  ret = k_msgq_put(&responseQueue, &errorStatus, K_NO_WAIT);
+  zassert_equal(ret, 0, "Failed to put error status in response queue");
+
+  /* Call datastoreWrite - communication succeeds but operation fails */
+  ret = datastoreWrite(datapointType, datapointId, values, valCount, &responseQueue);
+
+  /* Verify function returned the error status from operation */
+  zassert_equal(ret, errorStatus, "datastoreWrite should return error status from operation");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+
+  /* Verify message was put in the datastore queue */
+  DatastoreMsg_t msg;
+  ret = k_msgq_get(&datastoreQueue, &msg, K_NO_WAIT);
+  zassert_equal(ret, 0, "Message should be in the datastore queue");
+  zassert_equal(msg.msgType, DATASTORE_WRITE, "Message type should be DATASTORE_WRITE");
+  zassert_equal(msg.datapointType, datapointType, "Message should have correct datapoint type");
+  zassert_equal(msg.datapointId, datapointId, "Message should have correct datapoint ID");
+  zassert_equal(msg.valCount, valCount, "Message should have correct value count");
+
+  /* Verify data was copied to payload */
+  zassert_equal(payloadData[0].intVal, -100, "First value should be copied to payload");
+  zassert_equal(payloadData[1].intVal, 200, "Second value should be copied to payload");
+
+  /* Verify osMemoryPoolFree was NOT called (no free in datastoreWrite when response expected) */
+  zassert_equal(osMemoryPoolFree_fake.call_count, 0,
+                "osMemoryPoolFree should not be called in datastoreWrite when operation fails with response");
+}
+
+/**
+ * @test  The datastoreWrite function must successfully write data when a
+ *        response is expected and the operation succeeds.
+ */
+ZTEST(datastore_tests, test_write_success)
+{
+  DatapointType_t datapointType = DATAPOINT_FLOAT;
+  uint32_t datapointId = 30;
+  size_t valCount = 2;
+  Data_t values[2] = {{.floatVal = 1.23f}, {.floatVal = 4.56f}};
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  uint8_t payloadBuffer[sizeof(SrvMsgPayload_t) + (valCount * sizeof(Data_t))];
+  SrvMsgPayload_t *mockPayload = (SrvMsgPayload_t *)payloadBuffer;
+  Data_t *payloadData = (Data_t *)mockPayload->data;
+  int ret;
+  int successStatus = 0;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to succeed */
+  osMemoryPoolAlloc_fake.return_val = mockPayload;
+
+  /* Configure osMemoryPoolFree to succeed */
+  osMemoryPoolFree_fake.return_val = osOK;
+
+  /* Put success status in response queue */
+  ret = k_msgq_put(&responseQueue, &successStatus, K_NO_WAIT);
+  zassert_equal(ret, 0, "Failed to put success status in response queue");
+
+  /* Call datastoreWrite - should succeed */
+  ret = datastoreWrite(datapointType, datapointId, values, valCount, &responseQueue);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreWrite should return 0 on success");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+
+  /* Verify message was put in the datastore queue */
+  DatastoreMsg_t msg;
+  ret = k_msgq_get(&datastoreQueue, &msg, K_NO_WAIT);
+  zassert_equal(ret, 0, "Message should be in the datastore queue");
+  zassert_equal(msg.msgType, DATASTORE_WRITE, "Message type should be DATASTORE_WRITE");
+  zassert_equal(msg.datapointType, datapointType, "Message should have correct datapoint type");
+  zassert_equal(msg.datapointId, datapointId, "Message should have correct datapoint ID");
+  zassert_equal(msg.valCount, valCount, "Message should have correct value count");
+  zassert_equal(msg.response, &responseQueue, "Response queue should be set correctly");
+
+  /* Verify data was copied to payload */
+  zassert_within(payloadData[0].floatVal, 1.23f, 0.001f, "First value should be copied to payload");
+  zassert_within(payloadData[1].floatVal, 4.56f, 0.001f, "Second value should be copied to payload");
+
+  /* Verify osMemoryPoolFree was NOT called (buffer ownership transferred to queue) */
+  zassert_equal(osMemoryPoolFree_fake.call_count, 0,
+                "osMemoryPoolFree should not be called in datastoreWrite when operation succeeds with response");
+}
+
 ZTEST_SUITE(datastore_tests, NULL, datastore_tests_setup, datastore_tests_before, NULL, NULL);
