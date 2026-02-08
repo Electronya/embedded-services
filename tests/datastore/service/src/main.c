@@ -24,6 +24,7 @@ DEFINE_FFF_GLOBALS;
 /* Define config values needed by datastore.c */
 #define CONFIG_ENYA_DATASTORE_LOG_LEVEL LOG_LEVEL_DBG
 #define CONFIG_ENYA_DATASTORE_MSGQ_TIMEOUT 1
+#define CONFIG_ENYA_DATASTORE_STACK_SIZE 512
 #define DATASTORE_BUFFER_ALLOC_TIMEOUT 4
 
 /* Prevent util header from being included */
@@ -912,8 +913,8 @@ ZTEST(datastore_tests, test_init_success)
   /* Verify thread was created with correct parameters */
   zassert_equal(k_thread_create_mock_fake.call_count, 1,
                 "k_thread_create should be called once");
-  zassert_equal(k_thread_create_mock_fake.arg2_val, DATASTORE_STACK_SIZE,
-                "k_thread_create should be called with DATASTORE_STACK_SIZE");
+  zassert_equal(k_thread_create_mock_fake.arg2_val, CONFIG_ENYA_DATASTORE_STACK_SIZE,
+                "k_thread_create should be called with CONFIG_ENYA_DATASTORE_STACK_SIZE");
   zassert_equal(k_thread_create_mock_fake.arg3_val, run,
                 "k_thread_create should be called with run function");
 

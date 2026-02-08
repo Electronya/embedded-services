@@ -22,6 +22,27 @@ config ENYA_DATASTORE_MSGQ_TIMEOUT
   help
     The timeout for k_msgq_get in the datastore run loop in milliseconds.
 
+config ENYA_DATASTORE_STACK_SIZE
+  int "Electronya Datastore Stack Size"
+  default 512
+  help
+    The Electronya datastore service thread stack size in bytes.
+
+config ENYA_DATASTORE_SHELL
+  bool "Electronya Datastore Shell Commands"
+  default y
+  depends on SHELL
+  help
+    Enable shell commands for the datastore service.
+    Provides commands to list, read, and write datapoints for all types:
+    binary, button, float, int, multi-state, and uint.
+
+    Commands:
+      datastore binary_data ls                    - List binary datapoints
+      datastore binary_data read <id> [count]     - Read binary values
+      datastore binary_data write <id> <count> <values...> - Write binary values
+      (Similar commands available for button, float, int, multi-state, uint)
+
 config FIRST_FLOAT_DEFAULT_VAL
   int "First Float Default Value"
   default 123

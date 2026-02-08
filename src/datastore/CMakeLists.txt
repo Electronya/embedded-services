@@ -11,7 +11,10 @@ if(CONFIG_ENYA_DATASTORE)
     zephyr_library_sources(
       ./datastore.c
       ./datastoreUtil.c
-      ./datastoreCmd.c
     )
+
+    if(CONFIG_ENYA_DATASTORE_SHELL)
+      zephyr_library_sources(./datastoreCmd.c)
+    endif()
   endif()
 endif()
