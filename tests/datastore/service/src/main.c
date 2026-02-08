@@ -3661,4 +3661,519 @@ ZTEST(datastore_tests, test_write_int_success)
   zassert_equal(payloadData[2].intVal, 200, "Third value should be 200");
 }
 
+/**
+ * @test  The datastoreSubscribeMultiState function must return an error when
+ *        datastoreUtilAddMultiStateSub fails.
+ */
+ZTEST(datastore_tests, test_subscribe_multi_state_failure)
+{
+  DatastoreSubEntry_t subEntry;
+  int ret;
+
+  subEntry.callback = (DatastoreSubCb_t)0x1234ABCD;
+
+  /* Configure datastoreUtilAddMultiStateSub to fail */
+  datastoreUtilAddMultiStateSub_fake.return_val = -ENOMEM;
+
+  /* Call datastoreSubscribeMultiState */
+  ret = datastoreSubscribeMultiState(&subEntry);
+
+  /* Verify function returned the error from datastoreUtilAddMultiStateSub */
+  zassert_equal(ret, -ENOMEM, "datastoreSubscribeMultiState should return error from datastoreUtilAddMultiStateSub");
+
+  /* Verify datastoreUtilAddMultiStateSub was called with correct parameters */
+  zassert_equal(datastoreUtilAddMultiStateSub_fake.call_count, 1,
+                "datastoreUtilAddMultiStateSub should be called once");
+  zassert_equal(datastoreUtilAddMultiStateSub_fake.arg0_val, &subEntry,
+                "datastoreUtilAddMultiStateSub should be called with the subscription entry");
+  zassert_equal(datastoreUtilAddMultiStateSub_fake.arg1_val, bufferPool,
+                "datastoreUtilAddMultiStateSub should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreSubscribeMultiState function must return success when
+ *        datastoreUtilAddMultiStateSub succeeds.
+ */
+ZTEST(datastore_tests, test_subscribe_multi_state_success)
+{
+  DatastoreSubEntry_t subEntry;
+  int ret;
+
+  subEntry.callback = (DatastoreSubCb_t)0x1234ABCD;
+
+  /* Configure datastoreUtilAddMultiStateSub to succeed */
+  datastoreUtilAddMultiStateSub_fake.return_val = 0;
+
+  /* Call datastoreSubscribeMultiState */
+  ret = datastoreSubscribeMultiState(&subEntry);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreSubscribeMultiState should return 0 on success");
+
+  /* Verify datastoreUtilAddMultiStateSub was called with correct parameters */
+  zassert_equal(datastoreUtilAddMultiStateSub_fake.call_count, 1,
+                "datastoreUtilAddMultiStateSub should be called once");
+  zassert_equal(datastoreUtilAddMultiStateSub_fake.arg0_val, &subEntry,
+                "datastoreUtilAddMultiStateSub should be called with the subscription entry");
+  zassert_equal(datastoreUtilAddMultiStateSub_fake.arg1_val, bufferPool,
+                "datastoreUtilAddMultiStateSub should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreUnsubscribeMultiState function must return an error when
+ *        datastoreUtilRemoveMultiStateSub fails.
+ */
+ZTEST(datastore_tests, test_unsubscribe_multi_state_failure)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilRemoveMultiStateSub to fail */
+  datastoreUtilRemoveMultiStateSub_fake.return_val = -ENOENT;
+
+  /* Call datastoreUnsubscribeMultiState */
+  ret = datastoreUnsubscribeMultiState(callback);
+
+  /* Verify function returned the error from datastoreUtilRemoveMultiStateSub */
+  zassert_equal(ret, -ENOENT, "datastoreUnsubscribeMultiState should return error from datastoreUtilRemoveMultiStateSub");
+
+  /* Verify datastoreUtilRemoveMultiStateSub was called with correct parameters */
+  zassert_equal(datastoreUtilRemoveMultiStateSub_fake.call_count, 1,
+                "datastoreUtilRemoveMultiStateSub should be called once");
+  zassert_equal(datastoreUtilRemoveMultiStateSub_fake.arg0_val, callback,
+                "datastoreUtilRemoveMultiStateSub should be called with the callback");
+}
+
+/**
+ * @test  The datastoreUnsubscribeMultiState function must return success when
+ *        datastoreUtilRemoveMultiStateSub succeeds.
+ */
+ZTEST(datastore_tests, test_unsubscribe_multi_state_success)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilRemoveMultiStateSub to succeed */
+  datastoreUtilRemoveMultiStateSub_fake.return_val = 0;
+
+  /* Call datastoreUnsubscribeMultiState */
+  ret = datastoreUnsubscribeMultiState(callback);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreUnsubscribeMultiState should return 0 on success");
+
+  /* Verify datastoreUtilRemoveMultiStateSub was called with correct parameters */
+  zassert_equal(datastoreUtilRemoveMultiStateSub_fake.call_count, 1,
+                "datastoreUtilRemoveMultiStateSub should be called once");
+  zassert_equal(datastoreUtilRemoveMultiStateSub_fake.arg0_val, callback,
+                "datastoreUtilRemoveMultiStateSub should be called with the callback");
+}
+
+/**
+ * @test  The datastorePauseSubMultiState function must return an error when
+ *        datastoreUtilSetMultiStateSubPauseState fails.
+ */
+ZTEST(datastore_tests, test_pause_sub_multi_state_failure)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilSetMultiStateSubPauseState to fail */
+  datastoreUtilSetMultiStateSubPauseState_fake.return_val = -ENOMEM;
+
+  /* Call datastorePauseSubMultiState */
+  ret = datastorePauseSubMultiState(callback);
+
+  /* Verify function returned the error from datastoreUtilSetMultiStateSubPauseState */
+  zassert_equal(ret, -ENOMEM, "datastorePauseSubMultiState should return error from datastoreUtilSetMultiStateSubPauseState");
+
+  /* Verify datastoreUtilSetMultiStateSubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetMultiStateSubPauseState_fake.call_count, 1,
+                "datastoreUtilSetMultiStateSubPauseState should be called once");
+  zassert_equal(datastoreUtilSetMultiStateSubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetMultiStateSubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetMultiStateSubPauseState_fake.arg1_val, true,
+                "datastoreUtilSetMultiStateSubPauseState should be called with true for pause state");
+  zassert_equal(datastoreUtilSetMultiStateSubPauseState_fake.arg2_val, bufferPool,
+                "datastoreUtilSetMultiStateSubPauseState should be called with bufferPool");
+}
+
+/**
+ * @test  The datastorePauseSubMultiState function must return success when
+ *        datastoreUtilSetMultiStateSubPauseState succeeds.
+ */
+ZTEST(datastore_tests, test_pause_sub_multi_state_success)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilSetMultiStateSubPauseState to succeed */
+  datastoreUtilSetMultiStateSubPauseState_fake.return_val = 0;
+
+  /* Call datastorePauseSubMultiState */
+  ret = datastorePauseSubMultiState(callback);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastorePauseSubMultiState should return 0 on success");
+
+  /* Verify datastoreUtilSetMultiStateSubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetMultiStateSubPauseState_fake.call_count, 1,
+                "datastoreUtilSetMultiStateSubPauseState should be called once");
+  zassert_equal(datastoreUtilSetMultiStateSubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetMultiStateSubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetMultiStateSubPauseState_fake.arg1_val, true,
+                "datastoreUtilSetMultiStateSubPauseState should be called with true for pause state");
+  zassert_equal(datastoreUtilSetMultiStateSubPauseState_fake.arg2_val, bufferPool,
+                "datastoreUtilSetMultiStateSubPauseState should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreUnpauseSubMultiState function must return an error when
+ *        datastoreUtilSetMultiStateSubPauseState fails.
+ */
+ZTEST(datastore_tests, test_unpause_sub_multi_state_failure)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilSetMultiStateSubPauseState to fail */
+  datastoreUtilSetMultiStateSubPauseState_fake.return_val = -ENOENT;
+
+  /* Call datastoreUnpauseSubMultiState */
+  ret = datastoreUnpauseSubMultiState(callback);
+
+  /* Verify function returned the error from datastoreUtilSetMultiStateSubPauseState */
+  zassert_equal(ret, -ENOENT, "datastoreUnpauseSubMultiState should return error from datastoreUtilSetMultiStateSubPauseState");
+
+  /* Verify datastoreUtilSetMultiStateSubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetMultiStateSubPauseState_fake.call_count, 1,
+                "datastoreUtilSetMultiStateSubPauseState should be called once");
+  zassert_equal(datastoreUtilSetMultiStateSubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetMultiStateSubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetMultiStateSubPauseState_fake.arg1_val, false,
+                "datastoreUtilSetMultiStateSubPauseState should be called with false for unpause state");
+  zassert_equal(datastoreUtilSetMultiStateSubPauseState_fake.arg2_val, bufferPool,
+                "datastoreUtilSetMultiStateSubPauseState should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreUnpauseSubMultiState function must return success when
+ *        datastoreUtilSetMultiStateSubPauseState succeeds.
+ */
+ZTEST(datastore_tests, test_unpause_sub_multi_state_success)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilSetMultiStateSubPauseState to succeed */
+  datastoreUtilSetMultiStateSubPauseState_fake.return_val = 0;
+
+  /* Call datastoreUnpauseSubMultiState */
+  ret = datastoreUnpauseSubMultiState(callback);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreUnpauseSubMultiState should return 0 on success");
+
+  /* Verify datastoreUtilSetMultiStateSubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetMultiStateSubPauseState_fake.call_count, 1,
+                "datastoreUtilSetMultiStateSubPauseState should be called once");
+  zassert_equal(datastoreUtilSetMultiStateSubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetMultiStateSubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetMultiStateSubPauseState_fake.arg1_val, false,
+                "datastoreUtilSetMultiStateSubPauseState should be called with false for unpause state");
+  zassert_equal(datastoreUtilSetMultiStateSubPauseState_fake.arg2_val, bufferPool,
+                "datastoreUtilSetMultiStateSubPauseState should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreReadMultiState function must return an error when the values
+ *        parameter is NULL.
+ */
+ZTEST(datastore_tests, test_read_multi_state_invalid_values)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreReadMultiState with NULL values */
+  ret = datastoreReadMultiState(datapointId, valCount, &responseQueue, NULL);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreReadMultiState should return -EINVAL when values is NULL");
+}
+
+/**
+ * @test  The datastoreReadMultiState function must return an error when the valCount
+ *        parameter is 0.
+ */
+ZTEST(datastore_tests, test_read_multi_state_invalid_valcount)
+{
+  uint32_t datapointId = 1;
+  Data_t valueStorage[3];
+  uint32_t *values = (uint32_t *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreReadMultiState with valCount = 0 */
+  ret = datastoreReadMultiState(datapointId, 0, &responseQueue, values);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreReadMultiState should return -EINVAL when valCount is 0");
+}
+
+/**
+ * @test  The datastoreReadMultiState function must return an error when the response
+ *        parameter is NULL.
+ */
+ZTEST(datastore_tests, test_read_multi_state_invalid_response)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  Data_t valueStorage[3];
+  uint32_t *values = (uint32_t *)valueStorage;
+  int ret;
+
+  /* Call datastoreReadMultiState with NULL response */
+  ret = datastoreReadMultiState(datapointId, valCount, NULL, values);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreReadMultiState should return -EINVAL when response is NULL");
+}
+
+/**
+ * @test  The datastoreReadMultiState function must return an error when the
+ *        underlying datastoreRead operation fails (e.g., buffer allocation fails).
+ */
+ZTEST(datastore_tests, test_read_multi_state_operation_failure)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  Data_t valueStorage[3];
+  uint32_t *values = (uint32_t *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure osMemoryPoolAlloc to fail (simulate buffer allocation failure) */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call datastoreReadMultiState */
+  ret = datastoreReadMultiState(datapointId, valCount, &responseQueue, values);
+
+  /* Verify function returned error from datastoreRead */
+  zassert_equal(ret, -ENOSPC, "datastoreReadMultiState should return -ENOSPC when buffer allocation fails");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+}
+
+/**
+ * @test  The datastoreReadMultiState function must successfully read uint32_t values when
+ *        the underlying datastoreRead operation succeeds.
+ */
+ZTEST(datastore_tests, test_read_multi_state_success)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  /* Allocate enough storage for Data_t array that will be memcpy'd, then cast to uint32_t */
+  Data_t valueStorage[3];
+  uint32_t *values = (uint32_t *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  uint8_t payloadBuffer[sizeof(SrvMsgPayload_t) + (valCount * sizeof(Data_t))];
+  SrvMsgPayload_t *mockPayload = (SrvMsgPayload_t *)payloadBuffer;
+  Data_t *payloadData = (Data_t *)mockPayload->data;
+  int ret;
+  int successStatus = 0;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to succeed */
+  osMemoryPoolAlloc_fake.return_val = mockPayload;
+
+  /* Configure osMemoryPoolFree to succeed */
+  osMemoryPoolFree_fake.return_val = osOK;
+
+  /* Setup mock payload with test data (uint values stored as uintVal) */
+  mockPayload->dataLen = valCount * sizeof(Data_t);
+  payloadData[0].uintVal = 10;
+  payloadData[1].uintVal = 20;
+  payloadData[2].uintVal = 30;
+
+  /* Put success status in response queue */
+  ret = k_msgq_put(&responseQueue, &successStatus, K_NO_WAIT);
+  zassert_equal(ret, 0, "Failed to put success status in response queue");
+
+  /* Call datastoreReadMultiState - should succeed */
+  ret = datastoreReadMultiState(datapointId, valCount, &responseQueue, values);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreReadMultiState should return 0 on success");
+
+  /* Verify the uint values were correctly read */
+  Data_t *dataValues = (Data_t *)values;
+  zassert_equal(dataValues[0].uintVal, 10, "values[0] should be 10");
+  zassert_equal(dataValues[1].uintVal, 20, "values[1] should be 20");
+  zassert_equal(dataValues[2].uintVal, 30, "values[2] should be 30");
+}
+
+/**
+ * @test  The datastoreWriteMultiState function must return an error when the values
+ *        parameter is NULL.
+ */
+ZTEST(datastore_tests, test_write_multi_state_invalid_values)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreWriteMultiState with NULL values */
+  ret = datastoreWriteMultiState(datapointId, NULL, valCount, &responseQueue);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreWriteMultiState should return -EINVAL when values is NULL");
+}
+
+/**
+ * @test  The datastoreWriteMultiState function must return an error when the valCount
+ *        parameter is 0.
+ */
+ZTEST(datastore_tests, test_write_multi_state_invalid_valcount)
+{
+  uint32_t datapointId = 1;
+  Data_t valueStorage[3];
+  uint32_t *values = (uint32_t *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreWriteMultiState with valCount = 0 */
+  ret = datastoreWriteMultiState(datapointId, values, 0, &responseQueue);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreWriteMultiState should return -EINVAL when valCount is 0");
+}
+
+/**
+ * @brief Test datastoreWriteMultiState with operation failure.
+ *
+ * This test verifies that the datastoreWriteMultiState function properly handles
+ * failures from the underlying datastoreWrite operation when buffer allocation fails.
+ *
+ * @param None
+ *
+ * @return None
+ */
+ZTEST(datastore_tests, test_write_multi_state_operation_failure)
+{
+  uint32_t datapointId = 1;
+  Data_t valueStorage[3];
+  uint32_t *values = (uint32_t *)valueStorage;
+  values[0] = 10;
+  values[1] = 20;
+  values[2] = 30;
+  uint8_t valCount = 3;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure osMemoryPoolAlloc to fail */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call datastoreWriteMultiState with valid parameters but allocation will fail */
+  ret = datastoreWriteMultiState(datapointId, values, valCount, &responseQueue);
+
+  /* Verify function returned -ENOSPC */
+  zassert_equal(ret, -ENOSPC, "datastoreWriteMultiState should return -ENOSPC when buffer allocation fails");
+}
+
+/**
+ * @brief Test datastoreWriteMultiState successful operation.
+ *
+ * This test verifies that the datastoreWriteMultiState function successfully writes
+ * multi-state datapoint values when all parameters are valid and operations succeed.
+ *
+ * @param None
+ *
+ * @return None
+ */
+ZTEST(datastore_tests, test_write_multi_state_success)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  /* Allocate enough storage for Data_t array that will be cast to uint32_t */
+  Data_t valueStorage[3] = {{.uintVal = 10}, {.uintVal = 20}, {.uintVal = 30}};
+  uint32_t *values = (uint32_t *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  uint8_t payloadBuffer[sizeof(SrvMsgPayload_t) + (valCount * sizeof(Data_t))];
+  SrvMsgPayload_t *mockPayload = (SrvMsgPayload_t *)payloadBuffer;
+  Data_t *payloadData = (Data_t *)mockPayload->data;
+  int ret;
+  int successStatus = 0;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to succeed */
+  osMemoryPoolAlloc_fake.return_val = mockPayload;
+
+  /* Configure osMemoryPoolFree to succeed */
+  osMemoryPoolFree_fake.return_val = osOK;
+
+  /* Put success status in response queue */
+  ret = k_msgq_put(&responseQueue, &successStatus, K_NO_WAIT);
+  zassert_equal(ret, 0, "Failed to put success status in response queue");
+
+  /* Call datastoreWriteMultiState - should succeed */
+  ret = datastoreWriteMultiState(datapointId, values, valCount, &responseQueue);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreWriteMultiState should return 0 on success");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+
+  /* Verify message was put in the datastore queue */
+  DatastoreMsg_t msg;
+  ret = k_msgq_get(&datastoreQueue, &msg, K_NO_WAIT);
+  zassert_equal(ret, 0, "Message should be in the datastore queue");
+  zassert_equal(msg.msgType, DATASTORE_WRITE, "Message type should be DATASTORE_WRITE");
+  zassert_equal(msg.datapointType, DATAPOINT_MULTI_STATE, "Message should have DATAPOINT_MULTI_STATE type");
+  zassert_equal(msg.datapointId, datapointId, "Message should have correct datapoint ID");
+  zassert_equal(msg.valCount, valCount, "Message should have correct value count");
+  zassert_equal(msg.response, &responseQueue, "Response queue should be set correctly");
+
+  /* Verify data was copied to payload */
+  zassert_equal(payloadData[0].uintVal, 10, "First value should be 10");
+  zassert_equal(payloadData[1].uintVal, 20, "Second value should be 20");
+  zassert_equal(payloadData[2].uintVal, 30, "Third value should be 30");
+}
+
 ZTEST_SUITE(datastore_tests, NULL, datastore_tests_setup, datastore_tests_before, NULL, NULL);
