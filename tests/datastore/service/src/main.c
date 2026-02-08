@@ -2599,4 +2599,504 @@ ZTEST(datastore_tests, test_write_button_success)
                 "osMemoryPoolFree should not be called when response is expected");
 }
 
+/**
+ * @test  The datastoreSubscribeFloat function must return an error when
+ *        datastoreUtilAddFloatSub fails.
+ */
+ZTEST(datastore_tests, test_subscribe_float_failure)
+{
+  DatastoreSubEntry_t sub;
+  int ret;
+
+  /* Configure datastoreUtilAddFloatSub to fail */
+  datastoreUtilAddFloatSub_fake.return_val = -ENOMEM;
+
+  /* Call datastoreSubscribeFloat */
+  ret = datastoreSubscribeFloat(&sub);
+
+  /* Verify function returned the error from datastoreUtilAddFloatSub */
+  zassert_equal(ret, -ENOMEM, "datastoreSubscribeFloat should return error from datastoreUtilAddFloatSub");
+
+  /* Verify datastoreUtilAddFloatSub was called with correct parameters */
+  zassert_equal(datastoreUtilAddFloatSub_fake.call_count, 1,
+                "datastoreUtilAddFloatSub should be called once");
+  zassert_equal(datastoreUtilAddFloatSub_fake.arg0_val, &sub,
+                "datastoreUtilAddFloatSub should be called with the subscription entry");
+  zassert_equal(datastoreUtilAddFloatSub_fake.arg1_val, bufferPool,
+                "datastoreUtilAddFloatSub should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreSubscribeFloat function must successfully subscribe
+ *        when datastoreUtilAddFloatSub succeeds.
+ */
+ZTEST(datastore_tests, test_subscribe_float_success)
+{
+  DatastoreSubEntry_t sub;
+  int ret;
+
+  /* Configure datastoreUtilAddFloatSub to succeed */
+  datastoreUtilAddFloatSub_fake.return_val = 0;
+
+  /* Call datastoreSubscribeFloat */
+  ret = datastoreSubscribeFloat(&sub);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreSubscribeFloat should return 0 on success");
+
+  /* Verify datastoreUtilAddFloatSub was called with correct parameters */
+  zassert_equal(datastoreUtilAddFloatSub_fake.call_count, 1,
+                "datastoreUtilAddFloatSub should be called once");
+  zassert_equal(datastoreUtilAddFloatSub_fake.arg0_val, &sub,
+                "datastoreUtilAddFloatSub should be called with the subscription entry");
+  zassert_equal(datastoreUtilAddFloatSub_fake.arg1_val, bufferPool,
+                "datastoreUtilAddFloatSub should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreUnsubscribeFloat function must return an error when
+ *        datastoreUtilRemoveFloatSub fails.
+ */
+ZTEST(datastore_tests, test_unsubscribe_float_failure)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilRemoveFloatSub to fail */
+  datastoreUtilRemoveFloatSub_fake.return_val = -ENOENT;
+
+  /* Call datastoreUnsubscribeFloat */
+  ret = datastoreUnsubscribeFloat(callback);
+
+  /* Verify function returned the error from datastoreUtilRemoveFloatSub */
+  zassert_equal(ret, -ENOENT, "datastoreUnsubscribeFloat should return error from datastoreUtilRemoveFloatSub");
+
+  /* Verify datastoreUtilRemoveFloatSub was called with correct parameters */
+  zassert_equal(datastoreUtilRemoveFloatSub_fake.call_count, 1,
+                "datastoreUtilRemoveFloatSub should be called once");
+  zassert_equal(datastoreUtilRemoveFloatSub_fake.arg0_val, callback,
+                "datastoreUtilRemoveFloatSub should be called with the callback");
+}
+
+/**
+ * @test  The datastoreUnsubscribeFloat function must return success when
+ *        datastoreUtilRemoveFloatSub succeeds.
+ */
+ZTEST(datastore_tests, test_unsubscribe_float_success)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilRemoveFloatSub to succeed */
+  datastoreUtilRemoveFloatSub_fake.return_val = 0;
+
+  /* Call datastoreUnsubscribeFloat */
+  ret = datastoreUnsubscribeFloat(callback);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreUnsubscribeFloat should return 0 on success");
+
+  /* Verify datastoreUtilRemoveFloatSub was called with correct parameters */
+  zassert_equal(datastoreUtilRemoveFloatSub_fake.call_count, 1,
+                "datastoreUtilRemoveFloatSub should be called once");
+  zassert_equal(datastoreUtilRemoveFloatSub_fake.arg0_val, callback,
+                "datastoreUtilRemoveFloatSub should be called with the callback");
+}
+
+/**
+ * @test  The datastorePauseSubFloat function must return an error when
+ *        datastoreUtilSetFloatSubPauseState fails.
+ */
+ZTEST(datastore_tests, test_pause_sub_float_failure)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilSetFloatSubPauseState to fail */
+  datastoreUtilSetFloatSubPauseState_fake.return_val = -ENOMEM;
+
+  /* Call datastorePauseSubFloat */
+  ret = datastorePauseSubFloat(callback);
+
+  /* Verify function returned the error from datastoreUtilSetFloatSubPauseState */
+  zassert_equal(ret, -ENOMEM, "datastorePauseSubFloat should return error from datastoreUtilSetFloatSubPauseState");
+
+  /* Verify datastoreUtilSetFloatSubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetFloatSubPauseState_fake.call_count, 1,
+                "datastoreUtilSetFloatSubPauseState should be called once");
+  zassert_equal(datastoreUtilSetFloatSubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetFloatSubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetFloatSubPauseState_fake.arg1_val, true,
+                "datastoreUtilSetFloatSubPauseState should be called with true for pause state");
+  zassert_equal(datastoreUtilSetFloatSubPauseState_fake.arg2_val, bufferPool,
+                "datastoreUtilSetFloatSubPauseState should be called with bufferPool");
+}
+
+/**
+ * @test  The datastorePauseSubFloat function must return success when
+ *        datastoreUtilSetFloatSubPauseState succeeds.
+ */
+ZTEST(datastore_tests, test_pause_sub_float_success)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilSetFloatSubPauseState to succeed */
+  datastoreUtilSetFloatSubPauseState_fake.return_val = 0;
+
+  /* Call datastorePauseSubFloat */
+  ret = datastorePauseSubFloat(callback);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastorePauseSubFloat should return 0 on success");
+
+  /* Verify datastoreUtilSetFloatSubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetFloatSubPauseState_fake.call_count, 1,
+                "datastoreUtilSetFloatSubPauseState should be called once");
+  zassert_equal(datastoreUtilSetFloatSubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetFloatSubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetFloatSubPauseState_fake.arg1_val, true,
+                "datastoreUtilSetFloatSubPauseState should be called with true for pause state");
+  zassert_equal(datastoreUtilSetFloatSubPauseState_fake.arg2_val, bufferPool,
+                "datastoreUtilSetFloatSubPauseState should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreUnpauseSubFloat function must return an error when
+ *        datastoreUtilSetFloatSubPauseState fails.
+ */
+ZTEST(datastore_tests, test_unpause_sub_float_failure)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilSetFloatSubPauseState to fail */
+  datastoreUtilSetFloatSubPauseState_fake.return_val = -ENOENT;
+
+  /* Call datastoreUnpauseSubFloat */
+  ret = datastoreUnpauseSubFloat(callback);
+
+  /* Verify function returned the error from datastoreUtilSetFloatSubPauseState */
+  zassert_equal(ret, -ENOENT, "datastoreUnpauseSubFloat should return error from datastoreUtilSetFloatSubPauseState");
+
+  /* Verify datastoreUtilSetFloatSubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetFloatSubPauseState_fake.call_count, 1,
+                "datastoreUtilSetFloatSubPauseState should be called once");
+  zassert_equal(datastoreUtilSetFloatSubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetFloatSubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetFloatSubPauseState_fake.arg1_val, false,
+                "datastoreUtilSetFloatSubPauseState should be called with false for unpause state");
+  zassert_equal(datastoreUtilSetFloatSubPauseState_fake.arg2_val, bufferPool,
+                "datastoreUtilSetFloatSubPauseState should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreUnpauseSubFloat function must return success when
+ *        datastoreUtilSetFloatSubPauseState succeeds.
+ */
+ZTEST(datastore_tests, test_unpause_sub_float_success)
+{
+  DatastoreSubCb_t callback = (DatastoreSubCb_t)0x1234ABCD;
+  int ret;
+
+  /* Configure datastoreUtilSetFloatSubPauseState to succeed */
+  datastoreUtilSetFloatSubPauseState_fake.return_val = 0;
+
+  /* Call datastoreUnpauseSubFloat */
+  ret = datastoreUnpauseSubFloat(callback);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreUnpauseSubFloat should return 0 on success");
+
+  /* Verify datastoreUtilSetFloatSubPauseState was called with correct parameters */
+  zassert_equal(datastoreUtilSetFloatSubPauseState_fake.call_count, 1,
+                "datastoreUtilSetFloatSubPauseState should be called once");
+  zassert_equal(datastoreUtilSetFloatSubPauseState_fake.arg0_val, callback,
+                "datastoreUtilSetFloatSubPauseState should be called with the callback");
+  zassert_equal(datastoreUtilSetFloatSubPauseState_fake.arg1_val, false,
+                "datastoreUtilSetFloatSubPauseState should be called with false for unpause state");
+  zassert_equal(datastoreUtilSetFloatSubPauseState_fake.arg2_val, bufferPool,
+                "datastoreUtilSetFloatSubPauseState should be called with bufferPool");
+}
+
+/**
+ * @test  The datastoreReadFloat function must return an error when the values
+ *        parameter is NULL.
+ */
+ZTEST(datastore_tests, test_read_float_invalid_values)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreReadFloat with NULL values */
+  ret = datastoreReadFloat(datapointId, valCount, &responseQueue, NULL);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreReadFloat should return -EINVAL when values is NULL");
+}
+
+/**
+ * @test  The datastoreReadFloat function must return an error when the valCount
+ *        parameter is 0.
+ */
+ZTEST(datastore_tests, test_read_float_invalid_valcount)
+{
+  uint32_t datapointId = 1;
+  Data_t valueStorage[3];
+  float *values = (float *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreReadFloat with valCount = 0 */
+  ret = datastoreReadFloat(datapointId, 0, &responseQueue, values);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreReadFloat should return -EINVAL when valCount is 0");
+}
+
+/**
+ * @test  The datastoreReadFloat function must return an error when the response
+ *        parameter is NULL.
+ */
+ZTEST(datastore_tests, test_read_float_invalid_response)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  Data_t valueStorage[3];
+  float *values = (float *)valueStorage;
+  int ret;
+
+  /* Call datastoreReadFloat with NULL response */
+  ret = datastoreReadFloat(datapointId, valCount, NULL, values);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreReadFloat should return -EINVAL when response is NULL");
+}
+
+/**
+ * @test  The datastoreReadFloat function must return an error when the
+ *        underlying datastoreRead operation fails (e.g., buffer allocation fails).
+ */
+ZTEST(datastore_tests, test_read_float_operation_failure)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  Data_t valueStorage[3];
+  float *values = (float *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure osMemoryPoolAlloc to fail (simulate buffer allocation failure) */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call datastoreReadFloat */
+  ret = datastoreReadFloat(datapointId, valCount, &responseQueue, values);
+
+  /* Verify function returned error from datastoreRead */
+  zassert_equal(ret, -ENOSPC, "datastoreReadFloat should return -ENOSPC when buffer allocation fails");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+}
+
+/**
+ * @test  The datastoreReadFloat function must successfully read float values when
+ *        the underlying datastoreRead operation succeeds.
+ */
+ZTEST(datastore_tests, test_read_float_success)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  /* Allocate enough storage for Data_t array that will be memcpy'd, then cast to float */
+  Data_t valueStorage[3];
+  float *values = (float *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  uint8_t payloadBuffer[sizeof(SrvMsgPayload_t) + (valCount * sizeof(Data_t))];
+  SrvMsgPayload_t *mockPayload = (SrvMsgPayload_t *)payloadBuffer;
+  Data_t *payloadData = (Data_t *)mockPayload->data;
+  int ret;
+  int successStatus = 0;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to succeed */
+  osMemoryPoolAlloc_fake.return_val = mockPayload;
+
+  /* Configure osMemoryPoolFree to succeed */
+  osMemoryPoolFree_fake.return_val = osOK;
+
+  /* Setup mock payload with test data (float values stored as floatVal) */
+  mockPayload->dataLen = valCount * sizeof(Data_t);
+  payloadData[0].floatVal = 1.5f;
+  payloadData[1].floatVal = 2.75f;
+  payloadData[2].floatVal = 3.125f;
+
+  /* Put success status in response queue */
+  ret = k_msgq_put(&responseQueue, &successStatus, K_NO_WAIT);
+  zassert_equal(ret, 0, "Failed to put success status in response queue");
+
+  /* Call datastoreReadFloat - should succeed */
+  ret = datastoreReadFloat(datapointId, valCount, &responseQueue, values);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreReadFloat should return 0 on success");
+
+  /* Verify the float values were correctly read */
+  Data_t *dataValues = (Data_t *)values;
+  zassert_equal(dataValues[0].floatVal, 1.5f, "values[0] should be 1.5");
+  zassert_equal(dataValues[1].floatVal, 2.75f, "values[1] should be 2.75");
+  zassert_equal(dataValues[2].floatVal, 3.125f, "values[2] should be 3.125");
+}
+
+/**
+ * @test  The datastoreWriteFloat function must return an error when the values
+ *        parameter is NULL.
+ */
+ZTEST(datastore_tests, test_write_float_invalid_values)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreWriteFloat with NULL values */
+  ret = datastoreWriteFloat(datapointId, NULL, valCount, &responseQueue);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreWriteFloat should return -EINVAL when values is NULL");
+}
+
+/**
+ * @test  The datastoreWriteFloat function must return an error when the valCount
+ *        parameter is 0.
+ */
+ZTEST(datastore_tests, test_write_float_invalid_valcount)
+{
+  uint32_t datapointId = 1;
+  Data_t valueStorage[3];
+  float *values = (float *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Call datastoreWriteFloat with valCount = 0 */
+  ret = datastoreWriteFloat(datapointId, values, 0, &responseQueue);
+
+  /* Verify function returned -EINVAL */
+  zassert_equal(ret, -EINVAL, "datastoreWriteFloat should return -EINVAL when valCount is 0");
+}
+
+/**
+ * @test  The datastoreWriteFloat function must return an error when the
+ *        underlying datastoreWrite operation fails (e.g., buffer allocation fails).
+ */
+ZTEST(datastore_tests, test_write_float_operation_failure)
+{
+  uint32_t datapointId = 1;
+  size_t valCount = 3;
+  Data_t valueStorage[3];
+  float *values = (float *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  int ret;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure osMemoryPoolAlloc to fail (simulate buffer allocation failure) */
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  /* Call datastoreWriteFloat */
+  ret = datastoreWriteFloat(datapointId, values, valCount, &responseQueue);
+
+  /* Verify function returned error from datastoreWrite */
+  zassert_equal(ret, -ENOSPC, "datastoreWriteFloat should return -ENOSPC when buffer allocation fails");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+}
+
+/**
+ * @test  The datastoreWriteFloat function must successfully write float values when
+ *        the underlying datastoreWrite operation succeeds.
+ */
+ZTEST(datastore_tests, test_write_float_success)
+{
+  uint32_t datapointId = 90;
+  size_t valCount = 3;
+  /* Allocate enough storage for Data_t array that will be cast to float */
+  Data_t valueStorage[3] = {{.floatVal = 1.5f}, {.floatVal = 2.75f}, {.floatVal = 3.125f}};
+  float *values = (float *)valueStorage;
+  struct k_msgq responseQueue;
+  char __aligned(4) responseBuffer[sizeof(int)];
+  uint8_t payloadBuffer[sizeof(SrvMsgPayload_t) + (valCount * sizeof(Data_t))];
+  SrvMsgPayload_t *mockPayload = (SrvMsgPayload_t *)payloadBuffer;
+  Data_t *payloadData = (Data_t *)mockPayload->data;
+  int ret;
+  int successStatus = 0;
+
+  /* Initialize response queue */
+  k_msgq_init(&responseQueue, responseBuffer, sizeof(int), 1);
+
+  /* Configure buffer allocation to succeed */
+  osMemoryPoolAlloc_fake.return_val = mockPayload;
+
+  /* Configure osMemoryPoolFree to succeed */
+  osMemoryPoolFree_fake.return_val = osOK;
+
+  /* Put success status in response queue */
+  ret = k_msgq_put(&responseQueue, &successStatus, K_NO_WAIT);
+  zassert_equal(ret, 0, "Failed to put success status in response queue");
+
+  /* Call datastoreWriteFloat - should succeed */
+  ret = datastoreWriteFloat(datapointId, values, valCount, &responseQueue);
+
+  /* Verify function returned success */
+  zassert_equal(ret, 0, "datastoreWriteFloat should return 0 on success");
+
+  /* Verify osMemoryPoolAlloc was called */
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+
+  /* Verify message was put in the datastore queue */
+  DatastoreMsg_t msg;
+  ret = k_msgq_get(&datastoreQueue, &msg, K_NO_WAIT);
+  zassert_equal(ret, 0, "Message should be in the datastore queue");
+  zassert_equal(msg.msgType, DATASTORE_WRITE, "Message type should be DATASTORE_WRITE");
+  zassert_equal(msg.datapointType, DATAPOINT_FLOAT, "Message should have DATAPOINT_FLOAT type");
+  zassert_equal(msg.datapointId, datapointId, "Message should have correct datapoint ID");
+  zassert_equal(msg.valCount, valCount, "Message should have correct value count");
+  zassert_equal(msg.response, &responseQueue, "Response queue should be set correctly");
+
+  /* Verify data was copied to payload */
+  zassert_equal(payloadData[0].floatVal, 1.5f, "First value should be 1.5");
+  zassert_equal(payloadData[1].floatVal, 2.75f, "Second value should be 2.75");
+  zassert_equal(payloadData[2].floatVal, 3.125f, "Third value should be 3.125");
+}
+
 ZTEST_SUITE(datastore_tests, NULL, datastore_tests_setup, datastore_tests_before, NULL, NULL);
