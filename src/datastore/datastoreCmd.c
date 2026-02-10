@@ -6,7 +6,7 @@
  * @date      2025-08-10
  * @brief     Datastore Service Command
  *
- *            Datastore service command set.
+ *            Datastore service command set with X-macro generated subcommands.
  *
  * @ingroup   datastore
  * @{
@@ -20,6 +20,7 @@
 
 #include "datastore.h"
 #include "datastoreMeta.h"
+#include "datastoreTypes.h"
 
 /**
  * @brief   The string for true binary values.
@@ -52,116 +53,43 @@
 #define VALUE_STRING_MAX_LENGTH                                         20
 
 /**
- * @brief   The datapoint name argument index.
+ * @brief   Datapoint registry entry.
  */
-#define DATAPOINT_NAME_ARG_IDX                                          1
+typedef struct
+{
+  const char *name;         /**< Datapoint name */
+  DatapointType_t type;     /**< Datapoint type */
+  uint32_t id;              /**< Datapoint ID within its type */
+} DatapointEntry_t;
 
-/**
- * @brief   The value count argument index.
- */
-#define VALUE_COUNT_ARG_IDX                                             2
-
-/**
- * @brief   The maximum argument count for a read.
- */
-#define MAX_READ_ARG_COUNT                                              3
-
-/**
- * @brief   The write first value index.
- */
-#define WRITE_VALUE_FIRST_IDX                                           3
-
-/**
- * @brief   The list of binary datapoint names.
- */
-static char *binaryNames[BINARY_DATAPOINT_COUNT] = {
-#define X(name, flags, defaultVal) STRINGIFY(name),
+/* Build unified datapoint registry using X-macros */
+static const DatapointEntry_t datapointRegistry[] = {
+#define X(name, flags, defaultVal) {STRINGIFY(name), DATAPOINT_BINARY, name},
   DATASTORE_BINARY_DATAPOINTS
 #undef X
-};
-
-/**
- * @brief   The list of button datapoint names.
- */
-static char *buttonNames[BUTTON_DATAPOINT_COUNT] = {
-#define X(name, flags, defaultVal) STRINGIFY(name),
+#define X(name, flags, defaultVal) {STRINGIFY(name), DATAPOINT_BUTTON, name},
   DATASTORE_BUTTON_DATAPOINTS
 #undef X
-};
-
-/**
- * @brief   The list of float datapoint names.
- */
-static char *floatNames[FLOAT_DATAPOINT_COUNT] = {
-#define X(name, flags, defaultVal) STRINGIFY(name),
+#define X(name, flags, defaultVal) {STRINGIFY(name), DATAPOINT_FLOAT, name},
   DATASTORE_FLOAT_DATAPOINTS
 #undef X
-};
-
-/**
- * @brief   The list of signed integer datapoint names.
- */
-static char *intNames[INT_DATAPOINT_COUNT] = {
-#define X(name, flags, defaultVal) STRINGIFY(name),
+#define X(name, flags, defaultVal) {STRINGIFY(name), DATAPOINT_INT, name},
   DATASTORE_INT_DATAPOINTS
 #undef X
-};
-
-/**
- * @brief   The list of multi-state datapoint names.
- */
-static char *multiStateNames[MULTI_STATE_DATAPOINT_COUNT] = {
-#define X(name, flags, defaultVal) STRINGIFY(name),
+#define X(name, flags, defaultVal) {STRINGIFY(name), DATAPOINT_MULTI_STATE, name},
   DATASTORE_MULTI_STATE_DATAPOINTS
 #undef X
-};
-
-/**
- * @brief   The list of unsigned integer datapoint names.
- */
-static char *uintNames[UINT_DATAPOINT_COUNT] = {
-#define X(name, flags, defaultVal) STRINGIFY(name),
+#define X(name, flags, defaultVal) {STRINGIFY(name), DATAPOINT_UINT, name},
   DATASTORE_UINT_DATAPOINTS
 #undef X
 };
+
+#define DATAPOINT_REGISTRY_SIZE ARRAY_SIZE(datapointRegistry)
 
 /**
  * @brief   Datastore command response queue.
  */
 K_MSGQ_DEFINE(datastoreCmdResQueue, sizeof(int), DATASTORE_MSG_COUNT, 4);
-
-/**
- * @brief   Get the index of the string.
- *
- * @param[in]   str: The string to look for.
- * @param[in]   strList: The list of string to look in.
- * @param[in]   listSize: The string list size.
- * @param[out]  index: The found index.
- *
- * @return  0 if successful, the error code otherwise.
- */
-static int getStringIndex(char *str, char **strList, size_t listSize, uint32_t *index)
-{
-  char *listedStr;
-  bool indexFound = false;
-
-  *index = 0;
-
-  while(!indexFound && *index < listSize)
-  {
-    listedStr = strList[*index];
-
-    if(strcmp(str, listedStr) == 0)
-      indexFound = true;
-    else
-      ++(*index);
-  }
-
-  if(indexFound)
-    return 0;
-
-  return -ESRCH;
-}
 
 /**
  * @brief   Convert a string to upper case.
@@ -177,946 +105,541 @@ static void toUpper(char *str)
 }
 
 /**
- * @brief   Execute the list binary datapoints command.
+ * @brief   Get type name string.
  *
- * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
+ * @param[in]   type: The datapoint type.
  *
- * @return  0 if successful the error code otherwise.
+ * @return  Type name string.
  */
-static int execListBinary(const struct shell *shell, size_t argc, char **argv)
+static const char *getTypeName(DatapointType_t type)
 {
-  ARG_UNUSED(argc);
-  ARG_UNUSED(argv);
-
-  shell_info(shell, "List of binary datapoint:");
-
-  for(size_t i = 0; i < BINARY_DATAPOINT_COUNT; ++i)
-    shell_info(shell, "%s", binaryNames[i]);
-
-  return 0;
+  switch (type)
+  {
+    case DATAPOINT_BINARY: return "binary";
+    case DATAPOINT_BUTTON: return "button";
+    case DATAPOINT_FLOAT: return "float";
+    case DATAPOINT_INT: return "int";
+    case DATAPOINT_MULTI_STATE: return "multi_state";
+    case DATAPOINT_UINT: return "uint";
+    default: return "unknown";
+  }
 }
 
 /**
- * @brief   Execute the read binary datapoints command.
+ * @brief   Parse a boolean value from string.
  *
- * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
+ * @param[in]   str: The string to parse.
+ * @param[out]  value: Pointer to store the parsed boolean value.
  *
- * @return  0 if successful the error code otherwise.
+ * @return  0 if successful, error code otherwise.
  */
-static int execReadBinary(const struct shell *shell, size_t argc, char **argv)
+static int parseBool(const char *str, bool *value)
 {
-  int err;
-  uint32_t datapointId;
-  size_t valCount;
-  bool values[BINARY_DATAPOINT_COUNT];
-  char *valStr;
-
-  toUpper(argv[DATAPOINT_NAME_ARG_IDX]);
-
-  err = getStringIndex(argv[DATAPOINT_NAME_ARG_IDX], binaryNames, BINARY_DATAPOINT_COUNT, &datapointId);
-  if(err < 0)
+  if (strcmp(str, TRUE_STR) == 0 || strcmp(str, "1") == 0)
   {
-    shell_error(shell, "FAIL: unkown datapoint %s", argv[DATAPOINT_NAME_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  valCount = argc == MAX_READ_ARG_COUNT ? shell_strtoul(argv[VALUE_COUNT_ARG_IDX], 10, &err) : 1;
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: invalid value count to read %s", argv[VALUE_COUNT_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  err = datastoreReadBinary(datapointId, valCount, &datastoreCmdResQueue, values);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: read operation fail with %d error code", err);
-    shell_help(shell);
-    return err;
-  }
-
-  shell_info(shell, "SUCCESS: here are the values read");
-
-  for(size_t i = 0; i < valCount; ++i)
-  {
-    valStr = values[i] ? TRUE_STR : FALSE_STR;
-    shell_info(shell, "%s: %s", binaryNames[datapointId + i], valStr);
-  }
-
-  return 0;
-}
-
-/**
- * @brief   Execute the write binary datapoints command.
- *
- * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
- *
- * @return  0 if successful the error code otherwise.
- */
-static int execWriteBinary(const struct shell *shell, size_t argc, char **argv)
-{
-  int err;
-  uint32_t datapointId;
-  size_t valCount;
-  bool values[BINARY_DATAPOINT_COUNT];
-
-  toUpper(argv[DATAPOINT_NAME_ARG_IDX]);
-
-  err = getStringIndex(argv[DATAPOINT_NAME_ARG_IDX], binaryNames, BINARY_DATAPOINT_COUNT, &datapointId);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: unkown datapoint %s", argv[DATAPOINT_NAME_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  valCount = shell_strtoul(argv[VALUE_COUNT_ARG_IDX], 10, &err);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: invalid value count to write %s", argv[VALUE_COUNT_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  if(argc - WRITE_VALUE_FIRST_IDX < valCount)
-  {
-    shell_error(shell, "FAIL: not enough value provided (%d) for the requested value to write (%d)",
-                argc - WRITE_VALUE_FIRST_IDX, valCount);
-    shell_help(shell);
-    return -EINVAL;
-  }
-
-  for(size_t i = 0; i < valCount; ++i)
-  {
-    values[i] = shell_strtobool(argv[WRITE_VALUE_FIRST_IDX + i], 10, &err);
-    if(err < 0)
-    {
-      shell_error(shell, "FAIL: bad binary value %s for value %i", argv[WRITE_VALUE_FIRST_IDX + i], i);
-      shell_help(shell);
-      return err;
-    }
-  }
-
-  err = datastoreWriteBinary(datapointId, values, valCount, &datastoreCmdResQueue);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: read operation fail with %d error code", err);
-    shell_help(shell);
-    return err;
-  }
-
-  shell_info(shell, "SUCCESS: write operation of %s up to %s done", binaryNames[datapointId],
-             binaryNames[datapointId + valCount - 1]);
-
-  return 0;
-}
-
-SHELL_STATIC_SUBCMD_SET_CREATE(sub_binary,
-  SHELL_CMD(ls, NULL, "List binary objects.\n\tUsage datastore binary_data ls", execListBinary),
-  SHELL_CMD_ARG(read, NULL, "Read a binary datapoint.\n\tUsage datastore binary_data read <datapoint ID> [value count]",
-                execReadBinary, 2, 1),
-  SHELL_CMD_ARG(write, NULL, "Write a binary datapoint.\n\tUsage datastore binary_data write <datapoint ID> <value count> <true|false> [true|false] ...",
-                execWriteBinary, 3, SHELL_OPT_ARG_CHECK_SKIP),
-  SHELL_SUBCMD_SET_END);
-
-/**
- * @brief   Convert a string to button state.
- *
- * @param str
- * @param value
- * @return int
- */
-int convertButtonStateStr(char *str, ButtonState_t *value)
-{
-  if(strcmp(str, UNPRESSED_STR) == 0)
-  {
-    *value = BUTTON_UNPRESSED;
+    *value = true;
     return 0;
   }
-
-  if(strcmp(str, SHORT_PRESSED_STR) == 0)
+  else if (strcmp(str, FALSE_STR) == 0 || strcmp(str, "0") == 0)
   {
-    *value = BUTTON_SHORT_PRESSED;
+    *value = false;
     return 0;
   }
-
-  if(strcmp(str, LONG_PRESSED_STR) == 0)
-  {
-    *value = BUTTON_LONG_PRESSED;
-    return 0;
-  }
-
   return -EINVAL;
 }
 
 /**
- * @brief   Execute the list button datapoints command.
+ * @brief   Parse a button value from string.
  *
- * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
+ * @param[in]   str: The string to parse.
+ * @param[out]  value: Pointer to store the parsed button value.
  *
- * @return  0 if successful the error code otherwise.
+ * @return  0 if successful, error code otherwise.
  */
-static int execListButton(const struct shell *shell, size_t argc, char **argv)
+static int parseButtonValue(const char *str, ButtonState_t *value)
 {
-  ARG_UNUSED(argc);
-  ARG_UNUSED(argv);
-
-  shell_info(shell, "List of button datapoint:");
-
-  for(size_t i = 0; i < BUTTON_DATAPOINT_COUNT; ++i)
-    shell_info(shell, "%s", buttonNames[i]);
-
-  return 0;
+  if (strcmp(str, UNPRESSED_STR) == 0)
+  {
+    *value = BUTTON_UNPRESSED;
+    return 0;
+  }
+  else if (strcmp(str, SHORT_PRESSED_STR) == 0)
+  {
+    *value = BUTTON_SHORT_PRESSED;
+    return 0;
+  }
+  else if (strcmp(str, LONG_PRESSED_STR) == 0)
+  {
+    *value = BUTTON_LONG_PRESSED;
+    return 0;
+  }
+  return -EINVAL;
 }
 
 /**
- * @brief   Execute the read button datapoints command.
+ * @brief   Get button value as string.
  *
- * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
+ * @param[in]   value: The button value.
  *
- * @return  0 if successful the error code otherwise.
+ * @return  String representation of the button value.
  */
-static int execReadButton(const struct shell *shell, size_t argc, char **argv)
+static const char *getButtonValueString(ButtonState_t value)
 {
-  int err;
-  uint32_t datapointId;
-  size_t valCount;
-  ButtonState_t values[BUTTON_DATAPOINT_COUNT];
-  char *valStr;
-
-  toUpper(argv[DATAPOINT_NAME_ARG_IDX]);
-
-  err = getStringIndex(argv[DATAPOINT_NAME_ARG_IDX], buttonNames, BUTTON_DATAPOINT_COUNT, &datapointId);
-  if(err < 0)
+  switch (value)
   {
-    shell_error(shell, "FAIL: unkown datapoint %s", argv[DATAPOINT_NAME_ARG_IDX]);
-    shell_help(shell);
-    return err;
+    case BUTTON_UNPRESSED:
+      return UNPRESSED_STR;
+    case BUTTON_SHORT_PRESSED:
+      return SHORT_PRESSED_STR;
+    case BUTTON_LONG_PRESSED:
+      return LONG_PRESSED_STR;
+    default:
+      return "unknown";
   }
-
-  valCount = argc == 3 ? shell_strtoul(argv[VALUE_COUNT_ARG_IDX], 10, &err) : 1;
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: invalid value count to read %s", argv[VALUE_COUNT_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  err = datastoreReadButton(datapointId, valCount, &datastoreCmdResQueue, values);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: read operation fail with %d error code", err);
-    shell_help(shell);
-    return err;
-  }
-
-  shell_info(shell, "SUCCESS: here are the values read");
-
-  for(size_t i = 0; i < valCount; ++i)
-  {
-    valStr = values[i] == BUTTON_SHORT_PRESSED ? SHORT_PRESSED_STR : UNPRESSED_STR;
-    valStr = values[i] == BUTTON_LONG_PRESSED ? LONG_PRESSED_STR : valStr;
-    shell_info(shell, "%s: %s", buttonNames[datapointId + i], valStr);
-  }
-
-  return 0;
 }
 
 /**
- * @brief   Execute the write button datapoints command.
+ * @brief   Parse a float value from string.
  *
- * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
+ * @param[in]   str: The string to parse.
+ * @param[out]  value: Pointer to store the parsed float value.
  *
- * @return  0 if successful the error code otherwise.
+ * @return  0 if successful, error code otherwise.
  */
-static int execWriteButton(const struct shell *shell, size_t argc, char **argv)
+static int parseFloat(const char *str, float *value)
 {
-  int err;
-  uint32_t datapointId;
-  size_t valCount;
-  ButtonState_t values[BUTTON_DATAPOINT_COUNT];
+  char *endptr;
+  float result;
 
-  toUpper(argv[DATAPOINT_NAME_ARG_IDX]);
+  result = strtof(str, &endptr);
 
-  err = getStringIndex(argv[DATAPOINT_NAME_ARG_IDX], buttonNames, BUTTON_DATAPOINT_COUNT, &datapointId);
-  if(err < 0)
+  if (endptr == str || *endptr != '\0')
   {
-    shell_error(shell, "FAIL: unkown datapoint %s", argv[DATAPOINT_NAME_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  valCount = shell_strtoul(argv[VALUE_COUNT_ARG_IDX], 10, &err);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: invalid value count to write %s", argv[VALUE_COUNT_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  if(argc - WRITE_VALUE_FIRST_IDX < valCount)
-  {
-    shell_error(shell, "FAIL: not enough value provided (%d) for the requested value to write (%d)",
-                argc - WRITE_VALUE_FIRST_IDX, valCount);
-    shell_help(shell);
     return -EINVAL;
   }
 
-  for(size_t i = 0; i < valCount; ++i)
+  *value = result;
+  return 0;
+}
+
+/**
+ * @brief   Get float value as string.
+ *
+ * @param[in]   value: The float value.
+ * @param[out]  buffer: Buffer to store the string representation.
+ * @param[in]   bufferSize: Size of the buffer.
+ */
+static void getFloatValueString(float value, char *buffer, size_t bufferSize)
+{
+  snprintf(buffer, bufferSize, "%.6f", (double)value);
+}
+
+/**
+ * @brief   Print the datapoint table header.
+ *
+ * @param[in]   shell: The shell handle.
+ */
+static void printTableHeader(const struct shell *shell)
+{
+  shell_print(shell, "%-3s %-40s %-15s %s", "ID", "Name", "Type", "Value");
+  shell_print(shell, "%-3s %-40s %-15s %s", "---", "----------------------------------------", "---------------", "--------------------");
+}
+
+/**
+ * @brief   Print a button datapoint table line.
+ *
+ * @param[in]   shell: The shell handle.
+ * @param[in]   id: The datapoint ID.
+ * @param[in]   name: The datapoint name.
+ * @param[in]   value: The button value.
+ */
+static void printButtonLine(const struct shell *shell, uint32_t id, const char *name, ButtonState_t value)
+{
+  shell_print(shell, "%-3u %-40s %-15s %s", id, name, "button", getButtonValueString(value));
+}
+
+/**
+ * @brief   Print a float datapoint table line.
+ *
+ * @param[in]   shell: The shell handle.
+ * @param[in]   id: The datapoint ID.
+ * @param[in]   name: The datapoint name.
+ * @param[in]   value: The float value.
+ */
+static void printFloatLine(const struct shell *shell, uint32_t id, const char *name, float value)
+{
+  char buffer[VALUE_STRING_MAX_LENGTH];
+
+  getFloatValueString(value, buffer, sizeof(buffer));
+  shell_print(shell, "%-3u %-40s %-15s %s", id, name, "float", buffer);
+}
+
+/**
+ * @brief   Find datapoint entry by name.
+ *
+ * @param[in]   name: The datapoint name to find.
+ * @param[out]  entry: Pointer to store the found entry.
+ *
+ * @return  0 if found, -ENOENT otherwise.
+ */
+static int findDatapointByName(const char *name, const DatapointEntry_t **entry)
+{
+  for (size_t i = 0; i < DATAPOINT_REGISTRY_SIZE; i++)
   {
-    err = convertButtonStateStr(argv[WRITE_VALUE_FIRST_IDX + i], values + i);
-    if(err < 0)
+    if (strcmp(datapointRegistry[i].name, name) == 0)
     {
-      shell_error(shell, "FAIL: bad button value %s for value %i", argv[WRITE_VALUE_FIRST_IDX + i], i);
-      shell_help(shell);
-      return err;
+      *entry = &datapointRegistry[i];
+      return 0;
+    }
+  }
+  return -ENOENT;
+}
+
+/**
+ * @brief   Execute the list command.
+ *
+ * @param[in]   shell: The shell handle.
+ * @param[in]   argc: Argument count.
+ * @param[in]   argv: Argument vector.
+ *
+ * @return  0 if successful, error code otherwise.
+ */
+static int execList(const struct shell *shell, size_t argc, char **argv)
+{
+  int err;
+  Data_t value;
+
+  printTableHeader(shell);
+
+  for (size_t i = 0; i < DATAPOINT_REGISTRY_SIZE; i++)
+  {
+    const DatapointEntry_t *entry = &datapointRegistry[i];
+
+    err = datastoreRead(entry->type, entry->id, &value, 1, &datastoreCmdResQueue);
+    if (err < 0)
+    {
+      shell_print(shell, "%-3u %-40s %-15s %s", entry->id, entry->name, getTypeName(entry->type), "ERROR");
+      continue;
+    }
+
+    switch (entry->type)
+    {
+      case DATAPOINT_BINARY:
+        shell_print(shell, "%-3u %-40s %-15s %s", entry->id, entry->name, "binary",
+                    ((uint8_t *)&value)[0] ? TRUE_STR : FALSE_STR);
+        break;
+
+      case DATAPOINT_BUTTON:
+        printButtonLine(shell, entry->id, entry->name, ((ButtonState_t *)&value)[0]);
+        break;
+
+      case DATAPOINT_FLOAT:
+        printFloatLine(shell, entry->id, entry->name, ((float *)&value)[0]);
+        break;
+
+      case DATAPOINT_INT:
+        shell_print(shell, "%-3u %-40s %-15s %d", entry->id, entry->name, "int",
+                    ((int32_t *)&value)[0]);
+        break;
+
+      case DATAPOINT_MULTI_STATE:
+        shell_print(shell, "%-3u %-40s %-15s %u", entry->id, entry->name, "multi_state",
+                    ((uint8_t *)&value)[0]);
+        break;
+
+      case DATAPOINT_UINT:
+        shell_print(shell, "%-3u %-40s %-15s %u", entry->id, entry->name, "uint",
+                    ((uint32_t *)&value)[0]);
+        break;
+
+      default:
+        shell_print(shell, "%-3u %-40s %-15s %s", entry->id, entry->name, getTypeName(entry->type), "UNKNOWN TYPE");
+        break;
     }
   }
 
-  err = datastoreWriteButton(datapointId, values, valCount, &datastoreCmdResQueue);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: read operation fail with %d error code", err);
-    shell_help(shell);
-    return err;
-  }
-
-  shell_info(shell, "SUCCESS: write operation of %s up to %s done", buttonNames[datapointId],
-             buttonNames[datapointId + valCount - 1]);
-
-  return 0;
-}
-
-SHELL_STATIC_SUBCMD_SET_CREATE(sub_button,
-  SHELL_CMD(ls, NULL, "List button objects.\n\tUsage datastore button_data ls", execListButton),
-  SHELL_CMD_ARG(read, NULL, "Read a button datapoint.\n\tUsage datastore button_data read <datapoint ID> [value count]",
-                execReadButton, 2, 1),
-  SHELL_CMD_ARG(write, NULL, "Write a button datapoint.\n\tUsage datastore button_data write <datapoint ID> <value count> <unpressed|short_pressed|long_pressed> [unpressed|short_pressed|long_pressed] ...",
-                execWriteButton, 3, SHELL_OPT_ARG_CHECK_SKIP),
-  SHELL_SUBCMD_SET_END);
-
-/**
- * @brief   Execute the list float datapoints command.
- *
- * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
- *
- * @return  0 if successful the error code otherwise.
- */
-static int execListFloat(const struct shell *shell, size_t argc, char **argv)
-{
-  ARG_UNUSED(argc);
-  ARG_UNUSED(argv);
-
-  shell_info(shell, "List of float datapoint:");
-
-  for(size_t i = 0; i < FLOAT_DATAPOINT_COUNT; ++i)
-    shell_info(shell, "%s", floatNames[i]);
-
   return 0;
 }
 
 /**
- * @brief   Execute the read float datapoints command.
+ * @brief   Execute the read command.
  *
  * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
+ * @param[in]   argc: Argument count.
+ * @param[in]   argv: Argument vector (argv[0] is datapoint name, argv[1] is optional count).
  *
- * @return  0 if successful the error code otherwise.
+ * @return  0 if successful, error code otherwise.
  */
-static int execReadFloat(const struct shell *shell, size_t argc, char **argv)
+static int execRead(const struct shell *shell, size_t argc, char **argv)
 {
+  const DatapointEntry_t *entry;
   int err;
-  uint32_t datapointId;
   size_t valCount;
-  float values[FLOAT_DATAPOINT_COUNT];
-  char valStr[VALUE_STRING_MAX_LENGTH];
+  Data_t valueStorage[CONFIG_ENYA_DATASTORE_BUFFER_SIZE];
+  char buffer[VALUE_STRING_MAX_LENGTH];
 
-  toUpper(argv[DATAPOINT_NAME_ARG_IDX]);
-
-  err = getStringIndex(argv[DATAPOINT_NAME_ARG_IDX], floatNames, FLOAT_DATAPOINT_COUNT, &datapointId);
-  if(err < 0)
+  /* Find datapoint by name (argv[0] is the subcommand name) */
+  toUpper(argv[0]);
+  err = findDatapointByName(argv[0], &entry);
+  if (err < 0)
   {
-    shell_error(shell, "FAIL: unkown datapoint %s", argv[DATAPOINT_NAME_ARG_IDX]);
-    shell_help(shell);
+    shell_error(shell, "FAIL: datapoint '%s' not found", argv[0]);
+    return -ESRCH;
+  }
+
+  /* Parse value count (default to 1 if not provided) */
+  valCount = (argc >= 2) ? shell_strtoul(argv[1], 10, &err) : 1;
+  if (err < 0)
+  {
+    shell_error(shell, "FAIL %d: invalid value count '%s'", err, argv[1]);
     return err;
   }
 
-  valCount = argc == 3 ? shell_strtoul(argv[VALUE_COUNT_ARG_IDX], 10, &err) : 1;
-  if(err < 0)
+  /* Read values based on datapoint type */
+  err = datastoreRead(entry->type, entry->id, valueStorage, valCount, &datastoreCmdResQueue);
+  if (err < 0)
   {
-    shell_error(shell, "FAIL: invalid value count to read %s", argv[VALUE_COUNT_ARG_IDX]);
-    shell_help(shell);
+    shell_error(shell, "FAIL %d: read operation failed", err);
     return err;
   }
 
-  err = datastoreReadFloat(datapointId, valCount, &datastoreCmdResQueue, values);
-  if(err < 0)
+  /* Print values in format: DATAPOINT_NAME = value */
+  switch (entry->type)
   {
-    shell_error(shell, "FAIL: read operation fail with %d error code", err);
-    shell_help(shell);
-    return err;
-  }
+    case DATAPOINT_BINARY:
+      for (size_t i = 0; i < valCount; i++)
+      {
+        shell_print(shell, "%s = %s", entry->name, ((uint8_t *)valueStorage)[i] ? TRUE_STR : FALSE_STR);
+      }
+      break;
 
-  shell_info(shell, "SUCCESS: here are the values read");
+    case DATAPOINT_BUTTON:
+      for (size_t i = 0; i < valCount; i++)
+      {
+        shell_print(shell, "%s = %s", entry->name, getButtonValueString(((ButtonState_t *)valueStorage)[i]));
+      }
+      break;
 
-  for(size_t i = 0; i < valCount; ++i)
-  {
-    sprintf(valStr, "%f", (double)values[i]);
-    shell_info(shell, "%s: %s", floatNames[datapointId + i], valStr);
+    case DATAPOINT_FLOAT:
+      for (size_t i = 0; i < valCount; i++)
+      {
+        getFloatValueString(((float *)valueStorage)[i], buffer, sizeof(buffer));
+        shell_print(shell, "%s = %s", entry->name, buffer);
+      }
+      break;
+
+    case DATAPOINT_INT:
+      for (size_t i = 0; i < valCount; i++)
+      {
+        shell_print(shell, "%s = %d", entry->name, ((int32_t *)valueStorage)[i]);
+      }
+      break;
+
+    case DATAPOINT_MULTI_STATE:
+      for (size_t i = 0; i < valCount; i++)
+      {
+        shell_print(shell, "%s = %u", entry->name, ((uint8_t *)valueStorage)[i]);
+      }
+      break;
+
+    case DATAPOINT_UINT:
+      for (size_t i = 0; i < valCount; i++)
+      {
+        shell_print(shell, "%s = %u", entry->name, ((uint32_t *)valueStorage)[i]);
+      }
+      break;
+
+    default:
+      shell_error(shell, "FAIL: unsupported datapoint type");
+      return -ENOTSUP;
   }
 
   return 0;
 }
 
 /**
- * @brief   Execute the write float datapoints command.
+ * @brief   Execute the write command.
  *
  * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
+ * @param[in]   argc: Argument count.
+ * @param[in]   argv: Argument vector (argv[0] is datapoint name, argv[1+] are values).
  *
- * @return  0 if successful the error code otherwise.
+ * @return  0 if successful, error code otherwise.
  */
-static int execWriteFloat(const struct shell *shell, size_t argc, char **argv)
+static int execWrite(const struct shell *shell, size_t argc, char **argv)
 {
+  const DatapointEntry_t *entry;
   int err;
-  uint32_t datapointId;
   size_t valCount;
-  char *endPtr;
-  float values[FLOAT_DATAPOINT_COUNT];
+  Data_t valueStorage[CONFIG_ENYA_DATASTORE_BUFFER_SIZE];
 
-  toUpper(argv[DATAPOINT_NAME_ARG_IDX]);
-
-  err = getStringIndex(argv[DATAPOINT_NAME_ARG_IDX], floatNames, FLOAT_DATAPOINT_COUNT, &datapointId);
-  if(err < 0)
+  /* Find datapoint by name */
+  toUpper(argv[0]);
+  err = findDatapointByName(argv[0], &entry);
+  if (err < 0)
   {
-    shell_error(shell, "FAIL: unkown datapoint %s", argv[DATAPOINT_NAME_ARG_IDX]);
-    shell_help(shell);
-    return err;
+    shell_error(shell, "FAIL: datapoint '%s' not found", argv[0]);
+    return -ESRCH;
   }
 
-  valCount = shell_strtoul(argv[VALUE_COUNT_ARG_IDX], 10, &err);
-  if(err < 0)
+  /* Calculate value count */
+  valCount = argc - 1;
+  if (valCount == 0)
   {
-    shell_error(shell, "FAIL: invalid value count to write %s", argv[VALUE_COUNT_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  if(argc - WRITE_VALUE_FIRST_IDX < valCount)
-  {
-    shell_error(shell, "FAIL: not enough value provided (%d) for the requested value to write (%d)",
-                argc - WRITE_VALUE_FIRST_IDX, valCount);
-    shell_help(shell);
+    shell_error(shell, "FAIL: no values provided");
     return -EINVAL;
   }
 
-  for(size_t i = 0; i < valCount; ++i)
+  /* Parse and write values based on datapoint type */
+  switch (entry->type)
   {
-    endPtr = NULL;
-    values[i] = strtof(argv[WRITE_VALUE_FIRST_IDX + i], &endPtr);
-    if(endPtr < argv[WRITE_VALUE_FIRST_IDX + i] + strlen(argv[WRITE_VALUE_FIRST_IDX + i]))
+    case DATAPOINT_BINARY:
     {
-      shell_error(shell, "FAIL: bad float value %s for value %i", argv[WRITE_VALUE_FIRST_IDX + i], i);
-      shell_help(shell);
-      return -EINVAL;
+      uint8_t *values = (uint8_t *)valueStorage;
+      for (size_t i = 0; i < valCount; i++)
+      {
+        bool boolVal;
+        err = parseBool(argv[i + 1], &boolVal);
+        if (err < 0)
+        {
+          shell_error(shell, "FAIL: invalid binary value '%s'", argv[i + 1]);
+          return err;
+        }
+        values[i] = boolVal ? 1 : 0;
+      }
+      break;
     }
+
+    case DATAPOINT_BUTTON:
+    {
+      ButtonState_t *values = (ButtonState_t *)valueStorage;
+      for (size_t i = 0; i < valCount; i++)
+      {
+        err = parseButtonValue(argv[i + 1], &values[i]);
+        if (err < 0)
+        {
+          shell_error(shell, "FAIL: invalid button value '%s'", argv[i + 1]);
+          return err;
+        }
+      }
+      break;
+    }
+
+    case DATAPOINT_FLOAT:
+    {
+      float *values = (float *)valueStorage;
+      for (size_t i = 0; i < valCount; i++)
+      {
+        err = parseFloat(argv[i + 1], &values[i]);
+        if (err < 0)
+        {
+          shell_error(shell, "FAIL: invalid float value '%s'", argv[i + 1]);
+          return err;
+        }
+      }
+      break;
+    }
+
+    case DATAPOINT_INT:
+    {
+      int32_t *values = (int32_t *)valueStorage;
+      for (size_t i = 0; i < valCount; i++)
+      {
+        values[i] = shell_strtol(argv[i + 1], 10, &err);
+        if (err < 0)
+        {
+          shell_error(shell, "FAIL %d: invalid int value '%s'", err, argv[i + 1]);
+          return err;
+        }
+      }
+      break;
+    }
+
+    case DATAPOINT_MULTI_STATE:
+    {
+      uint8_t *values = (uint8_t *)valueStorage;
+      for (size_t i = 0; i < valCount; i++)
+      {
+        uint32_t val = shell_strtoul(argv[i + 1], 10, &err);
+        if (err < 0 || val > 255)
+        {
+          shell_error(shell, "FAIL: invalid multi-state value '%s'", argv[i + 1]);
+          return err < 0 ? err : -EINVAL;
+        }
+        values[i] = (uint8_t)val;
+      }
+      break;
+    }
+
+    case DATAPOINT_UINT:
+    {
+      uint32_t *values = (uint32_t *)valueStorage;
+      for (size_t i = 0; i < valCount; i++)
+      {
+        values[i] = shell_strtoul(argv[i + 1], 10, &err);
+        if (err < 0)
+        {
+          shell_error(shell, "FAIL %d: invalid uint value '%s'", err, argv[i + 1]);
+          return err;
+        }
+      }
+      break;
+    }
+
+    default:
+      shell_error(shell, "FAIL: unsupported datapoint type");
+      return -ENOTSUP;
   }
 
-  err = datastoreWriteFloat(datapointId, values, valCount, &datastoreCmdResQueue);
-  if(err < 0)
+  /* Write to datastore */
+  err = datastoreWrite(entry->type, entry->id, valueStorage, valCount, &datastoreCmdResQueue);
+  if (err < 0)
   {
-    shell_error(shell, "FAIL: read operation fail with %d error code", err);
-    shell_help(shell);
+    shell_error(shell, "FAIL %d: write operation failed", err);
     return err;
   }
 
-  shell_info(shell, "SUCCESS: write operation of %s up to %s done", floatNames[datapointId],
-             floatNames[datapointId + valCount - 1]);
-
+  shell_print(shell, "SUCCESS: wrote %zu value(s) to %s", valCount, entry->name);
   return 0;
 }
 
-SHELL_STATIC_SUBCMD_SET_CREATE(sub_float,
-  SHELL_CMD(ls, NULL, "List float objects.\n\tUsage datastore float_data ls", execListFloat),
-  SHELL_CMD_ARG(read, NULL, "Read a float datapoint.\n\tUsage datastore float_data read <datapoint ID> [value count]",
-                execReadFloat, 2, 1),
-  SHELL_CMD_ARG(write, NULL, "Write a float datapoint.\n\tUsage datastore float_data write <datapoint ID> <value count> <float value> [float value] ...",
-                execWriteFloat, 3, SHELL_OPT_ARG_CHECK_SKIP),
+/* Generate read subcommands using X-macros */
+#define X(name, flags, defaultVal) \
+  SHELL_CMD_ARG(STRINGIFY(name), NULL, "Read " STRINGIFY(name) " [count]", execRead, 1, 1),
+
+SHELL_STATIC_SUBCMD_SET_CREATE(read_sub,
+  DATASTORE_BINARY_DATAPOINTS
+  DATASTORE_BUTTON_DATAPOINTS
+  DATASTORE_FLOAT_DATAPOINTS
+  DATASTORE_INT_DATAPOINTS
+  DATASTORE_MULTI_STATE_DATAPOINTS
+  DATASTORE_UINT_DATAPOINTS
   SHELL_SUBCMD_SET_END);
 
-/**
- * @brief   Execute the list signed integer datapoints command.
- *
- * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
- *
- * @return  0 if successful the error code otherwise.
- */
-static int execListInt(const struct shell *shell, size_t argc, char **argv)
-{
-  ARG_UNUSED(argc);
-  ARG_UNUSED(argv);
+#undef X
 
-  shell_info(shell, "List of int datapoint:");
+/* Generate write subcommands using X-macros */
+#define X(name, flags, defaultVal) \
+  SHELL_CMD_ARG(STRINGIFY(name), NULL, "Write " STRINGIFY(name) " <value> [value...]", execWrite, 2, SHELL_OPT_ARG_CHECK_SKIP),
 
-  for(size_t i = 0; i < INT_DATAPOINT_COUNT; ++i)
-    shell_info(shell, "%s", intNames[i]);
-
-  return 0;
-}
-
-/**
- * @brief   Execute the read signed integer datapoints command.
- *
- * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
- *
- * @return  0 if successful the error code otherwise.
- */
-static int execReadInt(const struct shell *shell, size_t argc, char **argv)
-{
-  int err;
-  uint32_t datapointId;
-  size_t valCount;
-  int32_t values[INT_DATAPOINT_COUNT];
-
-  toUpper(argv[DATAPOINT_NAME_ARG_IDX]);
-
-  err = getStringIndex(argv[DATAPOINT_NAME_ARG_IDX], intNames, INT_DATAPOINT_COUNT, &datapointId);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: unkown datapoint %s", argv[DATAPOINT_NAME_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  valCount = argc == 3 ? shell_strtoul(argv[VALUE_COUNT_ARG_IDX], 10, &err) : 1;
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: invalid value count to read %s", argv[VALUE_COUNT_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  err = datastoreReadInt(datapointId, valCount, &datastoreCmdResQueue, values);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: read operation fail with %d error code", err);
-    shell_help(shell);
-    return err;
-  }
-
-  shell_info(shell, "SUCCESS: here are the values read");
-
-  for(size_t i = 0; i < valCount; ++i)
-  {
-    shell_info(shell, "%s: %d", intNames[datapointId + i], values[i]);
-  }
-
-  return 0;
-}
-
-/**
- * @brief   Execute the write signed integer datapoints command.
- *
- * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
- *
- * @return  0 if successful the error code otherwise.
- */
-static int execWriteInt(const struct shell *shell, size_t argc, char **argv)
-{
-  int err;
-  uint32_t datapointId;
-  size_t valCount;
-  int32_t values[INT_DATAPOINT_COUNT];
-
-  toUpper(argv[DATAPOINT_NAME_ARG_IDX]);
-
-  err = getStringIndex(argv[DATAPOINT_NAME_ARG_IDX], intNames, INT_DATAPOINT_COUNT, &datapointId);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: unkown datapoint %s", argv[DATAPOINT_NAME_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  valCount = shell_strtoul(argv[VALUE_COUNT_ARG_IDX], 10, &err);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: invalid value count to write %s", argv[VALUE_COUNT_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  if(argc - WRITE_VALUE_FIRST_IDX < valCount)
-  {
-    shell_error(shell, "FAIL: not enough value provided (%d) for the requested value to write (%d)",
-                argc - WRITE_VALUE_FIRST_IDX, valCount);
-    shell_help(shell);
-    return -EINVAL;
-  }
-
-  for(size_t i = 0; i < valCount; ++i)
-  {
-    values[i] = shell_strtol(argv[WRITE_VALUE_FIRST_IDX + i], 10, &err);
-    if(err < 0)
-    {
-      shell_error(shell, "FAIL: bad signed integer value %s for value %i", argv[WRITE_VALUE_FIRST_IDX + i], i);
-      shell_help(shell);
-      return err;
-    }
-  }
-
-  err = datastoreWriteInt(datapointId, values, valCount, &datastoreCmdResQueue);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: read operation fail with %d error code", err);
-    shell_help(shell);
-    return err;
-  }
-
-  shell_info(shell, "SUCCESS: write operation of %s up to %s done", intNames[datapointId],
-             intNames[datapointId + valCount - 1]);
-
-  return 0;
-}
-
-SHELL_STATIC_SUBCMD_SET_CREATE(sub_int,
-  SHELL_CMD(ls, NULL, "List signed integer objects.\n\tUsage datastore int_data ls", execListInt),
-  SHELL_CMD_ARG(read, NULL, "Read a signed integer datapoint.\n\tUsage datastore int_data read <datapoint ID> [value count]",
-                execReadInt, 2, 1),
-  SHELL_CMD_ARG(write, NULL, "Write a signed integer datapoint.\n\tUsage datastore int_data write <datapoint ID> <value count> <int value> [int value] ...",
-                execWriteInt, 3, SHELL_OPT_ARG_CHECK_SKIP),
+SHELL_STATIC_SUBCMD_SET_CREATE(write_sub,
+  DATASTORE_BINARY_DATAPOINTS
+  DATASTORE_BUTTON_DATAPOINTS
+  DATASTORE_FLOAT_DATAPOINTS
+  DATASTORE_INT_DATAPOINTS
+  DATASTORE_MULTI_STATE_DATAPOINTS
+  DATASTORE_UINT_DATAPOINTS
   SHELL_SUBCMD_SET_END);
 
-/**
- * @brief   Execute the list multi-state datapoints command.
- *
- * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
- *
- * @return  0 if successful the error code otherwise.
- */
-static int execListMultiState(const struct shell *shell, size_t argc, char **argv)
-{
-  ARG_UNUSED(argc);
-  ARG_UNUSED(argv);
+#undef X
 
-  shell_info(shell, "List of multi-state datapoint:");
-
-  for(size_t i = 0; i < MULTI_STATE_DATAPOINT_COUNT; ++i)
-    shell_info(shell, "%s", multiStateNames[i]);
-
-  return 0;
-}
-
-/**
- * @brief   Execute the read multi-state datapoints command.
- *
- * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
- *
- * @return  0 if successful the error code otherwise.
- */
-static int execReadMultiState(const struct shell *shell, size_t argc, char **argv)
-{
-  int err;
-  uint32_t datapointId;
-  size_t valCount;
-  int32_t values[MULTI_STATE_DATAPOINT_COUNT];
-
-  toUpper(argv[DATAPOINT_NAME_ARG_IDX]);
-
-  err = getStringIndex(argv[DATAPOINT_NAME_ARG_IDX], multiStateNames, MULTI_STATE_DATAPOINT_COUNT, &datapointId);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: unkown datapoint %s", argv[DATAPOINT_NAME_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  valCount = argc == 3 ? shell_strtoul(argv[VALUE_COUNT_ARG_IDX], 10, &err) : 1;
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: invalid value count to read %s", argv[VALUE_COUNT_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  err = datastoreReadMultiState(datapointId, valCount, &datastoreCmdResQueue, values);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: read operation fail with %d error code", err);
-    shell_help(shell);
-    return err;
-  }
-
-  shell_info(shell, "SUCCESS: here are the values read");
-
-  for(size_t i = 0; i < valCount; ++i)
-  {
-    shell_info(shell, "%s: %d", multiStateNames[datapointId + i], values[i]);
-  }
-
-  return 0;
-}
-
-/**
- * @brief   Execute the write multi-state datapoints command.
- *
- * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
- *
- * @return  0 if successful the error code otherwise.
- */
-static int execWriteMultiState(const struct shell *shell, size_t argc, char **argv)
-{
-  int err;
-  uint32_t datapointId;
-  size_t valCount;
-  int32_t values[MULTI_STATE_DATAPOINT_COUNT];
-
-  toUpper(argv[DATAPOINT_NAME_ARG_IDX]);
-
-  err = getStringIndex(argv[DATAPOINT_NAME_ARG_IDX], multiStateNames, MULTI_STATE_DATAPOINT_COUNT, &datapointId);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: unkown datapoint %s", argv[DATAPOINT_NAME_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  valCount = shell_strtoul(argv[VALUE_COUNT_ARG_IDX], 10, &err);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: invalid value count to write %s", argv[VALUE_COUNT_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  if(argc - WRITE_VALUE_FIRST_IDX < valCount)
-  {
-    shell_error(shell, "FAIL: not enough value provided (%d) for the requested value to write (%d)",
-                argc - WRITE_VALUE_FIRST_IDX, valCount);
-    shell_help(shell);
-    return -EINVAL;
-  }
-
-  for(size_t i = 0; i < valCount; ++i)
-  {
-    values[i] = shell_strtol(argv[WRITE_VALUE_FIRST_IDX + i], 10, &err);
-    if(err < 0)
-    {
-      shell_error(shell, "FAIL: bad multi-state value %s for value %i", argv[WRITE_VALUE_FIRST_IDX + i], i);
-      shell_help(shell);
-      return err;
-    }
-  }
-
-  err = datastoreWriteMultiState(datapointId, values, valCount, &datastoreCmdResQueue);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: read operation fail with %d error code", err);
-    shell_help(shell);
-    return err;
-  }
-
-  shell_info(shell, "SUCCESS: write operation of %s up to %s done", multiStateNames[datapointId],
-             multiStateNames[datapointId + valCount - 1]);
-
-  return 0;
-}
-
-SHELL_STATIC_SUBCMD_SET_CREATE(sub_multi_state,
-  SHELL_CMD(ls, NULL, "List multi-state objects.\n\tUsage datastore multi_state_data ls", execListMultiState),
-  SHELL_CMD_ARG(read, NULL, "Read a multi-state datapoint.\n\tUsage datastore multi_state_data read <datapoint ID> [value count]",
-                execReadMultiState, 2, 1),
-  SHELL_CMD_ARG(write, NULL, "Write a multi-state datapoint.\n\tUsage datastore multi_state_data write <datapoint ID> <value count> <multi-state value> [multi-state value] ...",
-                execWriteMultiState, 3, SHELL_OPT_ARG_CHECK_SKIP),
-  SHELL_SUBCMD_SET_END);
-
-/**
- * @brief   Execute the list unsigned integer datapoints command.
- *
- * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
- *
- * @return  0 if successful the error code otherwise.
- */
-static int execListUint(const struct shell *shell, size_t argc, char **argv)
-{
-  ARG_UNUSED(argc);
-  ARG_UNUSED(argv);
-
-  shell_info(shell, "List of unsigned int datapoint:");
-
-  for(size_t i = 0; i < UINT_DATAPOINT_COUNT; ++i)
-    shell_info(shell, "%s", uintNames[i]);
-
-  return 0;
-}
-
-/**
- * @brief   Execute the read unsigned integer datapoints command.
- *
- * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
- *
- * @return  0 if successful the error code otherwise.
- */
-static int execReadUint(const struct shell *shell, size_t argc, char **argv)
-{
-  int err;
-  uint32_t datapointId;
-  size_t valCount;
-  int32_t values[UINT_DATAPOINT_COUNT];
-
-  toUpper(argv[DATAPOINT_NAME_ARG_IDX]);
-
-  err = getStringIndex(argv[DATAPOINT_NAME_ARG_IDX], uintNames, UINT_DATAPOINT_COUNT, &datapointId);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: unkown datapoint %s", argv[DATAPOINT_NAME_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  valCount = argc == 3 ? shell_strtoul(argv[VALUE_COUNT_ARG_IDX], 10, &err) : 1;
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: invalid value count to read %s", argv[VALUE_COUNT_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  err = datastoreReadUint(datapointId, valCount, &datastoreCmdResQueue, values);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: read operation fail with %d error code", err);
-    shell_help(shell);
-    return err;
-  }
-
-  shell_info(shell, "SUCCESS: here are the values read");
-
-  for(size_t i = 0; i < valCount; ++i)
-  {
-    shell_info(shell, "%s: %d", uintNames[datapointId + i], values[i]);
-  }
-
-  return 0;
-}
-
-/**
- * @brief   Execute the write unsigned integer datapoints command.
- *
- * @param[in]   shell: The shell handle.
- * @param[in]   argc: The count of argument.
- * @param[in]   argv: The vector of argument.
- *
- * @return  0 if successful the error code otherwise.
- */
-static int execWriteUint(const struct shell *shell, size_t argc, char **argv)
-{
-  int err;
-  uint32_t datapointId;
-  size_t valCount;
-  int32_t values[UINT_DATAPOINT_COUNT];
-
-  toUpper(argv[DATAPOINT_NAME_ARG_IDX]);
-
-  err = getStringIndex(argv[DATAPOINT_NAME_ARG_IDX], uintNames, UINT_DATAPOINT_COUNT, &datapointId);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: unkown datapoint %s", argv[DATAPOINT_NAME_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  valCount = shell_strtoul(argv[VALUE_COUNT_ARG_IDX], 10, &err);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: invalid value count to write %s", argv[VALUE_COUNT_ARG_IDX]);
-    shell_help(shell);
-    return err;
-  }
-
-  if(argc - WRITE_VALUE_FIRST_IDX < valCount)
-  {
-    shell_error(shell, "FAIL: not enough value provided (%d) for the requested value to write (%d)",
-                argc - WRITE_VALUE_FIRST_IDX, valCount);
-    shell_help(shell);
-    return -EINVAL;
-  }
-
-  for(size_t i = 0; i < valCount; ++i)
-  {
-    values[i] = shell_strtol(argv[WRITE_VALUE_FIRST_IDX + i], 10, &err);
-    if(err < 0)
-    {
-      shell_error(shell, "FAIL: bad unsigned integer value %s for value %i", argv[WRITE_VALUE_FIRST_IDX + i], i);
-      shell_help(shell);
-      return err;
-    }
-  }
-
-  err = datastoreWriteUint(datapointId, values, valCount, &datastoreCmdResQueue);
-  if(err < 0)
-  {
-    shell_error(shell, "FAIL: read operation fail with %d error code", err);
-    shell_help(shell);
-    return err;
-  }
-
-  shell_info(shell, "SUCCESS: write operation of %s up to %s done", uintNames[datapointId],
-             uintNames[datapointId + valCount - 1]);
-
-  return 0;
-}
-
-SHELL_STATIC_SUBCMD_SET_CREATE(sub_uint,
-  SHELL_CMD(ls, NULL, "List unsigned integer objects.\n\tUsage datastore uint_data ls", execListUint),
-  SHELL_CMD_ARG(read, NULL, "Read a unsigned integer datapoint.\n\tUsage datastore uint_data read <datapoint ID> [value count]",
-                execReadUint, 2, 1),
-  SHELL_CMD_ARG(write, NULL, "Write a unsigned integer datapoint.\n\tUsage datastore uint_data write <datapoint ID> <value count> <uint value> [uint value] ...",
-                execWriteUint, 3, SHELL_OPT_ARG_CHECK_SKIP),
-  SHELL_SUBCMD_SET_END);
-
+/* Main datastore command */
 SHELL_STATIC_SUBCMD_SET_CREATE(datastore_sub,
-  SHELL_CMD(binary_data, &sub_binary, "Binaries datapoint commands.", NULL),
-  SHELL_CMD(button_data, &sub_button, "Button datapoint commands.", NULL),
-  SHELL_CMD(float_data, &sub_float, "Float datapoint commands.", NULL),
-  SHELL_CMD(int_data, &sub_int, "Signed integer datapoint commands.", NULL),
-  SHELL_CMD(multi_state_data, &sub_multi_state, "Multi-state datapoint commands.", NULL),
-  SHELL_CMD(uint_data, &sub_uint, "Unsigned integer datapoint commands.", NULL),
+  SHELL_CMD(ls, NULL, "List all datapoints", execList),
+  SHELL_CMD(read, &read_sub, "Read datapoint value(s)", NULL),
+  SHELL_CMD(write, &write_sub, "Write datapoint value(s)", NULL),
   SHELL_SUBCMD_SET_END);
-SHELL_CMD_REGISTER(datastore, &datastore_sub, "Datastore commands.",	NULL);
+
+SHELL_CMD_REGISTER(datastore, &datastore_sub, "Datastore commands.", NULL);
 
 /** @} */
