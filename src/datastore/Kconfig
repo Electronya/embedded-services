@@ -28,6 +28,13 @@ config ENYA_DATASTORE_STACK_SIZE
   help
     The Electronya datastore service thread stack size in bytes.
 
+config ENYA_DATASTORE_BUFFER_SIZE
+  int "Electronya Datastore Command Buffer Size"
+  default 32
+  help
+    The maximum number of Data_t elements that can be read/written
+    in a single shell command operation.
+
 config ENYA_DATASTORE_SHELL
   bool "Electronya Datastore Shell Commands"
   default y

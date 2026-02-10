@@ -396,7 +396,7 @@ static int execRead(const struct shell *shell, size_t argc, char **argv)
   }
 
   /* Read values based on datapoint type */
-  err = datastoreRead(entry->type, entry->id, valueStorage, valCount, &datastoreCmdResQueue);
+  err = datastoreRead(entry->type, entry->id, valCount, &datastoreCmdResQueue, valueStorage);
   if (err < 0)
   {
     shell_error(shell, "FAIL %d: read operation failed", err);
