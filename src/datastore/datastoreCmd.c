@@ -315,7 +315,7 @@ static int execList(const struct shell *shell, size_t argc, char **argv)
   {
     const DatapointEntry_t *entry = &datapointRegistry[i];
 
-    err = datastoreRead(entry->type, entry->id, &value, 1, &datastoreCmdResQueue);
+    err = datastoreRead(entry->type, entry->id, 1, &datastoreCmdResQueue, &value);
     if (err < 0)
     {
       shell_print(shell, "%-3u %-40s %-15s %s", entry->id, entry->name, getTypeName(entry->type), "ERROR");
@@ -605,7 +605,7 @@ static int execWrite(const struct shell *shell, size_t argc, char **argv)
 
 /* Generate read subcommands using X-macros */
 #define X(name, flags, defaultVal) \
-  SHELL_CMD_ARG(STRINGIFY(name), NULL, "Read " STRINGIFY(name) " [count]", execRead, 1, 1),
+  SHELL_CMD_ARG(name, NULL, "Read " STRINGIFY(name) " [count]", execRead, 1, 1),
 
 SHELL_STATIC_SUBCMD_SET_CREATE(read_sub,
   DATASTORE_BINARY_DATAPOINTS
@@ -620,7 +620,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(read_sub,
 
 /* Generate write subcommands using X-macros */
 #define X(name, flags, defaultVal) \
-  SHELL_CMD_ARG(STRINGIFY(name), NULL, "Write " STRINGIFY(name) " <value> [value...]", execWrite, 2, SHELL_OPT_ARG_CHECK_SKIP),
+  SHELL_CMD_ARG(name, NULL, "Write " STRINGIFY(name) " <value> [value...]", execWrite, 2, SHELL_OPT_ARG_CHECK_SKIP),
 
 SHELL_STATIC_SUBCMD_SET_CREATE(write_sub,
   DATASTORE_BINARY_DATAPOINTS
@@ -640,6 +640,6 @@ SHELL_STATIC_SUBCMD_SET_CREATE(datastore_sub,
   SHELL_CMD(write, &write_sub, "Write datapoint value(s)", NULL),
   SHELL_SUBCMD_SET_END);
 
-SHELL_CMD_REGISTER(datastore, &datastore_sub, "Datastore commands.", NULL);
+SHELL_CMD_REGISTER(ds, &datastore_sub, "Datastore commands.", NULL);
 
 /** @} */

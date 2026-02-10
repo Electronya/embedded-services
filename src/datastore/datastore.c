@@ -106,7 +106,10 @@ static void run(void *p1, void *p2, void *p3)
     err = k_msgq_get(&datastoreQueue, &msg, K_MSEC(CONFIG_ENYA_DATASTORE_MSGQ_TIMEOUT));
     if(err < 0)
     {
-      LOG_ERR("ERROR %d: unable to get a message", err);
+      if(err != -EAGAIN)
+      {
+        LOG_ERR("ERROR %d: unable to get a message", err);
+      }
       continue;
     }
 
