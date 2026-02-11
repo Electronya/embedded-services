@@ -19,281 +19,14 @@
 #include <string.h>
 
 #include "datastore.h"
+#include "datastoreCmdUtil.h"
 #include "datastoreMeta.h"
 #include "datastoreTypes.h"
-
-/**
- * @brief   The string for true binary values.
- */
-#define TRUE_STR                                                        "true"
-
-/**
- * @brief   The string for false binary values.
- */
-#define FALSE_STR                                                       "false"
-
-/**
- * @brief   The string for the unpressed button value.
- */
-#define UNPRESSED_STR                                                   "unpressed"
-
-/**
- * @brief   The string for the short pressed button value.
- */
-#define SHORT_PRESSED_STR                                               "short_pressed"
-
-/**
- * @brief   The string for the long pressed button value.
- */
-#define LONG_PRESSED_STR                                                "long_pressed"
-
-/**
- * @brief   The max length of a value string.
- */
-#define VALUE_STRING_MAX_LENGTH                                         20
-
-/**
- * @brief   Datapoint registry entry.
- */
-typedef struct
-{
-  const char *name;         /**< Datapoint name */
-  DatapointType_t type;     /**< Datapoint type */
-  uint32_t id;              /**< Datapoint ID within its type */
-} DatapointEntry_t;
-
-/* Build unified datapoint registry using X-macros */
-static const DatapointEntry_t datapointRegistry[] = {
-#define X(name, flags, defaultVal) {STRINGIFY(name), DATAPOINT_BINARY, name},
-  DATASTORE_BINARY_DATAPOINTS
-#undef X
-#define X(name, flags, defaultVal) {STRINGIFY(name), DATAPOINT_BUTTON, name},
-  DATASTORE_BUTTON_DATAPOINTS
-#undef X
-#define X(name, flags, defaultVal) {STRINGIFY(name), DATAPOINT_FLOAT, name},
-  DATASTORE_FLOAT_DATAPOINTS
-#undef X
-#define X(name, flags, defaultVal) {STRINGIFY(name), DATAPOINT_INT, name},
-  DATASTORE_INT_DATAPOINTS
-#undef X
-#define X(name, flags, defaultVal) {STRINGIFY(name), DATAPOINT_MULTI_STATE, name},
-  DATASTORE_MULTI_STATE_DATAPOINTS
-#undef X
-#define X(name, flags, defaultVal) {STRINGIFY(name), DATAPOINT_UINT, name},
-  DATASTORE_UINT_DATAPOINTS
-#undef X
-};
-
-#define DATAPOINT_REGISTRY_SIZE ARRAY_SIZE(datapointRegistry)
 
 /**
  * @brief   Datastore command response queue.
  */
 K_MSGQ_DEFINE(datastoreCmdResQueue, sizeof(int), DATASTORE_MSG_COUNT, 4);
-
-/**
- * @brief   Convert a string to upper case.
- *
- * @param[in,out] str: The string to convert.
- */
-static void toUpper(char *str)
-{
-  size_t strLength = strlen(str);
-
-  for(size_t i = 0; i < strLength; ++i)
-    str[i] = toupper(str[i]);
-}
-
-/**
- * @brief   Get type name string.
- *
- * @param[in]   type: The datapoint type.
- *
- * @return  Type name string.
- */
-static const char *getTypeName(DatapointType_t type)
-{
-  switch (type)
-  {
-    case DATAPOINT_BINARY: return "binary";
-    case DATAPOINT_BUTTON: return "button";
-    case DATAPOINT_FLOAT: return "float";
-    case DATAPOINT_INT: return "int";
-    case DATAPOINT_MULTI_STATE: return "multi_state";
-    case DATAPOINT_UINT: return "uint";
-    default: return "unknown";
-  }
-}
-
-/**
- * @brief   Parse a boolean value from string.
- *
- * @param[in]   str: The string to parse.
- * @param[out]  value: Pointer to store the parsed boolean value.
- *
- * @return  0 if successful, error code otherwise.
- */
-static int parseBool(const char *str, bool *value)
-{
-  if (strcmp(str, TRUE_STR) == 0 || strcmp(str, "1") == 0)
-  {
-    *value = true;
-    return 0;
-  }
-  else if (strcmp(str, FALSE_STR) == 0 || strcmp(str, "0") == 0)
-  {
-    *value = false;
-    return 0;
-  }
-  return -EINVAL;
-}
-
-/**
- * @brief   Parse a button value from string.
- *
- * @param[in]   str: The string to parse.
- * @param[out]  value: Pointer to store the parsed button value.
- *
- * @return  0 if successful, error code otherwise.
- */
-static int parseButtonValue(const char *str, ButtonState_t *value)
-{
-  if (strcmp(str, UNPRESSED_STR) == 0)
-  {
-    *value = BUTTON_UNPRESSED;
-    return 0;
-  }
-  else if (strcmp(str, SHORT_PRESSED_STR) == 0)
-  {
-    *value = BUTTON_SHORT_PRESSED;
-    return 0;
-  }
-  else if (strcmp(str, LONG_PRESSED_STR) == 0)
-  {
-    *value = BUTTON_LONG_PRESSED;
-    return 0;
-  }
-  return -EINVAL;
-}
-
-/**
- * @brief   Get button value as string.
- *
- * @param[in]   value: The button value.
- *
- * @return  String representation of the button value.
- */
-static const char *getButtonValueString(ButtonState_t value)
-{
-  switch (value)
-  {
-    case BUTTON_UNPRESSED:
-      return UNPRESSED_STR;
-    case BUTTON_SHORT_PRESSED:
-      return SHORT_PRESSED_STR;
-    case BUTTON_LONG_PRESSED:
-      return LONG_PRESSED_STR;
-    default:
-      return "unknown";
-  }
-}
-
-/**
- * @brief   Parse a float value from string.
- *
- * @param[in]   str: The string to parse.
- * @param[out]  value: Pointer to store the parsed float value.
- *
- * @return  0 if successful, error code otherwise.
- */
-static int parseFloat(const char *str, float *value)
-{
-  char *endptr;
-  float result;
-
-  result = strtof(str, &endptr);
-
-  if (endptr == str || *endptr != '\0')
-  {
-    return -EINVAL;
-  }
-
-  *value = result;
-  return 0;
-}
-
-/**
- * @brief   Get float value as string.
- *
- * @param[in]   value: The float value.
- * @param[out]  buffer: Buffer to store the string representation.
- * @param[in]   bufferSize: Size of the buffer.
- */
-static void getFloatValueString(float value, char *buffer, size_t bufferSize)
-{
-  snprintf(buffer, bufferSize, "%.6f", (double)value);
-}
-
-/**
- * @brief   Print the datapoint table header.
- *
- * @param[in]   shell: The shell handle.
- */
-static void printTableHeader(const struct shell *shell)
-{
-  shell_print(shell, "%-3s %-40s %-15s %s", "ID", "Name", "Type", "Value");
-  shell_print(shell, "%-3s %-40s %-15s %s", "---", "----------------------------------------", "---------------", "--------------------");
-}
-
-/**
- * @brief   Print a button datapoint table line.
- *
- * @param[in]   shell: The shell handle.
- * @param[in]   id: The datapoint ID.
- * @param[in]   name: The datapoint name.
- * @param[in]   value: The button value.
- */
-static void printButtonLine(const struct shell *shell, uint32_t id, const char *name, ButtonState_t value)
-{
-  shell_print(shell, "%-3u %-40s %-15s %s", id, name, "button", getButtonValueString(value));
-}
-
-/**
- * @brief   Print a float datapoint table line.
- *
- * @param[in]   shell: The shell handle.
- * @param[in]   id: The datapoint ID.
- * @param[in]   name: The datapoint name.
- * @param[in]   value: The float value.
- */
-static void printFloatLine(const struct shell *shell, uint32_t id, const char *name, float value)
-{
-  char buffer[VALUE_STRING_MAX_LENGTH];
-
-  getFloatValueString(value, buffer, sizeof(buffer));
-  shell_print(shell, "%-3u %-40s %-15s %s", id, name, "float", buffer);
-}
-
-/**
- * @brief   Find datapoint entry by name.
- *
- * @param[in]   name: The datapoint name to find.
- * @param[out]  entry: Pointer to store the found entry.
- *
- * @return  0 if found, -ENOENT otherwise.
- */
-static int findDatapointByName(const char *name, const DatapointEntry_t **entry)
-{
-  for (size_t i = 0; i < DATAPOINT_REGISTRY_SIZE; i++)
-  {
-    if (strcmp(datapointRegistry[i].name, name) == 0)
-    {
-      *entry = &datapointRegistry[i];
-      return 0;
-    }
-  }
-  return -ENOENT;
-}
 
 /**
  * @brief   Execute the list command.
@@ -308,12 +41,14 @@ static int execList(const struct shell *shell, size_t argc, char **argv)
 {
   int err;
   Data_t value;
+  const DatapointEntry_t *registry = getDatapointRegistry();
+  size_t registrySize = getDatapointRegistrySize();
 
   printTableHeader(shell);
 
-  for (size_t i = 0; i < DATAPOINT_REGISTRY_SIZE; i++)
+  for (size_t i = 0; i < registrySize; i++)
   {
-    const DatapointEntry_t *entry = &datapointRegistry[i];
+    const DatapointEntry_t *entry = &registry[i];
 
     err = datastoreRead(entry->type, entry->id, 1, &datastoreCmdResQueue, &value);
     if (err < 0)
@@ -376,7 +111,6 @@ static int execRead(const struct shell *shell, size_t argc, char **argv)
   int err;
   size_t valCount;
   Data_t valueStorage[CONFIG_ENYA_DATASTORE_BUFFER_SIZE];
-  char buffer[VALUE_STRING_MAX_LENGTH];
 
   /* Find datapoint by name (argv[0] is the subcommand name) */
   toUpper(argv[0]);
@@ -407,46 +141,27 @@ static int execRead(const struct shell *shell, size_t argc, char **argv)
   switch (entry->type)
   {
     case DATAPOINT_BINARY:
-      for (size_t i = 0; i < valCount; i++)
-      {
-        shell_print(shell, "%s = %s", entry->name, ((uint8_t *)valueStorage)[i] ? TRUE_STR : FALSE_STR);
-      }
+      printBinaryValues(shell, entry, valueStorage, valCount);
       break;
 
     case DATAPOINT_BUTTON:
-      for (size_t i = 0; i < valCount; i++)
-      {
-        shell_print(shell, "%s = %s", entry->name, getButtonValueString(((ButtonState_t *)valueStorage)[i]));
-      }
+      printButtonValues(shell, entry, valueStorage, valCount);
       break;
 
     case DATAPOINT_FLOAT:
-      for (size_t i = 0; i < valCount; i++)
-      {
-        getFloatValueString(((float *)valueStorage)[i], buffer, sizeof(buffer));
-        shell_print(shell, "%s = %s", entry->name, buffer);
-      }
+      printFloatValues(shell, entry, valueStorage, valCount);
       break;
 
     case DATAPOINT_INT:
-      for (size_t i = 0; i < valCount; i++)
-      {
-        shell_print(shell, "%s = %d", entry->name, ((int32_t *)valueStorage)[i]);
-      }
+      printIntValues(shell, entry, valueStorage, valCount);
       break;
 
     case DATAPOINT_MULTI_STATE:
-      for (size_t i = 0; i < valCount; i++)
-      {
-        shell_print(shell, "%s = %u", entry->name, ((uint8_t *)valueStorage)[i]);
-      }
+      printMultiStateValues(shell, entry, valueStorage, valCount);
       break;
 
     case DATAPOINT_UINT:
-      for (size_t i = 0; i < valCount; i++)
-      {
-        shell_print(shell, "%s = %u", entry->name, ((uint32_t *)valueStorage)[i]);
-      }
+      printUintValues(shell, entry, valueStorage, valCount);
       break;
 
     default:
@@ -494,97 +209,58 @@ static int execWrite(const struct shell *shell, size_t argc, char **argv)
   switch (entry->type)
   {
     case DATAPOINT_BINARY:
-    {
-      uint8_t *values = (uint8_t *)valueStorage;
-      for (size_t i = 0; i < valCount; i++)
+      err = parseBinaryValues(argv + 1, valCount, valueStorage);
+      if (err < 0)
       {
-        bool boolVal;
-        err = parseBool(argv[i + 1], &boolVal);
-        if (err < 0)
-        {
-          shell_error(shell, "FAIL: invalid binary value '%s'", argv[i + 1]);
-          return err;
-        }
-        values[i] = boolVal ? 1 : 0;
+        shell_error(shell, "FAIL: invalid binary value");
+        return err;
       }
       break;
-    }
 
     case DATAPOINT_BUTTON:
-    {
-      ButtonState_t *values = (ButtonState_t *)valueStorage;
-      for (size_t i = 0; i < valCount; i++)
+      err = parseButtonValues(argv + 1, valCount, valueStorage);
+      if (err < 0)
       {
-        err = parseButtonValue(argv[i + 1], &values[i]);
-        if (err < 0)
-        {
-          shell_error(shell, "FAIL: invalid button value '%s'", argv[i + 1]);
-          return err;
-        }
+        shell_error(shell, "FAIL: invalid button value");
+        return err;
       }
       break;
-    }
 
     case DATAPOINT_FLOAT:
-    {
-      float *values = (float *)valueStorage;
-      for (size_t i = 0; i < valCount; i++)
+      err = parseFloatValues(argv + 1, valCount, valueStorage);
+      if (err < 0)
       {
-        err = parseFloat(argv[i + 1], &values[i]);
-        if (err < 0)
-        {
-          shell_error(shell, "FAIL: invalid float value '%s'", argv[i + 1]);
-          return err;
-        }
+        shell_error(shell, "FAIL: invalid float value");
+        return err;
       }
       break;
-    }
 
     case DATAPOINT_INT:
-    {
-      int32_t *values = (int32_t *)valueStorage;
-      for (size_t i = 0; i < valCount; i++)
+      err = parseIntValues(argv + 1, valCount, valueStorage);
+      if (err < 0)
       {
-        values[i] = shell_strtol(argv[i + 1], 10, &err);
-        if (err < 0)
-        {
-          shell_error(shell, "FAIL %d: invalid int value '%s'", err, argv[i + 1]);
-          return err;
-        }
+        shell_error(shell, "FAIL: invalid int value");
+        return err;
       }
       break;
-    }
 
     case DATAPOINT_MULTI_STATE:
-    {
-      uint8_t *values = (uint8_t *)valueStorage;
-      for (size_t i = 0; i < valCount; i++)
+      err = parseMultiStateValues(argv + 1, valCount, valueStorage);
+      if (err < 0)
       {
-        uint32_t val = shell_strtoul(argv[i + 1], 10, &err);
-        if (err < 0 || val > 255)
-        {
-          shell_error(shell, "FAIL: invalid multi-state value '%s'", argv[i + 1]);
-          return err < 0 ? err : -EINVAL;
-        }
-        values[i] = (uint8_t)val;
+        shell_error(shell, "FAIL: invalid multi-state value");
+        return err;
       }
       break;
-    }
 
     case DATAPOINT_UINT:
-    {
-      uint32_t *values = (uint32_t *)valueStorage;
-      for (size_t i = 0; i < valCount; i++)
+      err = parseUintValues(argv + 1, valCount, valueStorage);
+      if (err < 0)
       {
-        values[i] = shell_strtoul(argv[i + 1], 10, &err);
-        if (err < 0)
-        {
-          shell_error(shell, "FAIL %d: invalid uint value '%s'", err, argv[i + 1]);
-          return err;
-        }
+        shell_error(shell, "FAIL: invalid uint value");
+        return err;
       }
       break;
-    }
 
     default:
       shell_error(shell, "FAIL: unsupported datapoint type");
