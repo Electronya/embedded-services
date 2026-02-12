@@ -107,6 +107,16 @@ const char *getButtonValueString(ButtonState_t value);
 void printTableHeader(const struct shell *shell);
 
 /**
+ * @brief   Print a binary datapoint table line.
+ *
+ * @param[in]   shell: The shell handle.
+ * @param[in]   id: The datapoint ID.
+ * @param[in]   name: The datapoint name.
+ * @param[in]   value: The binary value.
+ */
+void printBinaryLine(const struct shell *shell, uint32_t id, const char *name, bool value);
+
+/**
  * @brief   Print a button datapoint table line.
  *
  * @param[in]   shell: The shell handle.
@@ -125,6 +135,36 @@ void printButtonLine(const struct shell *shell, uint32_t id, const char *name, B
  * @param[in]   value: The float value.
  */
 void printFloatLine(const struct shell *shell, uint32_t id, const char *name, float value);
+
+/**
+ * @brief   Print an int datapoint table line.
+ *
+ * @param[in]   shell: The shell handle.
+ * @param[in]   id: The datapoint ID.
+ * @param[in]   name: The datapoint name.
+ * @param[in]   value: The int value.
+ */
+void printIntLine(const struct shell *shell, uint32_t id, const char *name, int32_t value);
+
+/**
+ * @brief   Print a multi-state datapoint table line.
+ *
+ * @param[in]   shell: The shell handle.
+ * @param[in]   id: The datapoint ID.
+ * @param[in]   name: The datapoint name.
+ * @param[in]   value: The multi-state value.
+ */
+void printMultiStateLine(const struct shell *shell, uint32_t id, const char *name, uint32_t value);
+
+/**
+ * @brief   Print a uint datapoint table line.
+ *
+ * @param[in]   shell: The shell handle.
+ * @param[in]   id: The datapoint ID.
+ * @param[in]   name: The datapoint name.
+ * @param[in]   value: The uint value.
+ */
+void printUintLine(const struct shell *shell, uint32_t id, const char *name, uint32_t value);
 
 /**
  * @brief   Print binary datapoint values.

@@ -60,8 +60,7 @@ static int execList(const struct shell *shell, size_t argc, char **argv)
     switch (entry->type)
     {
       case DATAPOINT_BINARY:
-        shell_print(shell, "%-3u %-40s %-15s %s", entry->id, entry->name, "binary",
-                    ((uint8_t *)&value)[0] ? TRUE_STR : FALSE_STR);
+        printBinaryLine(shell, entry->id, entry->name, ((uint8_t *)&value)[0]);
         break;
 
       case DATAPOINT_BUTTON:
@@ -73,18 +72,15 @@ static int execList(const struct shell *shell, size_t argc, char **argv)
         break;
 
       case DATAPOINT_INT:
-        shell_print(shell, "%-3u %-40s %-15s %d", entry->id, entry->name, "int",
-                    ((int32_t *)&value)[0]);
+        printIntLine(shell, entry->id, entry->name, ((int32_t *)&value)[0]);
         break;
 
       case DATAPOINT_MULTI_STATE:
-        shell_print(shell, "%-3u %-40s %-15s %u", entry->id, entry->name, "multi_state",
-                    ((uint8_t *)&value)[0]);
+        printMultiStateLine(shell, entry->id, entry->name, ((uint32_t *)&value)[0]);
         break;
 
       case DATAPOINT_UINT:
-        shell_print(shell, "%-3u %-40s %-15s %u", entry->id, entry->name, "uint",
-                    ((uint32_t *)&value)[0]);
+        printUintLine(shell, entry->id, entry->name, ((uint32_t *)&value)[0]);
         break;
 
       default:

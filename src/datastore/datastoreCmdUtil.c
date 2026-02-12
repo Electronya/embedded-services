@@ -163,6 +163,11 @@ void printTableHeader(const struct shell *shell)
   shell_print(shell, "%-3s %-40s %-15s %s", "---", "----------------------------------------", "---------------", "--------------------");
 }
 
+void printBinaryLine(const struct shell *shell, uint32_t id, const char *name, bool value)
+{
+  shell_print(shell, "%-3u %-40s %-15s %s", id, name, "binary", value ? TRUE_STR : FALSE_STR);
+}
+
 void printButtonLine(const struct shell *shell, uint32_t id, const char *name, ButtonState_t value)
 {
   shell_print(shell, "%-3u %-40s %-15s %s", id, name, "button", getButtonValueString(value));
@@ -174,6 +179,21 @@ void printFloatLine(const struct shell *shell, uint32_t id, const char *name, fl
 
   snprintf(buffer, sizeof(buffer), "%.6f", (double)value);
   shell_print(shell, "%-3u %-40s %-15s %s", id, name, "float", buffer);
+}
+
+void printIntLine(const struct shell *shell, uint32_t id, const char *name, int32_t value)
+{
+  shell_print(shell, "%-3u %-40s %-15s %d", id, name, "int", value);
+}
+
+void printMultiStateLine(const struct shell *shell, uint32_t id, const char *name, uint32_t value)
+{
+  shell_print(shell, "%-3u %-40s %-15s %u", id, name, "multi_state", value);
+}
+
+void printUintLine(const struct shell *shell, uint32_t id, const char *name, uint32_t value)
+{
+  shell_print(shell, "%-3u %-40s %-15s %u", id, name, "uint", value);
 }
 
 void printBinaryValues(const struct shell *shell, const DatapointEntry_t *entry,
