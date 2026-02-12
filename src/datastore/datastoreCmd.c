@@ -137,6 +137,8 @@ static int execRead(const struct shell *shell, size_t argc, char **argv)
     return err;
   }
 
+  shell_info(shell, "SUCCESS: read %zu value(s) from %s", valCount, entry->name);
+
   /* Print values in format: DATAPOINT_NAME = value */
   switch (entry->type)
   {
@@ -275,7 +277,7 @@ static int execWrite(const struct shell *shell, size_t argc, char **argv)
     return err;
   }
 
-  shell_print(shell, "SUCCESS: wrote %zu value(s) to %s", valCount, entry->name);
+  shell_info(shell, "SUCCESS: wrote %zu value(s) to %s", valCount, entry->name);
   return 0;
 }
 
