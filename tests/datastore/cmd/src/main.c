@@ -817,7 +817,8 @@ ZTEST(datastore_cmd_tests, test_exec_read_multistate_success)
   char arg0[] = "MULTI_STATE_FIRST_DATAPOINT";
   char *argv[] = {arg0};
   int result;
-  const DatapointEntry_t *expectedEntry = &testRegistry[BINARY_DATAPOINT_COUNT + BUTTON_DATAPOINT_COUNT + FLOAT_DATAPOINT_COUNT + INT_DATAPOINT_COUNT];
+  const DatapointEntry_t *expectedEntry = &testRegistry[BINARY_DATAPOINT_COUNT + BUTTON_DATAPOINT_COUNT +
+                                                        FLOAT_DATAPOINT_COUNT + INT_DATAPOINT_COUNT];
 
   /* Setup mocks */
   findDatapointByName_fake.custom_fake = findDatapointByName_with_multistate_entry;
@@ -857,7 +858,8 @@ ZTEST(datastore_cmd_tests, test_exec_read_uint_success)
   char arg0[] = "UINT_FIRST_DATAPOINT";
   char *argv[] = {arg0};
   int result;
-  const DatapointEntry_t *expectedEntry = &testRegistry[BINARY_DATAPOINT_COUNT + BUTTON_DATAPOINT_COUNT + FLOAT_DATAPOINT_COUNT + INT_DATAPOINT_COUNT + MULTI_STATE_DATAPOINT_COUNT];
+  const DatapointEntry_t *expectedEntry = &testRegistry[BINARY_DATAPOINT_COUNT + BUTTON_DATAPOINT_COUNT +
+                                                        FLOAT_DATAPOINT_COUNT + INT_DATAPOINT_COUNT + MULTI_STATE_DATAPOINT_COUNT];
 
   /* Setup mocks */
   findDatapointByName_fake.custom_fake = findDatapointByName_with_uint_entry;
@@ -882,6 +884,600 @@ ZTEST(datastore_cmd_tests, test_exec_read_uint_success)
                 "printUintValues should be called once");
   zassert_equal(printUintValues_fake.arg0_val, shell,
                 "printUintValues should be called with correct shell");
+  zassert_equal(shell_info_call_count, 1,
+                "shell_info should be called once");
+  zassert_equal(shell_error_call_count, 0,
+                "shell_error should not be called on success");
+}
+
+/**
+ * @test execWrite should fail when datapoint is not found.
+ */
+ZTEST(datastore_cmd_tests, test_exec_write_datapoint_not_found)
+{
+  const struct shell *shell = (const struct shell *)0x1234;
+  char arg0[] = "UNKNOWN_DATAPOINT";
+  char arg1[] = "123";
+  char *argv[] = {arg0, arg1};
+  int result;
+
+  /* Setup mocks */
+  findDatapointByName_fake.return_val = -ESRCH;  /* Datapoint not found */
+
+  result = execWrite(shell, 2, argv);
+
+  zassert_not_equal(result, 0, "execWrite should return error when datapoint not found");
+  zassert_equal(result, -ESRCH, "execWrite should return -ESRCH");
+  zassert_equal(findDatapointByName_fake.call_count, 1,
+                "findDatapointByName should be called once");
+  zassert_equal(toUpper_fake.call_count, 1,
+                "toUpper should be called once");
+  zassert_equal(datastoreWrite_fake.call_count, 0,
+                "datastoreWrite should not be called when datapoint not found");
+  zassert_equal(shell_error_call_count, 1,
+                "shell_error should be called once");
+  zassert_equal(shell_info_call_count, 0,
+                "shell_info should not be called on failure");
+}
+
+/**
+ * @test execWrite should fail when no values are provided.
+ */
+ZTEST(datastore_cmd_tests, test_exec_write_no_values)
+{
+  const struct shell *shell = (const struct shell *)0x1234;
+  char arg0[] = "BINARY_FIRST_DATAPOINT";
+  char *argv[] = {arg0};
+  int result;
+
+  /* Setup mocks */
+  findDatapointByName_fake.custom_fake = findDatapointByName_with_entry;
+
+  result = execWrite(shell, 1, argv);
+
+  zassert_not_equal(result, 0, "execWrite should return error when no values provided");
+  zassert_equal(result, -EINVAL, "execWrite should return -EINVAL");
+  zassert_equal(findDatapointByName_fake.call_count, 1,
+                "findDatapointByName should be called once");
+  zassert_equal(toUpper_fake.call_count, 1,
+                "toUpper should be called once");
+  zassert_equal(datastoreWrite_fake.call_count, 0,
+                "datastoreWrite should not be called when no values provided");
+  zassert_equal(shell_error_call_count, 1,
+                "shell_error should be called once");
+  zassert_equal(shell_info_call_count, 0,
+                "shell_info should not be called on failure");
+}
+
+/**
+ * @test execWrite should fail when parsing binary values fails.
+ */
+ZTEST(datastore_cmd_tests, test_exec_write_parse_binary_fails)
+{
+  const struct shell *shell = (const struct shell *)0x1234;
+  char arg0[] = "BINARY_FIRST_DATAPOINT";
+  char arg1[] = "invalid";
+  char *argv[] = {arg0, arg1};
+  int result;
+
+  /* Setup mocks */
+  findDatapointByName_fake.custom_fake = findDatapointByName_with_entry;
+  parseBinaryValues_fake.return_val = -EINVAL;
+
+  result = execWrite(shell, 2, argv);
+
+  zassert_not_equal(result, 0, "execWrite should return error when parse fails");
+  zassert_equal(result, -EINVAL, "execWrite should return -EINVAL");
+  zassert_equal(findDatapointByName_fake.call_count, 1,
+                "findDatapointByName should be called once");
+  zassert_equal(toUpper_fake.call_count, 1,
+                "toUpper should be called once");
+  zassert_equal(parseBinaryValues_fake.call_count, 1,
+                "parseBinaryValues should be called once");
+  zassert_equal(datastoreWrite_fake.call_count, 0,
+                "datastoreWrite should not be called when parse fails");
+  zassert_equal(shell_error_call_count, 1,
+                "shell_error should be called once");
+  zassert_equal(shell_info_call_count, 0,
+                "shell_info should not be called on failure");
+}
+
+/**
+ * @test execWrite should fail when parsing button values fails.
+ */
+ZTEST(datastore_cmd_tests, test_exec_write_parse_button_fails)
+{
+  const struct shell *shell = (const struct shell *)0x1234;
+  char arg0[] = "BUTTON_FIRST_DATAPOINT";
+  char arg1[] = "invalid";
+  char *argv[] = {arg0, arg1};
+  int result;
+
+  /* Setup mocks */
+  findDatapointByName_fake.custom_fake = findDatapointByName_with_button_entry;
+  parseButtonValues_fake.return_val = -EINVAL;
+
+  result = execWrite(shell, 2, argv);
+
+  zassert_not_equal(result, 0, "execWrite should return error when parse fails");
+  zassert_equal(result, -EINVAL, "execWrite should return -EINVAL");
+  zassert_equal(findDatapointByName_fake.call_count, 1,
+                "findDatapointByName should be called once");
+  zassert_equal(toUpper_fake.call_count, 1,
+                "toUpper should be called once");
+  zassert_equal(parseButtonValues_fake.call_count, 1,
+                "parseButtonValues should be called once");
+  zassert_equal(datastoreWrite_fake.call_count, 0,
+                "datastoreWrite should not be called when parse fails");
+  zassert_equal(shell_error_call_count, 1,
+                "shell_error should be called once");
+  zassert_equal(shell_info_call_count, 0,
+                "shell_info should not be called on failure");
+}
+
+/**
+ * @test execWrite should fail when parsing float values fails.
+ */
+ZTEST(datastore_cmd_tests, test_exec_write_parse_float_fails)
+{
+  const struct shell *shell = (const struct shell *)0x1234;
+  char arg0[] = "FLOAT_FIRST_DATAPOINT";
+  char arg1[] = "invalid";
+  char *argv[] = {arg0, arg1};
+  int result;
+
+  /* Setup mocks */
+  findDatapointByName_fake.custom_fake = findDatapointByName_with_float_entry;
+  parseFloatValues_fake.return_val = -EINVAL;
+
+  result = execWrite(shell, 2, argv);
+
+  zassert_not_equal(result, 0, "execWrite should return error when parse fails");
+  zassert_equal(result, -EINVAL, "execWrite should return -EINVAL");
+  zassert_equal(findDatapointByName_fake.call_count, 1,
+                "findDatapointByName should be called once");
+  zassert_equal(toUpper_fake.call_count, 1,
+                "toUpper should be called once");
+  zassert_equal(parseFloatValues_fake.call_count, 1,
+                "parseFloatValues should be called once");
+  zassert_equal(datastoreWrite_fake.call_count, 0,
+                "datastoreWrite should not be called when parse fails");
+  zassert_equal(shell_error_call_count, 1,
+                "shell_error should be called once");
+  zassert_equal(shell_info_call_count, 0,
+                "shell_info should not be called on failure");
+}
+
+/**
+ * @test execWrite should fail when parsing int values fails.
+ */
+ZTEST(datastore_cmd_tests, test_exec_write_parse_int_fails)
+{
+  const struct shell *shell = (const struct shell *)0x1234;
+  char arg0[] = "INT_FIRST_DATAPOINT";
+  char arg1[] = "invalid";
+  char *argv[] = {arg0, arg1};
+  int result;
+
+  /* Setup mocks */
+  findDatapointByName_fake.custom_fake = findDatapointByName_with_int_entry;
+  parseIntValues_fake.return_val = -EINVAL;
+
+  result = execWrite(shell, 2, argv);
+
+  zassert_not_equal(result, 0, "execWrite should return error when parse fails");
+  zassert_equal(result, -EINVAL, "execWrite should return -EINVAL");
+  zassert_equal(findDatapointByName_fake.call_count, 1,
+                "findDatapointByName should be called once");
+  zassert_equal(toUpper_fake.call_count, 1,
+                "toUpper should be called once");
+  zassert_equal(parseIntValues_fake.call_count, 1,
+                "parseIntValues should be called once");
+  zassert_equal(datastoreWrite_fake.call_count, 0,
+                "datastoreWrite should not be called when parse fails");
+  zassert_equal(shell_error_call_count, 1,
+                "shell_error should be called once");
+  zassert_equal(shell_info_call_count, 0,
+                "shell_info should not be called on failure");
+}
+
+/**
+ * @test execWrite should fail when parsing multi-state values fails.
+ */
+ZTEST(datastore_cmd_tests, test_exec_write_parse_multistate_fails)
+{
+  const struct shell *shell = (const struct shell *)0x1234;
+  char arg0[] = "MULTI_STATE_FIRST_DATAPOINT";
+  char arg1[] = "invalid";
+  char *argv[] = {arg0, arg1};
+  int result;
+
+  /* Setup mocks */
+  findDatapointByName_fake.custom_fake = findDatapointByName_with_multistate_entry;
+  parseMultiStateValues_fake.return_val = -EINVAL;
+
+  result = execWrite(shell, 2, argv);
+
+  zassert_not_equal(result, 0, "execWrite should return error when parse fails");
+  zassert_equal(result, -EINVAL, "execWrite should return -EINVAL");
+  zassert_equal(findDatapointByName_fake.call_count, 1,
+                "findDatapointByName should be called once");
+  zassert_equal(toUpper_fake.call_count, 1,
+                "toUpper should be called once");
+  zassert_equal(parseMultiStateValues_fake.call_count, 1,
+                "parseMultiStateValues should be called once");
+  zassert_equal(datastoreWrite_fake.call_count, 0,
+                "datastoreWrite should not be called when parse fails");
+  zassert_equal(shell_error_call_count, 1,
+                "shell_error should be called once");
+  zassert_equal(shell_info_call_count, 0,
+                "shell_info should not be called on failure");
+}
+
+/**
+ * @test execWrite should fail when parsing uint values fails.
+ */
+ZTEST(datastore_cmd_tests, test_exec_write_parse_uint_fails)
+{
+  const struct shell *shell = (const struct shell *)0x1234;
+  char arg0[] = "UINT_FIRST_DATAPOINT";
+  char arg1[] = "invalid";
+  char *argv[] = {arg0, arg1};
+  int result;
+
+  /* Setup mocks */
+  findDatapointByName_fake.custom_fake = findDatapointByName_with_uint_entry;
+  parseUintValues_fake.return_val = -EINVAL;
+
+  result = execWrite(shell, 2, argv);
+
+  zassert_not_equal(result, 0, "execWrite should return error when parse fails");
+  zassert_equal(result, -EINVAL, "execWrite should return -EINVAL");
+  zassert_equal(findDatapointByName_fake.call_count, 1,
+                "findDatapointByName should be called once");
+  zassert_equal(toUpper_fake.call_count, 1,
+                "toUpper should be called once");
+  zassert_equal(parseUintValues_fake.call_count, 1,
+                "parseUintValues should be called once");
+  zassert_equal(datastoreWrite_fake.call_count, 0,
+                "datastoreWrite should not be called when parse fails");
+  zassert_equal(shell_error_call_count, 1,
+                "shell_error should be called once");
+  zassert_equal(shell_info_call_count, 0,
+                "shell_info should not be called on failure");
+}
+
+/**
+ * @test execWrite should fail when datapoint type is unsupported.
+ */
+ZTEST(datastore_cmd_tests, test_exec_write_unsupported_type)
+{
+  const struct shell *shell = (const struct shell *)0x1234;
+  char arg0[] = "UNSUPPORTED_DATAPOINT";
+  char arg1[] = "123";
+  char *argv[] = {arg0, arg1};
+  int result;
+
+  /* Setup mocks */
+  findDatapointByName_fake.custom_fake = findDatapointByName_with_unsupported_entry;
+
+  result = execWrite(shell, 2, argv);
+
+  zassert_not_equal(result, 0, "execWrite should return error when datapoint type is unsupported");
+  zassert_equal(result, -ENOTSUP, "execWrite should return -ENOTSUP");
+  zassert_equal(findDatapointByName_fake.call_count, 1,
+                "findDatapointByName should be called once");
+  zassert_equal(toUpper_fake.call_count, 1,
+                "toUpper should be called once");
+  zassert_equal(datastoreWrite_fake.call_count, 0,
+                "datastoreWrite should not be called when type is unsupported");
+  zassert_equal(shell_error_call_count, 1,
+                "shell_error should be called once");
+  zassert_equal(shell_info_call_count, 0,
+                "shell_info should not be called on failure");
+}
+
+/**
+ * @test execWrite should fail when datastoreWrite fails.
+ */
+ZTEST(datastore_cmd_tests, test_exec_write_datastore_write_fails)
+{
+  const struct shell *shell = (const struct shell *)0x1234;
+  char arg0[] = "BINARY_FIRST_DATAPOINT";
+  char arg1[] = "1";
+  char *argv[] = {arg0, arg1};
+  int result;
+  const DatapointEntry_t *expectedEntry = &testRegistry[0];
+
+  /* Setup mocks */
+  findDatapointByName_fake.custom_fake = findDatapointByName_with_entry;
+  parseBinaryValues_fake.return_val = 0;
+  datastoreWrite_fake.return_val = -EIO;
+
+  result = execWrite(shell, 2, argv);
+
+  zassert_not_equal(result, 0, "execWrite should return error when datastoreWrite fails");
+  zassert_equal(result, -EIO, "execWrite should return the datastoreWrite error code");
+  zassert_equal(findDatapointByName_fake.call_count, 1,
+                "findDatapointByName should be called once");
+  zassert_equal(toUpper_fake.call_count, 1,
+                "toUpper should be called once");
+  zassert_equal(parseBinaryValues_fake.call_count, 1,
+                "parseBinaryValues should be called once");
+  zassert_equal(datastoreWrite_fake.call_count, 1,
+                "datastoreWrite should be called once");
+  zassert_equal(datastoreWrite_fake.arg0_val, expectedEntry->type,
+                "datastoreWrite should be called with correct type");
+  zassert_equal(datastoreWrite_fake.arg1_val, expectedEntry->id,
+                "datastoreWrite should be called with correct ID");
+  zassert_equal(datastoreWrite_fake.arg3_val, 1,
+                "datastoreWrite should be called with count=1");
+  zassert_equal(shell_error_call_count, 1,
+                "shell_error should be called once");
+  zassert_equal(shell_info_call_count, 0,
+                "shell_info should not be called on failure");
+}
+
+/**
+ * @test execWrite should successfully write binary datapoint.
+ */
+ZTEST(datastore_cmd_tests, test_exec_write_binary_success)
+{
+  const struct shell *shell = (const struct shell *)0x1234;
+  char arg0[] = "BINARY_FIRST_DATAPOINT";
+  char arg1[] = "1";
+  char *argv[] = {arg0, arg1};
+  int result;
+  const DatapointEntry_t *expectedEntry = &testRegistry[0];
+
+  /* Setup mocks */
+  findDatapointByName_fake.custom_fake = findDatapointByName_with_entry;
+  parseBinaryValues_fake.return_val = 0;
+  datastoreWrite_fake.return_val = 0;
+
+  result = execWrite(shell, 2, argv);
+
+  zassert_equal(result, 0, "execWrite should return 0 on success");
+  zassert_equal(findDatapointByName_fake.call_count, 1,
+                "findDatapointByName should be called once");
+  zassert_equal(toUpper_fake.call_count, 1,
+                "toUpper should be called once");
+  zassert_equal(parseBinaryValues_fake.call_count, 1,
+                "parseBinaryValues should be called once");
+  zassert_equal(parseBinaryValues_fake.arg0_val, argv + 1,
+                "parseBinaryValues should be called with argv+1");
+  zassert_equal(parseBinaryValues_fake.arg1_val, 1,
+                "parseBinaryValues should be called with valCount=1");
+  zassert_equal(datastoreWrite_fake.call_count, 1,
+                "datastoreWrite should be called once");
+  zassert_equal(datastoreWrite_fake.arg0_val, expectedEntry->type,
+                "datastoreWrite should be called with correct type");
+  zassert_equal(datastoreWrite_fake.arg1_val, expectedEntry->id,
+                "datastoreWrite should be called with correct ID");
+  zassert_equal(datastoreWrite_fake.arg3_val, 1,
+                "datastoreWrite should be called with count=1");
+  zassert_equal(shell_info_call_count, 1,
+                "shell_info should be called once");
+  zassert_equal(shell_error_call_count, 0,
+                "shell_error should not be called on success");
+}
+
+/**
+ * @test execWrite should successfully write button datapoint.
+ */
+ZTEST(datastore_cmd_tests, test_exec_write_button_success)
+{
+  const struct shell *shell = (const struct shell *)0x1234;
+  char arg0[] = "BUTTON_FIRST_DATAPOINT";
+  char arg1[] = "pressed";
+  char *argv[] = {arg0, arg1};
+  int result;
+  const DatapointEntry_t *expectedEntry = &testRegistry[BINARY_DATAPOINT_COUNT];
+
+  /* Setup mocks */
+  findDatapointByName_fake.custom_fake = findDatapointByName_with_button_entry;
+  parseButtonValues_fake.return_val = 0;
+  datastoreWrite_fake.return_val = 0;
+
+  result = execWrite(shell, 2, argv);
+
+  zassert_equal(result, 0, "execWrite should return 0 on success");
+  zassert_equal(findDatapointByName_fake.call_count, 1,
+                "findDatapointByName should be called once");
+  zassert_equal(toUpper_fake.call_count, 1,
+                "toUpper should be called once");
+  zassert_equal(parseButtonValues_fake.call_count, 1,
+                "parseButtonValues should be called once");
+  zassert_equal(parseButtonValues_fake.arg0_val, argv + 1,
+                "parseButtonValues should be called with argv+1");
+  zassert_equal(parseButtonValues_fake.arg1_val, 1,
+                "parseButtonValues should be called with valCount=1");
+  zassert_equal(datastoreWrite_fake.call_count, 1,
+                "datastoreWrite should be called once");
+  zassert_equal(datastoreWrite_fake.arg0_val, expectedEntry->type,
+                "datastoreWrite should be called with correct type");
+  zassert_equal(datastoreWrite_fake.arg1_val, expectedEntry->id,
+                "datastoreWrite should be called with correct ID");
+  zassert_equal(datastoreWrite_fake.arg3_val, 1,
+                "datastoreWrite should be called with count=1");
+  zassert_equal(shell_info_call_count, 1,
+                "shell_info should be called once");
+  zassert_equal(shell_error_call_count, 0,
+                "shell_error should not be called on success");
+}
+
+/**
+ * @test execWrite should successfully write float datapoint.
+ */
+ZTEST(datastore_cmd_tests, test_exec_write_float_success)
+{
+  const struct shell *shell = (const struct shell *)0x1234;
+  char arg0[] = "FLOAT_FIRST_DATAPOINT";
+  char arg1[] = "3.14";
+  char *argv[] = {arg0, arg1};
+  int result;
+  const DatapointEntry_t *expectedEntry = &testRegistry[BINARY_DATAPOINT_COUNT + BUTTON_DATAPOINT_COUNT];
+
+  /* Setup mocks */
+  findDatapointByName_fake.custom_fake = findDatapointByName_with_float_entry;
+  parseFloatValues_fake.return_val = 0;
+  datastoreWrite_fake.return_val = 0;
+
+  result = execWrite(shell, 2, argv);
+
+  zassert_equal(result, 0, "execWrite should return 0 on success");
+  zassert_equal(findDatapointByName_fake.call_count, 1,
+                "findDatapointByName should be called once");
+  zassert_equal(toUpper_fake.call_count, 1,
+                "toUpper should be called once");
+  zassert_equal(parseFloatValues_fake.call_count, 1,
+                "parseFloatValues should be called once");
+  zassert_equal(parseFloatValues_fake.arg0_val, argv + 1,
+                "parseFloatValues should be called with argv+1");
+  zassert_equal(parseFloatValues_fake.arg1_val, 1,
+                "parseFloatValues should be called with valCount=1");
+  zassert_equal(datastoreWrite_fake.call_count, 1,
+                "datastoreWrite should be called once");
+  zassert_equal(datastoreWrite_fake.arg0_val, expectedEntry->type,
+                "datastoreWrite should be called with correct type");
+  zassert_equal(datastoreWrite_fake.arg1_val, expectedEntry->id,
+                "datastoreWrite should be called with correct ID");
+  zassert_equal(datastoreWrite_fake.arg3_val, 1,
+                "datastoreWrite should be called with count=1");
+  zassert_equal(shell_info_call_count, 1,
+                "shell_info should be called once");
+  zassert_equal(shell_error_call_count, 0,
+                "shell_error should not be called on success");
+}
+
+/**
+ * @test execWrite should successfully write int datapoint.
+ */
+ZTEST(datastore_cmd_tests, test_exec_write_int_success)
+{
+  const struct shell *shell = (const struct shell *)0x1234;
+  char arg0[] = "INT_FIRST_DATAPOINT";
+  char arg1[] = "-42";
+  char *argv[] = {arg0, arg1};
+  int result;
+  const DatapointEntry_t *expectedEntry = &testRegistry[BINARY_DATAPOINT_COUNT + BUTTON_DATAPOINT_COUNT + FLOAT_DATAPOINT_COUNT];
+
+  /* Setup mocks */
+  findDatapointByName_fake.custom_fake = findDatapointByName_with_int_entry;
+  parseIntValues_fake.return_val = 0;
+  datastoreWrite_fake.return_val = 0;
+
+  result = execWrite(shell, 2, argv);
+
+  zassert_equal(result, 0, "execWrite should return 0 on success");
+  zassert_equal(findDatapointByName_fake.call_count, 1,
+                "findDatapointByName should be called once");
+  zassert_equal(toUpper_fake.call_count, 1,
+                "toUpper should be called once");
+  zassert_equal(parseIntValues_fake.call_count, 1,
+                "parseIntValues should be called once");
+  zassert_equal(parseIntValues_fake.arg0_val, argv + 1,
+                "parseIntValues should be called with argv+1");
+  zassert_equal(parseIntValues_fake.arg1_val, 1,
+                "parseIntValues should be called with valCount=1");
+  zassert_equal(datastoreWrite_fake.call_count, 1,
+                "datastoreWrite should be called once");
+  zassert_equal(datastoreWrite_fake.arg0_val, expectedEntry->type,
+                "datastoreWrite should be called with correct type");
+  zassert_equal(datastoreWrite_fake.arg1_val, expectedEntry->id,
+                "datastoreWrite should be called with correct ID");
+  zassert_equal(datastoreWrite_fake.arg3_val, 1,
+                "datastoreWrite should be called with count=1");
+  zassert_equal(shell_info_call_count, 1,
+                "shell_info should be called once");
+  zassert_equal(shell_error_call_count, 0,
+                "shell_error should not be called on success");
+}
+
+/**
+ * @test execWrite should successfully write multi-state datapoint.
+ */
+ZTEST(datastore_cmd_tests, test_exec_write_multistate_success)
+{
+  const struct shell *shell = (const struct shell *)0x1234;
+  char arg0[] = "MULTI_STATE_FIRST_DATAPOINT";
+  char arg1[] = "5";
+  char *argv[] = {arg0, arg1};
+  int result;
+  const DatapointEntry_t *expectedEntry = &testRegistry[BINARY_DATAPOINT_COUNT + BUTTON_DATAPOINT_COUNT +
+                                                        FLOAT_DATAPOINT_COUNT + INT_DATAPOINT_COUNT];
+
+  /* Setup mocks */
+  findDatapointByName_fake.custom_fake = findDatapointByName_with_multistate_entry;
+  parseMultiStateValues_fake.return_val = 0;
+  datastoreWrite_fake.return_val = 0;
+
+  result = execWrite(shell, 2, argv);
+
+  zassert_equal(result, 0, "execWrite should return 0 on success");
+  zassert_equal(findDatapointByName_fake.call_count, 1,
+                "findDatapointByName should be called once");
+  zassert_equal(toUpper_fake.call_count, 1,
+                "toUpper should be called once");
+  zassert_equal(parseMultiStateValues_fake.call_count, 1,
+                "parseMultiStateValues should be called once");
+  zassert_equal(parseMultiStateValues_fake.arg0_val, argv + 1,
+                "parseMultiStateValues should be called with argv+1");
+  zassert_equal(parseMultiStateValues_fake.arg1_val, 1,
+                "parseMultiStateValues should be called with valCount=1");
+  zassert_equal(datastoreWrite_fake.call_count, 1,
+                "datastoreWrite should be called once");
+  zassert_equal(datastoreWrite_fake.arg0_val, expectedEntry->type,
+                "datastoreWrite should be called with correct type");
+  zassert_equal(datastoreWrite_fake.arg1_val, expectedEntry->id,
+                "datastoreWrite should be called with correct ID");
+  zassert_equal(datastoreWrite_fake.arg3_val, 1,
+                "datastoreWrite should be called with count=1");
+  zassert_equal(shell_info_call_count, 1,
+                "shell_info should be called once");
+  zassert_equal(shell_error_call_count, 0,
+                "shell_error should not be called on success");
+}
+
+/**
+ * @test execWrite should successfully write uint datapoint.
+ */
+ZTEST(datastore_cmd_tests, test_exec_write_uint_success)
+{
+  const struct shell *shell = (const struct shell *)0x1234;
+  char arg0[] = "UINT_FIRST_DATAPOINT";
+  char arg1[] = "42";
+  char *argv[] = {arg0, arg1};
+  int result;
+  const DatapointEntry_t *expectedEntry = &testRegistry[BINARY_DATAPOINT_COUNT + BUTTON_DATAPOINT_COUNT +
+                                                        FLOAT_DATAPOINT_COUNT + INT_DATAPOINT_COUNT + MULTI_STATE_DATAPOINT_COUNT];
+
+  /* Setup mocks */
+  findDatapointByName_fake.custom_fake = findDatapointByName_with_uint_entry;
+  parseUintValues_fake.return_val = 0;
+  datastoreWrite_fake.return_val = 0;
+
+  result = execWrite(shell, 2, argv);
+
+  zassert_equal(result, 0, "execWrite should return 0 on success");
+  zassert_equal(findDatapointByName_fake.call_count, 1,
+                "findDatapointByName should be called once");
+  zassert_equal(toUpper_fake.call_count, 1,
+                "toUpper should be called once");
+  zassert_equal(parseUintValues_fake.call_count, 1,
+                "parseUintValues should be called once");
+  zassert_equal(parseUintValues_fake.arg0_val, argv + 1,
+                "parseUintValues should be called with argv+1");
+  zassert_equal(parseUintValues_fake.arg1_val, 1,
+                "parseUintValues should be called with valCount=1");
+  zassert_equal(datastoreWrite_fake.call_count, 1,
+                "datastoreWrite should be called once");
+  zassert_equal(datastoreWrite_fake.arg0_val, expectedEntry->type,
+                "datastoreWrite should be called with correct type");
+  zassert_equal(datastoreWrite_fake.arg1_val, expectedEntry->id,
+                "datastoreWrite should be called with correct ID");
+  zassert_equal(datastoreWrite_fake.arg3_val, 1,
+                "datastoreWrite should be called with count=1");
   zassert_equal(shell_info_call_count, 1,
                 "shell_info should be called once");
   zassert_equal(shell_error_call_count, 0,
