@@ -399,6 +399,45 @@ ZTEST(datastore_cmd_tests, test_exec_list_datastore_read_fails)
 }
 
 /**
+ * @test execList should handle unsupported datapoint type.
+ */
+ZTEST(datastore_cmd_tests, test_exec_list_unsupported_type)
+{
+  const struct shell *shell = (const struct shell *)0x1234;
+  char arg0[] = "list";
+  char *argv[] = {arg0};
+  int result;
+
+  /* Setup mocks - use registry with only unsupported entry */
+  getDatapointRegistry_fake.return_val = &unsupportedEntry;
+  getDatapointRegistrySize_fake.return_val = 1;
+  datastoreRead_fake.return_val = 0;
+  getTypeName_fake.return_val = "UNSUPPORTED";
+
+  result = execList(shell, 1, argv);
+
+  zassert_equal(result, 0, "execList should return 0 even with unsupported type");
+  zassert_equal(getDatapointRegistry_fake.call_count, 1,
+                "getDatapointRegistry should be called once");
+  zassert_equal(getDatapointRegistrySize_fake.call_count, 1,
+                "getDatapointRegistrySize should be called once");
+  zassert_equal(printTableHeader_fake.call_count, 1,
+                "printTableHeader should be called once");
+  zassert_equal(datastoreRead_fake.call_count, 1,
+                "datastoreRead should be called once");
+  zassert_equal(datastoreRead_fake.arg0_val, unsupportedEntry.type,
+                "datastoreRead should be called with unsupported type");
+  zassert_equal(datastoreRead_fake.arg1_val, unsupportedEntry.id,
+                "datastoreRead should be called with correct ID");
+  zassert_equal(getTypeName_fake.call_count, 1,
+                "getTypeName should be called for unsupported type");
+  zassert_equal(getTypeName_fake.arg0_val, unsupportedEntry.type,
+                "getTypeName should be called with unsupported type");
+  zassert_equal(shell_print_call_count, 1,
+                "shell_print should be called once for UNKNOWN TYPE");
+}
+
+/**
  * @test execList should successfully list all datapoints.
  */
 ZTEST(datastore_cmd_tests, test_exec_list_success)
