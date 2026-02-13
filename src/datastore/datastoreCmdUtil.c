@@ -119,6 +119,7 @@ int parseBool(const char *str, bool *value)
     *value = false;
     return 0;
   }
+
   return -EINVAL;
 }
 
@@ -139,6 +140,7 @@ int parseButtonValue(const char *str, ButtonState_t *value)
     *value = BUTTON_LONG_PRESSED;
     return 0;
   }
+
   return -EINVAL;
 }
 
