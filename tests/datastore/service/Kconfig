@@ -1,0 +1,12 @@
+# Copyright (C) 2025 by Electronya
+# SPDX-License-Identifier: Apache-2.0
+
+config ENYA_DATASTORE_MSGQ_TIMEOUT
+	int "Datastore message queue timeout in milliseconds"
+	default 1
+	help
+	  Timeout for k_msgq_get operations in the datastore service.
+	  Set to 0 for immediate return (K_NO_WAIT behavior).
+	  Set to >0 for timeout in milliseconds.
+
+source "Kconfig.zephyr"
