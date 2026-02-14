@@ -21,6 +21,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/**
+ * @brief   The data union for data transmission between services.
+ */
 typedef union
 {
   float floatVal;                 /**< Float value. */

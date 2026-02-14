@@ -28,11 +28,6 @@ LOG_MODULE_REGISTER(DATASTORE_LOGGER_NAME, CONFIG_ENYA_DATASTORE_LOG_LEVEL);
 #endif
 
 /**
- * @brief   The datastore service stack size.
- */
-#define DATASTORE_STACK_SIZE                                    (512)
-
-/**
  * @brief   The datastore response timeout [ms].
  */
 #define DATASTORE_RESPONSE_TIMEOUT                              (5)
@@ -45,7 +40,7 @@ LOG_MODULE_REGISTER(DATASTORE_LOGGER_NAME, CONFIG_ENYA_DATASTORE_LOG_LEVEL);
 /**
  * @brief The thread stack.
 */
-K_THREAD_STACK_DEFINE(datastoreStack, DATASTORE_STACK_SIZE);
+K_THREAD_STACK_DEFINE(datastoreStack, CONFIG_ENYA_DATASTORE_STACK_SIZE);
 
 /**
  * @brief   The datastore message type.
@@ -111,7 +106,10 @@ static void run(void *p1, void *p2, void *p3)
     err = k_msgq_get(&datastoreQueue, &msg, K_MSEC(CONFIG_ENYA_DATASTORE_MSGQ_TIMEOUT));
     if(err < 0)
     {
-      LOG_ERR("ERROR %d: unable to get a message", err);
+      if(err != -EAGAIN)
+      {
+        LOG_ERR("ERROR %d: unable to get a message", err);
+      }
       continue;
     }
 
@@ -173,7 +171,7 @@ int datastoreInit(size_t maxSubs[DATAPOINT_TYPE_COUNT], uint32_t priority, k_tid
   if(!bufferPool)
     return -ENOSPC;
 
-  *threadId = k_thread_create(&thread, datastoreStack, DATASTORE_STACK_SIZE, run,
+  *threadId = k_thread_create(&thread, datastoreStack, CONFIG_ENYA_DATASTORE_STACK_SIZE, run,
                               NULL, NULL, NULL, K_PRIO_PREEMPT(priority), 0, K_FOREVER);
 
   err = k_thread_name_set(*threadId, STRINGIFY(DATASTORE_LOGGER_NAME));
