@@ -112,8 +112,12 @@ int serviceMngrUtilAddSrvToRegistry(const ServiceDescriptor_t *descriptor)
   }
 
   /* Add service to registry */
-  serviceRegistry[registeredServiceCount] = *descriptor;
+  memcpy(&serviceRegistry[registeredServiceCount], descriptor, sizeof(ServiceDescriptor_t));
+
+  /* Initialize runtime fields */
+  serviceRegistry[registeredServiceCount].lastHeartbeatMs = 0;
   serviceRegistry[registeredServiceCount].missedHeartbeats = 0;
+  serviceRegistry[registeredServiceCount].state = SVC_STATE_STOPPED;
 
   registeredServiceCount++;
 
@@ -124,36 +128,172 @@ int serviceMngrUtilAddSrvToRegistry(const ServiceDescriptor_t *descriptor)
   return 0;
 }
 
-int serviceMngrUtilStartServices(void)
+ServiceDescriptor_t *serviceMngrUtilGetRegEntryByIndex(size_t index)
 {
-  size_t startedCount = 0;
-  const char *threadName;
-
-  /* Start services in priority order: CRITICAL -> CORE -> APPLICATION */
-  for(ServicePriority_t priority = SVC_PRIORITY_CRITICAL; priority < SVC_PRIORITY_COUNT; priority++)
+  /* Validate index */
+  if(index >= registeredServiceCount)
   {
-    /* Iterate through registry and start services with current priority */
-    for(size_t i = 0; i < registeredServiceCount; i++)
+    LOG_ERR("ERROR %d: index out of bounds", -EINVAL);
+    return NULL;
+  }
+
+  return &serviceRegistry[index];
+}
+
+int serviceMngrUtilGetIndexFromId(k_tid_t threadId)
+{
+  /* Validate thread ID */
+  if(threadId == NULL)
+  {
+    LOG_ERR("ERROR %d: thread ID is NULL", -EINVAL);
+    return -EINVAL;
+  }
+
+  /* Search for thread ID in registry */
+  for(size_t i = 0; i < registeredServiceCount; i++)
+  {
+    if(serviceRegistry[i].threadId == threadId)
     {
-      if(serviceRegistry[i].priority == priority)
-      {
-        /* Resume the service thread */
-        k_thread_resume(serviceRegistry[i].threadId);
-        startedCount++;
-
-        /* Get thread name for logging */
-        threadName = k_thread_name_get(serviceRegistry[i].threadId);
-        if(threadName == NULL)
-        {
-          threadName = "<unknown>";
-        }
-
-        LOG_INF("service started (name: %s, priority: %d)", threadName, priority);
-      }
+      return (int)i;
     }
   }
 
-  LOG_INF("all services started (count: %d)", startedCount);
+  LOG_ERR("ERROR %d: thread ID not found in registry", -ENOENT);
+  return -ENOENT;
+}
+
+int serviceMngrUtilStartService(size_t index)
+{
+  int err;
+
+  /* Validate index */
+  if(index >= registeredServiceCount)
+  {
+    LOG_ERR("ERROR %d: index out of bounds", -EINVAL);
+    return -EINVAL;
+  }
+
+  /* Validate start callback */
+  if(serviceRegistry[index].start == NULL)
+  {
+    LOG_ERR("ERROR %d: start callback is NULL", -EINVAL);
+    return -EINVAL;
+  }
+
+  /* Call start callback */
+  err = serviceRegistry[index].start();
+  if(err < 0)
+  {
+    LOG_ERR("ERROR %d: service start callback failed", err);
+    return err;
+  }
+
+  /* Update service state */
+  serviceRegistry[index].state = SVC_STATE_RUNNING;
+
+  LOG_INF("service started (index: %zu)", index);
+
+  return 0;
+}
+
+int serviceMngrUtilStopService(size_t index)
+{
+  int err;
+
+  /* Validate index */
+  if(index >= registeredServiceCount)
+  {
+    LOG_ERR("ERROR %d: index out of bounds", -EINVAL);
+    return -EINVAL;
+  }
+
+  /* Validate stop callback */
+  if(serviceRegistry[index].stop == NULL)
+  {
+    LOG_ERR("ERROR %d: stop callback is NULL", -EINVAL);
+    return -EINVAL;
+  }
+
+  /* Call stop callback */
+  err = serviceRegistry[index].stop();
+  if(err < 0)
+  {
+    LOG_ERR("ERROR %d: service stop callback failed", err);
+    return err;
+  }
+
+  /* Update service state */
+  serviceRegistry[index].state = SVC_STATE_STOPPED;
+
+  LOG_INF("service stopped (index: %zu)", index);
+
+  return 0;
+}
+
+int serviceMngrUtilSuspendService(size_t index)
+{
+  int err;
+
+  /* Validate index */
+  if(index >= registeredServiceCount)
+  {
+    LOG_ERR("ERROR %d: index out of bounds", -EINVAL);
+    return -EINVAL;
+  }
+
+  /* Validate suspend callback */
+  if(serviceRegistry[index].suspend == NULL)
+  {
+    LOG_ERR("ERROR %d: suspend callback is NULL", -EINVAL);
+    return -EINVAL;
+  }
+
+  /* Call suspend callback */
+  err = serviceRegistry[index].suspend();
+  if(err < 0)
+  {
+    LOG_ERR("ERROR %d: service suspend callback failed", err);
+    return err;
+  }
+
+  /* Update service state */
+  serviceRegistry[index].state = SVC_STATE_SUSPENDED;
+
+  LOG_INF("service suspended (index: %zu)", index);
+
+  return 0;
+}
+
+int serviceMngrUtilResumeService(size_t index)
+{
+  int err;
+
+  /* Validate index */
+  if(index >= registeredServiceCount)
+  {
+    LOG_ERR("ERROR %d: index out of bounds", -EINVAL);
+    return -EINVAL;
+  }
+
+  /* Validate resume callback */
+  if(serviceRegistry[index].resume == NULL)
+  {
+    LOG_ERR("ERROR %d: resume callback is NULL", -EINVAL);
+    return -EINVAL;
+  }
+
+  /* Call resume callback */
+  err = serviceRegistry[index].resume();
+  if(err < 0)
+  {
+    LOG_ERR("ERROR %d: service resume callback failed", err);
+    return err;
+  }
+
+  /* Update service state */
+  serviceRegistry[index].state = SVC_STATE_RUNNING;
+
+  LOG_INF("service resumed (index: %zu)", index);
 
   return 0;
 }

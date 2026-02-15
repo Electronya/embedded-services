@@ -25,8 +25,6 @@ DEFINE_FFF_GLOBALS;
 #define device_is_ready device_is_ready_mock
 #define wdt_install_timeout wdt_install_timeout_mock
 #define wdt_setup wdt_setup_mock
-#define k_thread_resume k_thread_resume_mock
-#define k_thread_name_get k_thread_name_get_mock
 
 /* Define watchdog types manually */
 struct wdt_timeout_cfg {
@@ -53,8 +51,10 @@ struct wdt_timeout_cfg {
   FAKE(device_is_ready_mock) \
   FAKE(wdt_install_timeout_mock) \
   FAKE(wdt_setup_mock) \
-  FAKE(k_thread_resume_mock) \
-  FAKE(k_thread_name_get_mock)
+  FAKE(mock_start_callback) \
+  FAKE(mock_stop_callback) \
+  FAKE(mock_suspend_callback) \
+  FAKE(mock_resume_callback)
 
 /* Setup logging */
 #include <zephyr/logging/log.h>
@@ -68,9 +68,11 @@ FAKE_VALUE_FUNC(bool, device_is_ready_mock, const struct device *);
 FAKE_VALUE_FUNC(int, wdt_install_timeout_mock, const struct device *, const struct wdt_timeout_cfg *);
 FAKE_VALUE_FUNC(int, wdt_setup_mock, const struct device *, uint8_t);
 
-/* Mock thread functions */
-FAKE_VOID_FUNC(k_thread_resume_mock, k_tid_t);
-FAKE_VALUE_FUNC(const char *, k_thread_name_get_mock, k_tid_t);
+/* Mock service callback functions */
+FAKE_VALUE_FUNC(int, mock_start_callback);
+FAKE_VALUE_FUNC(int, mock_stop_callback);
+FAKE_VALUE_FUNC(int, mock_suspend_callback);
+FAKE_VALUE_FUNC(int, mock_resume_callback);
 
 /* Storage for captured watchdog timeout config */
 static struct wdt_timeout_cfg captured_wdt_cfg;
@@ -120,6 +122,36 @@ static void util_tests_before(void *fixture)
 
   /* Clear captured config */
   memset(&captured_wdt_cfg, 0, sizeof(captured_wdt_cfg));
+
+  /* Clear and populate service registry */
+  memset(serviceRegistry, 0, sizeof(serviceRegistry));
+
+  /* Add test descriptors at various indices */
+  serviceRegistry[0].threadId = (k_tid_t)0x1000;
+  serviceRegistry[0].priority = SVC_PRIORITY_CRITICAL;
+  serviceRegistry[0].heartbeatIntervalMs = 500;
+  serviceRegistry[0].start = mock_start_callback;
+  serviceRegistry[0].stop = mock_stop_callback;
+  serviceRegistry[0].suspend = mock_suspend_callback;
+  serviceRegistry[0].resume = mock_resume_callback;
+
+  serviceRegistry[5].threadId = (k_tid_t)0x5000;
+  serviceRegistry[5].priority = SVC_PRIORITY_APPLICATION;
+  serviceRegistry[5].heartbeatIntervalMs = 2000;
+  serviceRegistry[5].start = mock_start_callback;
+  serviceRegistry[5].stop = mock_stop_callback;
+  serviceRegistry[5].suspend = mock_suspend_callback;
+  serviceRegistry[5].resume = mock_resume_callback;
+
+  serviceRegistry[7].threadId = (k_tid_t)0x7000;
+  serviceRegistry[7].priority = SVC_PRIORITY_CORE;
+  serviceRegistry[7].heartbeatIntervalMs = 1000;
+  serviceRegistry[7].start = mock_start_callback;
+  serviceRegistry[7].stop = mock_stop_callback;
+  serviceRegistry[7].suspend = mock_suspend_callback;
+  serviceRegistry[7].resume = mock_resume_callback;
+
+  registeredServiceCount = 8;
 }
 
 /**
@@ -248,15 +280,14 @@ ZTEST(serviceMngrUtil, test_addSrvToRegistry_registryFull)
   int result;
   ServiceDescriptor_t descriptor;
 
-  /* Initialize registry */
-  serviceMngrUtilInitSrvRegistry();
-
   /* Fill the registry to capacity */
   descriptor.threadId = (k_tid_t)0x1000;
   descriptor.priority = SVC_PRIORITY_CORE;
   descriptor.heartbeatIntervalMs = 1000;
   descriptor.missedHeartbeats = 0;
 
+  /* Clear registry and fill it */
+  registeredServiceCount = 0;
   for (size_t i = 0; i < CONFIG_SVC_MGR_MAX_SERVICES; i++) {
     result = serviceMngrUtilAddSrvToRegistry(&descriptor);
     zassert_equal(result, 0, "Should succeed adding service %zu", i);
@@ -276,9 +307,6 @@ ZTEST(serviceMngrUtil, test_addSrvToRegistry_nullThreadId)
 {
   int result;
   ServiceDescriptor_t descriptor;
-
-  /* Initialize registry */
-  serviceMngrUtilInitSrvRegistry();
 
   /* Setup descriptor with NULL thread ID */
   descriptor.threadId = NULL;
@@ -301,9 +329,6 @@ ZTEST(serviceMngrUtil, test_addSrvToRegistry_invalidPriority)
   int result;
   ServiceDescriptor_t descriptor;
 
-  /* Initialize registry */
-  serviceMngrUtilInitSrvRegistry();
-
   /* Setup descriptor with invalid priority */
   descriptor.threadId = (k_tid_t)0x1000;
   descriptor.priority = SVC_PRIORITY_COUNT;  /* Invalid: equal to count */
@@ -325,9 +350,6 @@ ZTEST(serviceMngrUtil, test_addSrvToRegistry_zeroHeartbeatInterval)
   int result;
   ServiceDescriptor_t descriptor;
 
-  /* Initialize registry */
-  serviceMngrUtilInitSrvRegistry();
-
   /* Setup descriptor with zero heartbeat interval */
   descriptor.threadId = (k_tid_t)0x1000;
   descriptor.priority = SVC_PRIORITY_CORE;
@@ -347,137 +369,408 @@ ZTEST(serviceMngrUtil, test_addSrvToRegistry_zeroHeartbeatInterval)
 ZTEST(serviceMngrUtil, test_addSrvToRegistry_success)
 {
   int result;
-  ServiceDescriptor_t descriptor;
+  ServiceDescriptor_t descriptor = {0};
 
-  /* Initialize registry */
-  serviceMngrUtilInitSrvRegistry();
+  /* Clear registry for this test */
+  registeredServiceCount = 0;
 
-  /* Setup valid descriptor */
+  /* Setup valid descriptor with all fields */
   descriptor.threadId = (k_tid_t)0x1000;
   descriptor.priority = SVC_PRIORITY_CORE;
   descriptor.heartbeatIntervalMs = 1000;
-  descriptor.missedHeartbeats = 5;  /* Should be reset to 0 */
+  descriptor.lastHeartbeatMs = 999;  /* Should be reset to 0 */
+  descriptor.missedHeartbeats = 5;   /* Should be reset to 0 */
+  descriptor.state = SVC_STATE_RUNNING;  /* Should be set to STOPPED */
+  descriptor.start = NULL;
+  descriptor.stop = NULL;
+  descriptor.suspend = NULL;
+  descriptor.resume = NULL;
 
   /* Execute */
   result = serviceMngrUtilAddSrvToRegistry(&descriptor);
 
-  /* Verify */
+  /* Verify result */
   zassert_equal(result, 0, "Expected success (0)");
 
-  /* Add another service to verify count increments */
-  descriptor.threadId = (k_tid_t)0x2000;
-  descriptor.priority = SVC_PRIORITY_APPLICATION;
-  descriptor.heartbeatIntervalMs = 2000;
+  /* Verify descriptor was copied correctly */
+  zassert_equal(serviceRegistry[0].threadId, (k_tid_t)0x1000,
+                "Thread ID should be copied");
+  zassert_equal(serviceRegistry[0].priority, SVC_PRIORITY_CORE,
+                "Priority should be copied");
+  zassert_equal(serviceRegistry[0].heartbeatIntervalMs, 1000,
+                "Heartbeat interval should be copied");
+  zassert_is_null(serviceRegistry[0].start,
+                "Start callback should be copied");
+  zassert_is_null(serviceRegistry[0].stop,
+                "Stop callback should be copied");
+  zassert_is_null(serviceRegistry[0].suspend,
+                "Suspend callback should be copied");
+  zassert_is_null(serviceRegistry[0].resume,
+                "Resume callback should be copied");
 
-  result = serviceMngrUtilAddSrvToRegistry(&descriptor);
-  zassert_equal(result, 0, "Expected success (0) for second service");
+  /* Verify runtime fields were initialized */
+  zassert_equal(serviceRegistry[0].lastHeartbeatMs, 0,
+                "Last heartbeat should be initialized to 0");
+  zassert_equal(serviceRegistry[0].missedHeartbeats, 0,
+                "Missed heartbeats should be initialized to 0");
+  zassert_equal(serviceRegistry[0].state, SVC_STATE_STOPPED,
+                "State should be initialized to STOPPED");
 }
 
 /**
- * @test The serviceMngrUtilStartServices function must succeed when registry is empty.
+ * @test The serviceMngrUtilGetRegEntryByIndex function must return NULL when index is out of bounds.
  */
-ZTEST(serviceMngrUtil, test_startServices_emptyRegistry)
+ZTEST(serviceMngrUtil, test_getRegEntryByIndex_indexOutOfBounds)
 {
-  int result;
+  ServiceDescriptor_t *entry;
 
-  /* Initialize empty registry */
-  serviceMngrUtilInitSrvRegistry();
+  /* Set empty registry */
+  registeredServiceCount = 0;
 
-  /* Mock thread name get to return valid names */
-  k_thread_name_get_mock_fake.return_val = "test_service";
-
-  /* Call function under test */
-  result = serviceMngrUtilStartServices();
+  /* Try to get entry at index 0 from empty registry */
+  entry = serviceMngrUtilGetRegEntryByIndex(0);
 
   /* Verify */
-  zassert_equal(result, 0, "Expected success (0) with empty registry");
-  zassert_equal(k_thread_resume_mock_fake.call_count, 0, "k_thread_resume should not be called with empty registry");
+  zassert_is_null(entry, "Expected NULL for index out of bounds");
 }
 
 /**
- * @test The serviceMngrUtilStartServices function must start services in priority order.
+ * @test The serviceMngrUtilGetRegEntryByIndex function must successfully retrieve registry entry by index.
  */
-ZTEST(serviceMngrUtil, test_startServices_priorityOrder)
+ZTEST(serviceMngrUtil, test_getRegEntryByIndex_success)
+{
+  ServiceDescriptor_t *entry;
+
+  /* Get entry at index 5 (setup already populated it) */
+  entry = serviceMngrUtilGetRegEntryByIndex(5);
+
+  /* Verify */
+  zassert_not_null(entry, "Expected valid pointer");
+  zassert_equal(entry->threadId, (k_tid_t)0x5000, "Thread ID should match");
+  zassert_equal(entry->priority, SVC_PRIORITY_APPLICATION, "Priority should match");
+  zassert_equal(entry->heartbeatIntervalMs, 2000, "Heartbeat interval should match");
+}
+
+/**
+ * @test The serviceMngrUtilGetIndexFromId function must return error when thread ID is NULL.
+ */
+ZTEST(serviceMngrUtil, test_getIndexFromId_nullThreadId)
 {
   int result;
-  ServiceDescriptor_t descriptor;
-  k_tid_t criticalThread = (k_tid_t)0x1000;
-  k_tid_t coreThread = (k_tid_t)0x2000;
-  k_tid_t appThread = (k_tid_t)0x3000;
 
-  /* Initialize registry */
-  serviceMngrUtilInitSrvRegistry();
+  /* Execute with NULL thread ID */
+  result = serviceMngrUtilGetIndexFromId(NULL);
 
-  /* Add services in non-priority order to verify sorting */
-  /* Add CORE service first */
-  descriptor.threadId = coreThread;
-  descriptor.priority = SVC_PRIORITY_CORE;
-  descriptor.heartbeatIntervalMs = 1000;
-  descriptor.missedHeartbeats = 0;
-  serviceMngrUtilAddSrvToRegistry(&descriptor);
+  /* Verify */
+  zassert_equal(result, -EINVAL, "Expected -EINVAL for NULL thread ID");
+}
 
-  /* Add APPLICATION service */
-  descriptor.threadId = appThread;
-  descriptor.priority = SVC_PRIORITY_APPLICATION;
-  descriptor.heartbeatIntervalMs = 2000;
-  serviceMngrUtilAddSrvToRegistry(&descriptor);
+/**
+ * @test The serviceMngrUtilGetIndexFromId function must return error when thread ID is not found.
+ */
+ZTEST(serviceMngrUtil, test_getIndexFromId_threadIdNotFound)
+{
+  int result;
 
-  /* Add CRITICAL service last */
-  descriptor.threadId = criticalThread;
-  descriptor.priority = SVC_PRIORITY_CRITICAL;
-  descriptor.heartbeatIntervalMs = 500;
-  serviceMngrUtilAddSrvToRegistry(&descriptor);
+  /* Search for non-existent thread ID (setup has 0x1000, 0x5000, 0x7000) */
+  result = serviceMngrUtilGetIndexFromId((k_tid_t)0x9999);
 
-  /* Mock thread name get to return valid names */
-  k_thread_name_get_mock_fake.return_val = "test_service";
+  /* Verify */
+  zassert_equal(result, -ENOENT, "Expected -ENOENT when thread ID not found");
+}
 
-  /* Call function under test */
-  result = serviceMngrUtilStartServices();
+/**
+ * @test The serviceMngrUtilGetIndexFromId function must successfully return index for matching thread ID.
+ */
+ZTEST(serviceMngrUtil, test_getIndexFromId_success)
+{
+  int result;
+
+  /* Search for thread ID at index 7 (setup already populated it) */
+  result = serviceMngrUtilGetIndexFromId((k_tid_t)0x7000);
+
+  /* Verify */
+  zassert_equal(result, 7, "Expected index 7 for thread ID 0x7000");
+}
+
+/**
+ * @test The serviceMngrUtilStartService function must return error when index is out of bounds.
+ */
+ZTEST(serviceMngrUtil, test_startService_indexOutOfBounds)
+{
+  int result;
+
+  /* Execute with index beyond registered count (setup has count = 8) */
+  result = serviceMngrUtilStartService(8);
+
+  /* Verify */
+  zassert_equal(result, -EINVAL, "Expected -EINVAL for index out of bounds");
+}
+
+/**
+ * @test The serviceMngrUtilStartService function must return error when start callback is NULL.
+ */
+ZTEST(serviceMngrUtil, test_startService_nullCallback)
+{
+  int result;
+
+  /* Set callback to NULL at index 5 */
+  serviceRegistry[5].start = NULL;
+
+  /* Execute */
+  result = serviceMngrUtilStartService(5);
+
+  /* Verify */
+  zassert_equal(result, -EINVAL, "Expected -EINVAL for NULL start callback");
+}
+
+/**
+ * @test The serviceMngrUtilStartService function must return error when start callback fails.
+ */
+ZTEST(serviceMngrUtil, test_startService_callbackFails)
+{
+  int result;
+
+  /* Setup mock to fail */
+  mock_start_callback_fake.return_val = -EIO;
+
+  /* Execute */
+  result = serviceMngrUtilStartService(5);
+
+  /* Verify */
+  zassert_equal(result, -EIO, "Expected -EIO when start callback fails");
+  zassert_equal(mock_start_callback_fake.call_count, 1, "Start callback should be called once");
+}
+
+/**
+ * @test The serviceMngrUtilStartService function must successfully start service.
+ */
+ZTEST(serviceMngrUtil, test_startService_success)
+{
+  int result;
+
+  /* Setup mock to succeed */
+  mock_start_callback_fake.return_val = 0;
+
+  /* Execute */
+  result = serviceMngrUtilStartService(5);
 
   /* Verify result */
   zassert_equal(result, 0, "Expected success (0)");
-  zassert_equal(k_thread_resume_mock_fake.call_count, 3, "k_thread_resume should be called 3 times");
+  zassert_equal(mock_start_callback_fake.call_count, 1, "Start callback should be called once");
 
-  /* Verify services were started in priority order: CRITICAL, CORE, APPLICATION */
-  zassert_equal(k_thread_resume_mock_fake.arg0_history[0], criticalThread,
-                "First service started should be CRITICAL");
-  zassert_equal(k_thread_resume_mock_fake.arg0_history[1], coreThread,
-                "Second service started should be CORE");
-  zassert_equal(k_thread_resume_mock_fake.arg0_history[2], appThread,
-                "Third service started should be APPLICATION");
-
-  /* Verify k_thread_name_get was called for each service */
-  zassert_equal(k_thread_name_get_mock_fake.call_count, 3, "k_thread_name_get should be called 3 times");
+  /* Verify service state was updated */
+  zassert_equal(serviceRegistry[5].state, SVC_STATE_RUNNING, "Service state should be RUNNING");
 }
 
 /**
- * @test The serviceMngrUtilStartServices function must handle NULL thread names gracefully.
+ * @test The serviceMngrUtilStopService function must return error when index is out of bounds.
  */
-ZTEST(serviceMngrUtil, test_startServices_nullThreadName)
+ZTEST(serviceMngrUtil, test_stopService_indexOutOfBounds)
 {
   int result;
-  ServiceDescriptor_t descriptor;
 
-  /* Initialize registry */
-  serviceMngrUtilInitSrvRegistry();
-
-  /* Add one service */
-  descriptor.threadId = (k_tid_t)0x1000;
-  descriptor.priority = SVC_PRIORITY_CORE;
-  descriptor.heartbeatIntervalMs = 1000;
-  descriptor.missedHeartbeats = 0;
-  serviceMngrUtilAddSrvToRegistry(&descriptor);
-
-  /* Mock thread name get to return NULL */
-  k_thread_name_get_mock_fake.return_val = NULL;
-
-  /* Call function under test - should handle NULL gracefully */
-  result = serviceMngrUtilStartServices();
+  /* Execute with index beyond registered count (setup has count = 8) */
+  result = serviceMngrUtilStopService(8);
 
   /* Verify */
-  zassert_equal(result, 0, "Expected success (0) even with NULL thread name");
-  zassert_equal(k_thread_resume_mock_fake.call_count, 1, "k_thread_resume should be called once");
-  zassert_equal(k_thread_name_get_mock_fake.call_count, 1, "k_thread_name_get should be called once");
+  zassert_equal(result, -EINVAL, "Expected -EINVAL for index out of bounds");
+}
+
+/**
+ * @test The serviceMngrUtilStopService function must return error when stop callback is NULL.
+ */
+ZTEST(serviceMngrUtil, test_stopService_nullCallback)
+{
+  int result;
+
+  /* Set callback to NULL at index 5 */
+  serviceRegistry[5].stop = NULL;
+
+  /* Execute */
+  result = serviceMngrUtilStopService(5);
+
+  /* Verify */
+  zassert_equal(result, -EINVAL, "Expected -EINVAL for NULL stop callback");
+}
+
+/**
+ * @test The serviceMngrUtilStopService function must return error when stop callback fails.
+ */
+ZTEST(serviceMngrUtil, test_stopService_callbackFails)
+{
+  int result;
+
+  /* Setup mock to fail */
+  mock_stop_callback_fake.return_val = -EIO;
+
+  /* Execute */
+  result = serviceMngrUtilStopService(5);
+
+  /* Verify */
+  zassert_equal(result, -EIO, "Expected -EIO when stop callback fails");
+  zassert_equal(mock_stop_callback_fake.call_count, 1, "Stop callback should be called once");
+}
+
+/**
+ * @test The serviceMngrUtilStopService function must successfully stop service.
+ */
+ZTEST(serviceMngrUtil, test_stopService_success)
+{
+  int result;
+
+  /* Setup mock to succeed */
+  mock_stop_callback_fake.return_val = 0;
+
+  /* Execute */
+  result = serviceMngrUtilStopService(5);
+
+  /* Verify result */
+  zassert_equal(result, 0, "Expected success (0)");
+  zassert_equal(mock_stop_callback_fake.call_count, 1, "Stop callback should be called once");
+
+  /* Verify service state was updated */
+  zassert_equal(serviceRegistry[5].state, SVC_STATE_STOPPED, "Service state should be STOPPED");
+}
+
+/**
+ * @test The serviceMngrUtilSuspendService function must return error when index is out of bounds.
+ */
+ZTEST(serviceMngrUtil, test_suspendService_indexOutOfBounds)
+{
+  int result;
+
+  /* Execute with index beyond registered count (setup has count = 8) */
+  result = serviceMngrUtilSuspendService(8);
+
+  /* Verify */
+  zassert_equal(result, -EINVAL, "Expected -EINVAL for index out of bounds");
+}
+
+/**
+ * @test The serviceMngrUtilSuspendService function must return error when suspend callback is NULL.
+ */
+ZTEST(serviceMngrUtil, test_suspendService_nullCallback)
+{
+  int result;
+
+  /* Set callback to NULL at index 5 */
+  serviceRegistry[5].suspend = NULL;
+
+  /* Execute */
+  result = serviceMngrUtilSuspendService(5);
+
+  /* Verify */
+  zassert_equal(result, -EINVAL, "Expected -EINVAL for NULL suspend callback");
+}
+
+/**
+ * @test The serviceMngrUtilSuspendService function must return error when suspend callback fails.
+ */
+ZTEST(serviceMngrUtil, test_suspendService_callbackFails)
+{
+  int result;
+
+  /* Setup mock to fail */
+  mock_suspend_callback_fake.return_val = -EIO;
+
+  /* Execute */
+  result = serviceMngrUtilSuspendService(5);
+
+  /* Verify */
+  zassert_equal(result, -EIO, "Expected -EIO when suspend callback fails");
+  zassert_equal(mock_suspend_callback_fake.call_count, 1, "Suspend callback should be called once");
+}
+
+/**
+ * @test The serviceMngrUtilSuspendService function must successfully suspend service.
+ */
+ZTEST(serviceMngrUtil, test_suspendService_success)
+{
+  int result;
+
+  /* Setup mock to succeed */
+  mock_suspend_callback_fake.return_val = 0;
+
+  /* Execute */
+  result = serviceMngrUtilSuspendService(5);
+
+  /* Verify result */
+  zassert_equal(result, 0, "Expected success (0)");
+  zassert_equal(mock_suspend_callback_fake.call_count, 1, "Suspend callback should be called once");
+
+  /* Verify service state was updated */
+  zassert_equal(serviceRegistry[5].state, SVC_STATE_SUSPENDED, "Service state should be SUSPENDED");
+}
+
+/**
+ * @test The serviceMngrUtilResumeService function must return error when index is out of bounds.
+ */
+ZTEST(serviceMngrUtil, test_resumeService_indexOutOfBounds)
+{
+  int result;
+
+  /* Execute with index beyond registered count (setup has count = 8) */
+  result = serviceMngrUtilResumeService(8);
+
+  /* Verify */
+  zassert_equal(result, -EINVAL, "Expected -EINVAL for index out of bounds");
+}
+
+/**
+ * @test The serviceMngrUtilResumeService function must return error when resume callback is NULL.
+ */
+ZTEST(serviceMngrUtil, test_resumeService_nullCallback)
+{
+  int result;
+
+  /* Set callback to NULL at index 5 */
+  serviceRegistry[5].resume = NULL;
+
+  /* Execute */
+  result = serviceMngrUtilResumeService(5);
+
+  /* Verify */
+  zassert_equal(result, -EINVAL, "Expected -EINVAL for NULL resume callback");
+}
+
+/**
+ * @test The serviceMngrUtilResumeService function must return error when resume callback fails.
+ */
+ZTEST(serviceMngrUtil, test_resumeService_callbackFails)
+{
+  int result;
+
+  /* Setup mock to fail */
+  mock_resume_callback_fake.return_val = -EIO;
+
+  /* Execute */
+  result = serviceMngrUtilResumeService(5);
+
+  /* Verify */
+  zassert_equal(result, -EIO, "Expected -EIO when resume callback fails");
+  zassert_equal(mock_resume_callback_fake.call_count, 1, "Resume callback should be called once");
+}
+
+/**
+ * @test The serviceMngrUtilResumeService function must successfully resume service.
+ */
+ZTEST(serviceMngrUtil, test_resumeService_success)
+{
+  int result;
+
+  /* Setup mock to succeed */
+  mock_resume_callback_fake.return_val = 0;
+
+  /* Execute */
+  result = serviceMngrUtilResumeService(5);
+
+  /* Verify result */
+  zassert_equal(result, 0, "Expected success (0)");
+  zassert_equal(mock_resume_callback_fake.call_count, 1, "Resume callback should be called once");
+
+  /* Verify service state was updated */
+  zassert_equal(serviceRegistry[5].state, SVC_STATE_RUNNING, "Service state should be RUNNING");
 }
 
 ZTEST_SUITE(serviceMngrUtil, NULL, util_tests_setup, util_tests_before, NULL, NULL);

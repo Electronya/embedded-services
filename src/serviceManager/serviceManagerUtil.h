@@ -39,16 +39,58 @@ int serviceMngrUtilInitSrvRegistry(void);
 int serviceMngrUtilAddSrvToRegistry(const ServiceDescriptor_t *descriptor);
 
 /**
- * @brief   Start all registered services in priority order.
+ * @brief   Get a registry entry by index.
  *
- *          Starts services in the following order:
- *          1. CRITICAL priority services
- *          2. CORE priority services
- *          3. APPLICATION priority services
+ * @param[in]   index: The index of the registry entry to retrieve.
+ *
+ * @return  Pointer to the service descriptor if successful, NULL otherwise.
+ */
+ServiceDescriptor_t *serviceMngrUtilGetRegEntryByIndex(size_t index);
+
+/**
+ * @brief   Get the registry index from a thread ID.
+ *
+ * @param[in]   threadId: The thread ID to search for.
+ *
+ * @return  The index if found, error code otherwise.
+ */
+int serviceMngrUtilGetIndexFromId(k_tid_t threadId);
+
+/**
+ * @brief   Start a service by registry index.
+ *
+ * @param[in]   index: The registry index of the service to start.
  *
  * @return  0 if successful, the error code otherwise.
  */
-int serviceMngrUtilStartServices(void);
+int serviceMngrUtilStartService(size_t index);
+
+/**
+ * @brief   Stop a service by registry index.
+ *
+ * @param[in]   index: The registry index of the service to stop.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int serviceMngrUtilStopService(size_t index);
+
+/**
+ * @brief   Suspend a service by registry index.
+ *
+ * @param[in]   index: The registry index of the service to suspend.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int serviceMngrUtilSuspendService(size_t index);
+
+/**
+ * @brief   Resume a service by registry index.
+ *
+ * @param[in]   index: The registry index of the service to resume.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int serviceMngrUtilResumeService(size_t index);
 
 #endif /* SERVICE_MANAGER_UTIL_H */
 
