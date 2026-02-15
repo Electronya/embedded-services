@@ -124,4 +124,38 @@ int serviceMngrUtilAddSrvToRegistry(const ServiceDescriptor_t *descriptor)
   return 0;
 }
 
+int serviceMngrUtilStartServices(void)
+{
+  size_t startedCount = 0;
+  const char *threadName;
+
+  /* Start services in priority order: CRITICAL -> CORE -> APPLICATION */
+  for(ServicePriority_t priority = SVC_PRIORITY_CRITICAL; priority < SVC_PRIORITY_COUNT; priority++)
+  {
+    /* Iterate through registry and start services with current priority */
+    for(size_t i = 0; i < registeredServiceCount; i++)
+    {
+      if(serviceRegistry[i].priority == priority)
+      {
+        /* Resume the service thread */
+        k_thread_resume(serviceRegistry[i].threadId);
+        startedCount++;
+
+        /* Get thread name for logging */
+        threadName = k_thread_name_get(serviceRegistry[i].threadId);
+        if(threadName == NULL)
+        {
+          threadName = "<unknown>";
+        }
+
+        LOG_INF("service started (name: %s, priority: %d)", threadName, priority);
+      }
+    }
+  }
+
+  LOG_INF("all services started (count: %d)", startedCount);
+
+  return 0;
+}
+
 /** @} */

@@ -38,6 +38,18 @@ int serviceMngrUtilInitSrvRegistry(void);
  */
 int serviceMngrUtilAddSrvToRegistry(const ServiceDescriptor_t *descriptor);
 
+/**
+ * @brief   Start all registered services in priority order.
+ *
+ *          Starts services in the following order:
+ *          1. CRITICAL priority services
+ *          2. CORE priority services
+ *          3. APPLICATION priority services
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int serviceMngrUtilStartServices(void);
+
 #endif /* SERVICE_MANAGER_UTIL_H */
 
 /** @} */
