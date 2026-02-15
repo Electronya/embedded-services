@@ -1,0 +1,8 @@
+tests:
+  electronya.embedded_services.service_manager.util:
+    tags:
+      - unit_test
+      - service_manager
+    platform_allow:
+      - native_sim
+      - native_sim/native/64

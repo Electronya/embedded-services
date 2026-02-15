@@ -14,5 +14,6 @@ if ENYA_EMBEDDED_SERVICES
 rsource "src/serviceCommon/Kconfig"
 rsource "src/adcAcquisition/Kconfig"
 rsource "src/datastore/Kconfig"
+rsource "src/serviceManager/Kconfig"
 
 endif
