@@ -16,11 +16,27 @@
 #define SERVICE_MANAGER_UTIL_H
 
 /**
- * @brief Initialize the hardware watchdog.
+ * @brief   Initialize the hardware watchdog.
  *
- * @return 0 on success, negative errno code on failure.
+ * @return  0 if successful, the error code otherwise.
  */
 int serviceMngrUtilInitHardWdg(void);
+
+/**
+ * @brief   Initialize the service registry.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int serviceMngrUtilInitSrvRegistry(void);
+
+/**
+ * @brief   Add a service to the registry.
+ *
+ * @param[in]   descriptor: The service descriptor to add.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int serviceMngrUtilAddSrvToRegistry(const ServiceDescriptor_t *descriptor);
 
 #endif /* SERVICE_MANAGER_UTIL_H */
 
