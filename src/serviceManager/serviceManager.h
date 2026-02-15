@@ -40,6 +40,15 @@ typedef struct {
   uint8_t missedHeartbeats;       /**< Missed heartbeat counter */
 } ServiceDescriptor_t;
 
+/**
+ * @brief   Initialize the service manager.
+ *
+ *          Initializes the hardware watchdog and service registry.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int serviceManagerInit(void);
+
 #endif /* SERVICE_MANAGER_H */
 
 /** @} */
