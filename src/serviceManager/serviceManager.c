@@ -45,4 +45,21 @@ int serviceManagerInit(void)
   return 0;
 }
 
+int serviceManagerRegisterSrv(const ServiceDescriptor_t *descriptor)
+{
+  int err;
+
+  /* Add service to registry */
+  err = serviceMngrUtilAddSrvToRegistry(descriptor);
+  if(err < 0)
+  {
+    LOG_ERR("ERROR %d: failed to register service", err);
+    return err;
+  }
+
+  LOG_DBG("service registered successfully");
+
+  return 0;
+}
+
 /** @} */

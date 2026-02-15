@@ -21,22 +21,23 @@ DEFINE_FFF_GLOBALS;
 /* Prevent serviceManagerUtil header - we'll mock the functions */
 #define SERVICE_MANAGER_UTIL_H
 
-/* Wrap utility functions to use mocks */
-#define serviceMngrUtilInitHardWdg serviceMngrUtilInitHardWdg_mock
-#define serviceMngrUtilInitSrvRegistry serviceMngrUtilInitSrvRegistry_mock
-
 /* Mock Kconfig options */
 #define CONFIG_ENYA_SERVICE_MANAGER 1
 #define CONFIG_ENYA_SERVICE_MANAGER_LOG_LEVEL 3
 
-/* FFF fakes list */
-#define FFF_FAKES_LIST(FAKE) \
-  FAKE(serviceMngrUtilInitHardWdg_mock) \
-  FAKE(serviceMngrUtilInitSrvRegistry_mock)
+/* Include serviceManager.h for type definitions */
+#include "serviceManager.h"
 
 /* Mock utility functions */
-FAKE_VALUE_FUNC(int, serviceMngrUtilInitHardWdg_mock);
-FAKE_VALUE_FUNC(int, serviceMngrUtilInitSrvRegistry_mock);
+FAKE_VALUE_FUNC(int, serviceMngrUtilInitHardWdg);
+FAKE_VALUE_FUNC(int, serviceMngrUtilInitSrvRegistry);
+FAKE_VALUE_FUNC(int, serviceMngrUtilAddSrvToRegistry, const ServiceDescriptor_t *);
+
+/* FFF fakes list */
+#define FFF_FAKES_LIST(FAKE) \
+  FAKE(serviceMngrUtilInitHardWdg) \
+  FAKE(serviceMngrUtilInitSrvRegistry) \
+  FAKE(serviceMngrUtilAddSrvToRegistry)
 
 #include "serviceManager.c"
 
@@ -66,16 +67,16 @@ ZTEST(serviceManager, test_init_hardWdgFails)
   int result;
 
   /* Setup: hardware watchdog init fails */
-  serviceMngrUtilInitHardWdg_mock_fake.return_val = -ENODEV;
+  serviceMngrUtilInitHardWdg_fake.return_val = -ENODEV;
 
   /* Execute */
   result = serviceManagerInit();
 
   /* Verify */
   zassert_equal(result, -ENODEV, "Expected -ENODEV when hardware watchdog init fails");
-  zassert_equal(serviceMngrUtilInitHardWdg_mock_fake.call_count, 1,
+  zassert_equal(serviceMngrUtilInitHardWdg_fake.call_count, 1,
                 "serviceMngrUtilInitHardWdg should be called once");
-  zassert_equal(serviceMngrUtilInitSrvRegistry_mock_fake.call_count, 0,
+  zassert_equal(serviceMngrUtilInitSrvRegistry_fake.call_count, 0,
                 "serviceMngrUtilInitSrvRegistry should not be called when watchdog init fails");
 }
 
@@ -87,17 +88,17 @@ ZTEST(serviceManager, test_init_registryFails)
   int result;
 
   /* Setup: hardware watchdog succeeds, registry init fails */
-  serviceMngrUtilInitHardWdg_mock_fake.return_val = 0;
-  serviceMngrUtilInitSrvRegistry_mock_fake.return_val = -ENOMEM;
+  serviceMngrUtilInitHardWdg_fake.return_val = 0;
+  serviceMngrUtilInitSrvRegistry_fake.return_val = -ENOMEM;
 
   /* Execute */
   result = serviceManagerInit();
 
   /* Verify */
   zassert_equal(result, -ENOMEM, "Expected -ENOMEM when registry init fails");
-  zassert_equal(serviceMngrUtilInitHardWdg_mock_fake.call_count, 1,
+  zassert_equal(serviceMngrUtilInitHardWdg_fake.call_count, 1,
                 "serviceMngrUtilInitHardWdg should be called once");
-  zassert_equal(serviceMngrUtilInitSrvRegistry_mock_fake.call_count, 1,
+  zassert_equal(serviceMngrUtilInitSrvRegistry_fake.call_count, 1,
                 "serviceMngrUtilInitSrvRegistry should be called once");
 }
 
@@ -109,18 +110,74 @@ ZTEST(serviceManager, test_init_success)
   int result;
 
   /* Setup: all operations succeed */
-  serviceMngrUtilInitHardWdg_mock_fake.return_val = 0;
-  serviceMngrUtilInitSrvRegistry_mock_fake.return_val = 0;
+  serviceMngrUtilInitHardWdg_fake.return_val = 0;
+  serviceMngrUtilInitSrvRegistry_fake.return_val = 0;
 
   /* Execute */
   result = serviceManagerInit();
 
   /* Verify */
   zassert_equal(result, 0, "Expected success (0)");
-  zassert_equal(serviceMngrUtilInitHardWdg_mock_fake.call_count, 1,
+  zassert_equal(serviceMngrUtilInitHardWdg_fake.call_count, 1,
                 "serviceMngrUtilInitHardWdg should be called once");
-  zassert_equal(serviceMngrUtilInitSrvRegistry_mock_fake.call_count, 1,
+  zassert_equal(serviceMngrUtilInitSrvRegistry_fake.call_count, 1,
                 "serviceMngrUtilInitSrvRegistry should be called once");
+}
+
+/**
+ * @test The serviceManagerRegisterSrv function must return error when registration fails.
+ */
+ZTEST(serviceManager, test_registerSrv_fails)
+{
+  int result;
+  ServiceDescriptor_t descriptor;
+
+  /* Setup: registration fails */
+  serviceMngrUtilAddSrvToRegistry_fake.return_val = -EINVAL;
+
+  /* Setup descriptor */
+  descriptor.threadId = (k_tid_t)0x1000;
+  descriptor.priority = SVC_PRIORITY_CORE;
+  descriptor.heartbeatIntervalMs = 1000;
+  descriptor.missedHeartbeats = 0;
+
+  /* Execute */
+  result = serviceManagerRegisterSrv(&descriptor);
+
+  /* Verify */
+  zassert_equal(result, -EINVAL, "Expected -EINVAL when registration fails");
+  zassert_equal(serviceMngrUtilAddSrvToRegistry_fake.call_count, 1,
+                "serviceMngrUtilAddSrvToRegistry should be called once");
+  zassert_equal(serviceMngrUtilAddSrvToRegistry_fake.arg0_val, &descriptor,
+                "serviceMngrUtilAddSrvToRegistry should be called with descriptor");
+}
+
+/**
+ * @test The serviceManagerRegisterSrv function must successfully register service.
+ */
+ZTEST(serviceManager, test_registerSrv_success)
+{
+  int result;
+  ServiceDescriptor_t descriptor;
+
+  /* Setup: registration succeeds */
+  serviceMngrUtilAddSrvToRegistry_fake.return_val = 0;
+
+  /* Setup descriptor */
+  descriptor.threadId = (k_tid_t)0x1000;
+  descriptor.priority = SVC_PRIORITY_CORE;
+  descriptor.heartbeatIntervalMs = 1000;
+  descriptor.missedHeartbeats = 0;
+
+  /* Execute */
+  result = serviceManagerRegisterSrv(&descriptor);
+
+  /* Verify */
+  zassert_equal(result, 0, "Expected success (0)");
+  zassert_equal(serviceMngrUtilAddSrvToRegistry_fake.call_count, 1,
+                "serviceMngrUtilAddSrvToRegistry should be called once");
+  zassert_equal(serviceMngrUtilAddSrvToRegistry_fake.arg0_val, &descriptor,
+                "serviceMngrUtilAddSrvToRegistry should be called with descriptor");
 }
 
 ZTEST_SUITE(serviceManager, NULL, service_tests_setup, service_tests_before, NULL, NULL);

@@ -49,6 +49,17 @@ typedef struct {
  */
 int serviceManagerInit(void);
 
+/**
+ * @brief   Register a service with the service manager.
+ *
+ *          Adds a service to the registry for monitoring and lifecycle management.
+ *
+ * @param[in]   descriptor: The service descriptor to register.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int serviceManagerRegisterSrv(const ServiceDescriptor_t *descriptor);
+
 #endif /* SERVICE_MANAGER_H */
 
 /** @} */
