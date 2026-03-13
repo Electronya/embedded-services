@@ -25,6 +25,9 @@ DEFINE_FFF_GLOBALS;
 #define device_is_ready device_is_ready_mock
 #define wdt_install_timeout wdt_install_timeout_mock
 #define wdt_setup wdt_setup_mock
+#define wdt_feed wdt_feed_mock
+#define k_uptime_get k_uptime_get_mock
+#define k_thread_name_get k_thread_name_get_mock
 
 /* Define watchdog types manually */
 struct wdt_timeout_cfg {
@@ -45,12 +48,16 @@ struct wdt_timeout_cfg {
 #define CONFIG_ENYA_SERVICE_MANAGER_LOG_LEVEL 3
 #define CONFIG_SVC_MGR_WDT_TIMEOUT_MS 5000
 #define CONFIG_SVC_MGR_MAX_SERVICES 16
+#define SVC_MGR_MAX_MISSED_HEARTBEATS 3
 
 /* FFF fakes list */
 #define FFF_FAKES_LIST(FAKE) \
   FAKE(device_is_ready_mock) \
   FAKE(wdt_install_timeout_mock) \
   FAKE(wdt_setup_mock) \
+  FAKE(wdt_feed_mock) \
+  FAKE(k_uptime_get_mock) \
+  FAKE(k_thread_name_get_mock) \
   FAKE(mock_start_callback) \
   FAKE(mock_stop_callback) \
   FAKE(mock_suspend_callback) \
@@ -67,6 +74,11 @@ LOG_MODULE_REGISTER(serviceManager, LOG_LEVEL_DBG);
 FAKE_VALUE_FUNC(bool, device_is_ready_mock, const struct device *);
 FAKE_VALUE_FUNC(int, wdt_install_timeout_mock, const struct device *, const struct wdt_timeout_cfg *);
 FAKE_VALUE_FUNC(int, wdt_setup_mock, const struct device *, uint8_t);
+FAKE_VALUE_FUNC(int, wdt_feed_mock, const struct device *, int);
+
+/* Mock kernel functions */
+FAKE_VALUE_FUNC(int64_t, k_uptime_get_mock);
+FAKE_VALUE_FUNC(const char *, k_thread_name_get_mock, k_tid_t);
 
 /* Mock service callback functions */
 FAKE_VALUE_FUNC(int, mock_start_callback);
@@ -228,6 +240,14 @@ ZTEST(serviceMngrUtil, test_initHardWdg_success)
 
   /* Verify result */
   zassert_equal(result, 0, "Expected success (0)");
+
+  /* Verify device pointer was passed correctly */
+  zassert_equal(device_is_ready_mock_fake.arg0_val, &mock_wdg_dev,
+                "device_is_ready should be called with the watchdog device");
+  zassert_equal(wdt_install_timeout_mock_fake.arg0_val, &mock_wdg_dev,
+                "wdt_install_timeout should be called with the watchdog device");
+  zassert_equal(wdt_setup_mock_fake.arg0_val, &mock_wdg_dev,
+                "wdt_setup should be called with the watchdog device");
 
   /* Verify watchdog config was set correctly */
   zassert_equal(captured_wdt_cfg.flags, WDT_FLAG_RESET_SOC,
@@ -771,6 +791,165 @@ ZTEST(serviceMngrUtil, test_resumeService_success)
 
   /* Verify service state was updated */
   zassert_equal(serviceRegistry[5].state, SVC_STATE_RUNNING, "Service state should be RUNNING");
+}
+
+/**
+ * @test The serviceMngrUtilUpdateSrvHeartbeat function must return error when index is out of bounds.
+ */
+ZTEST(serviceMngrUtil, test_updateSrvHeartbeat_indexOutOfBounds)
+{
+  int result;
+
+  /* Execute with index beyond registered count (setup has count = 8) */
+  result = serviceMngrUtilUpdateSrvHeartbeat(8);
+
+  /* Verify */
+  zassert_equal(result, -EINVAL, "Expected -EINVAL for index out of bounds");
+}
+
+/**
+ * @test The serviceMngrUtilUpdateSrvHeartbeat function must successfully update heartbeat timestamp and reset missed count.
+ */
+ZTEST(serviceMngrUtil, test_updateSrvHeartbeat_success)
+{
+  int result;
+
+  /* Set pre-existing missed heartbeats */
+  serviceRegistry[5].missedHeartbeats = 3;
+  k_uptime_get_mock_fake.return_val = 5000;
+
+  /* Execute */
+  result = serviceMngrUtilUpdateSrvHeartbeat(5);
+
+  /* Verify result */
+  zassert_equal(result, 0, "Expected success (0)");
+
+  /* Verify heartbeat fields were updated */
+  zassert_equal(serviceRegistry[5].lastHeartbeatMs, 5000,
+                "Last heartbeat should be updated to current uptime");
+  zassert_equal(serviceRegistry[5].missedHeartbeats, 0,
+                "Missed heartbeats should be reset to 0");
+}
+
+/**
+ * @test The serviceMngrUtilFeedHardWdg function must return error when wdt_feed fails.
+ */
+ZTEST(serviceMngrUtil, test_feedHardWdg_fails)
+{
+  int result;
+
+  /* Setup: wdt_feed fails */
+  wdt_feed_mock_fake.return_val = -EIO;
+
+  /* Execute */
+  result = serviceMngrUtilFeedHardWdg();
+
+  /* Verify */
+  zassert_equal(result, -EIO, "Expected -EIO when wdt_feed fails");
+  zassert_equal(wdt_feed_mock_fake.call_count, 1, "wdt_feed should be called once");
+}
+
+/**
+ * @test The serviceMngrUtilFeedHardWdg function must successfully feed the hardware watchdog.
+ */
+ZTEST(serviceMngrUtil, test_feedHardWdg_success)
+{
+  int result;
+
+  /* Setup: wdt_feed succeeds, channel ID set by init */
+  wdt_install_timeout_mock_fake.return_val = 0;
+  device_is_ready_mock_fake.return_val = true;
+  serviceMngrUtilInitHardWdg();
+  wdt_feed_mock_fake.return_val = 0;
+
+  /* Execute */
+  result = serviceMngrUtilFeedHardWdg();
+
+  /* Verify */
+  zassert_equal(result, 0, "Expected success (0)");
+  zassert_equal(wdt_feed_mock_fake.call_count, 1, "wdt_feed should be called once");
+  zassert_equal(wdt_feed_mock_fake.arg0_val, &mock_wdg_dev,
+                "wdt_feed should be called with the watchdog device");
+  zassert_equal(wdt_feed_mock_fake.arg1_val, 0, "wdt_feed should use channel 0");
+}
+
+/**
+ * @test The serviceMngrUtilCheckSrvHeartbeat function must return error when index is out of bounds.
+ */
+ZTEST(serviceMngrUtil, test_checkSrvHeartbeat_indexOutOfBounds)
+{
+  int result;
+
+  /* Execute with index beyond registered count (setup has count = 8) */
+  result = serviceMngrUtilCheckSrvHeartbeat(8);
+
+  /* Verify */
+  zassert_equal(result, -EINVAL, "Expected -EINVAL for index out of bounds");
+}
+
+/**
+ * @test The serviceMngrUtilCheckSrvHeartbeat function must not increment missed count when heartbeat is on time.
+ */
+ZTEST(serviceMngrUtil, test_checkSrvHeartbeat_heartbeatOnTime)
+{
+  int result;
+
+  /* lastHeartbeatMs=4000, interval=2000, now=5000 -> elapsed=1000 < 2000 */
+  serviceRegistry[5].lastHeartbeatMs = 4000;
+  k_uptime_get_mock_fake.return_val = 5000;
+
+  /* Execute */
+  result = serviceMngrUtilCheckSrvHeartbeat(5);
+
+  /* Verify missed count is 0 and was not incremented */
+  zassert_equal(result, 0, "Expected missed count 0 when heartbeat on time");
+  zassert_equal(serviceRegistry[5].missedHeartbeats, 0,
+                "Missed heartbeat count should not be incremented");
+}
+
+/**
+ * @test The serviceMngrUtilCheckSrvHeartbeat function must increment missed count when heartbeat interval elapsed.
+ */
+ZTEST(serviceMngrUtil, test_checkSrvHeartbeat_heartbeatMissed)
+{
+  int result;
+
+  /* lastHeartbeatMs=2000, interval=2000, now=5000 -> elapsed=3000 >= 2000 */
+  serviceRegistry[5].lastHeartbeatMs = 2000;
+  k_uptime_get_mock_fake.return_val = 5000;
+  k_thread_name_get_mock_fake.return_val = "test_service";
+
+  /* Execute */
+  result = serviceMngrUtilCheckSrvHeartbeat(5);
+
+  /* Verify missed count was incremented to 1 */
+  zassert_equal(result, 1, "Expected missed count 1 after first missed heartbeat");
+  zassert_equal(serviceRegistry[5].missedHeartbeats, 1,
+                "Missed heartbeat count should be incremented to 1");
+
+  /* Verify k_thread_name_get was called with correct thread ID */
+  zassert_equal(k_thread_name_get_mock_fake.arg0_val, (k_tid_t)0x5000,
+                "k_thread_name_get should be called with the service thread ID");
+}
+
+/**
+ * @test The serviceMngrUtilCheckSrvHeartbeat function must return error when missed heartbeat count exceeds maximum.
+ */
+ZTEST(serviceMngrUtil, test_checkSrvHeartbeat_timeout)
+{
+  int result;
+
+  /* Pre-set missed heartbeats at max (3), one more will trigger timeout */
+  serviceRegistry[5].missedHeartbeats = SVC_MGR_MAX_MISSED_HEARTBEATS;
+  serviceRegistry[5].lastHeartbeatMs = 2000;
+  k_uptime_get_mock_fake.return_val = 5000;
+  k_thread_name_get_mock_fake.return_val = "test_service";
+
+  /* Execute */
+  result = serviceMngrUtilCheckSrvHeartbeat(5);
+
+  /* Verify error is returned */
+  zassert_equal(result, -ETIMEDOUT, "Expected -ETIMEDOUT when missed heartbeats exceed maximum");
 }
 
 ZTEST_SUITE(serviceMngrUtil, NULL, util_tests_setup, util_tests_before, NULL, NULL);

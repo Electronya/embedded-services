@@ -23,8 +23,10 @@
 LOG_MODULE_DECLARE(serviceManager, CONFIG_ENYA_SERVICE_MANAGER_LOG_LEVEL);
 
 #define WDG_NODE DT_ALIAS(watchdog0)
+#define SVC_MGR_MAX_MISSED_HEARTBEATS 3
 
 static const struct device *wdgDev = DEVICE_DT_GET(WDG_NODE);
+static int wdgChannel = -1;
 
 /* Service registry data structures */
 static ServiceDescriptor_t serviceRegistry[CONFIG_SVC_MGR_MAX_SERVICES];
@@ -46,11 +48,11 @@ int serviceMngrUtilInitHardWdg(void)
   wdtCfg.window.max = CONFIG_SVC_MGR_WDT_TIMEOUT_MS;
   wdtCfg.callback = NULL;
 
-  err = wdt_install_timeout(wdgDev, &wdtCfg);
-  if(err < 0)
+  wdgChannel = wdt_install_timeout(wdgDev, &wdtCfg);
+  if(wdgChannel < 0)
   {
-    LOG_ERR("ERROR %d: failed to install watchdog timeout", err);
-    return err;
+    LOG_ERR("ERROR %d: failed to install watchdog timeout", wdgChannel);
+    return wdgChannel;
   }
 
   err = wdt_setup(wdgDev, WDT_OPT_PAUSE_HALTED_BY_DBG);
@@ -294,6 +296,73 @@ int serviceMngrUtilResumeService(size_t index)
   serviceRegistry[index].state = SVC_STATE_RUNNING;
 
   LOG_INF("service resumed (index: %zu)", index);
+
+  return 0;
+}
+
+int serviceMngrUtilUpdateSrvHeartbeat(size_t index)
+{
+  /* Validate index */
+  if(index >= registeredServiceCount)
+  {
+    LOG_ERR("ERROR %d: index out of bounds", -EINVAL);
+    return -EINVAL;
+  }
+
+  /* Update heartbeat timestamp and reset missed count */
+  serviceRegistry[index].lastHeartbeatMs = k_uptime_get();
+  serviceRegistry[index].missedHeartbeats = 0;
+
+  LOG_DBG("heartbeat updated (index: %zu, time: %lld ms)", index,
+          serviceRegistry[index].lastHeartbeatMs);
+
+  return 0;
+}
+
+int serviceMngrUtilCheckSrvHeartbeat(size_t index)
+{
+  int64_t elapsed;
+
+  /* Validate index */
+  if(index >= registeredServiceCount)
+  {
+    LOG_ERR("ERROR %d: index out of bounds", -EINVAL);
+    return -EINVAL;
+  }
+
+  /* Check if heartbeat interval has elapsed */
+  elapsed = k_uptime_get() - serviceRegistry[index].lastHeartbeatMs;
+  if(elapsed >= serviceRegistry[index].heartbeatIntervalMs)
+  {
+    serviceRegistry[index].missedHeartbeats++;
+    LOG_WRN("missed heartbeat (service: %s, missed: %d)",
+            k_thread_name_get(serviceRegistry[index].threadId),
+            serviceRegistry[index].missedHeartbeats);
+  }
+
+  /* Return error if too many heartbeats missed */
+  if(serviceRegistry[index].missedHeartbeats > SVC_MGR_MAX_MISSED_HEARTBEATS)
+  {
+    LOG_ERR("ERROR %d: service %s heartbeat timeout", -ETIMEDOUT,
+            k_thread_name_get(serviceRegistry[index].threadId));
+    return -ETIMEDOUT;
+  }
+
+  return serviceRegistry[index].missedHeartbeats;
+}
+
+int serviceMngrUtilFeedHardWdg(void)
+{
+  int err;
+
+  err = wdt_feed(wdgDev, wdgChannel);
+  if(err < 0)
+  {
+    LOG_ERR("ERROR %d: failed to feed hardware watchdog", err);
+    return err;
+  }
+
+  LOG_DBG("hardware watchdog fed");
 
   return 0;
 }

@@ -92,6 +92,32 @@ int serviceMngrUtilSuspendService(size_t index);
  */
 int serviceMngrUtilResumeService(size_t index);
 
+/**
+ * @brief   Update the heartbeat timestamp for a service.
+ *
+ * @param[in]   index: The registry index of the service.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int serviceMngrUtilUpdateSrvHeartbeat(size_t index);
+
+/**
+ * @brief   Check if a service has missed its heartbeat interval.
+ *          Increments the missed heartbeat count if the interval has elapsed.
+ *
+ * @param[in]   index: The registry index of the service.
+ *
+ * @return  The missed heartbeat count if successful, the error code otherwise.
+ */
+int serviceMngrUtilCheckSrvHeartbeat(size_t index);
+
+/**
+ * @brief   Feed the hardware watchdog.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int serviceMngrUtilFeedHardWdg(void);
+
 #endif /* SERVICE_MANAGER_UTIL_H */
 
 /** @} */
