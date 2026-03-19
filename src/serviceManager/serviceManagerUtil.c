@@ -224,10 +224,7 @@ int serviceMngrUtilStopService(size_t index)
     return err;
   }
 
-  /* Update service state */
-  serviceRegistry[index].state = SVC_STATE_STOPPED;
-
-  LOG_INF("service stopped (index: %zu)", index);
+  LOG_INF("service stop requested (index: %zu)", index);
 
   return 0;
 }
@@ -258,10 +255,7 @@ int serviceMngrUtilSuspendService(size_t index)
     return err;
   }
 
-  /* Update service state */
-  serviceRegistry[index].state = SVC_STATE_SUSPENDED;
-
-  LOG_INF("service suspended (index: %zu)", index);
+  LOG_INF("service suspend requested (index: %zu)", index);
 
   return 0;
 }
@@ -296,6 +290,22 @@ int serviceMngrUtilResumeService(size_t index)
   serviceRegistry[index].state = SVC_STATE_RUNNING;
 
   LOG_INF("service resumed (index: %zu)", index);
+
+  return 0;
+}
+
+int serviceMngrUtilSetSrvState(size_t index, ServiceState_t state)
+{
+  /* Validate index */
+  if(index >= registeredServiceCount)
+  {
+    LOG_ERR("ERROR %d: index out of bounds", -EINVAL);
+    return -EINVAL;
+  }
+
+  serviceRegistry[index].state = state;
+
+  LOG_DBG("service state updated (index: %zu, state: %d)", index, state);
 
   return 0;
 }

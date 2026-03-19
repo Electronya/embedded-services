@@ -16,6 +16,7 @@ target_include_directories(app
   PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/../../../src/adcAcquisition
   ${CMAKE_CURRENT_SOURCE_DIR}/../../../src/serviceCommon
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../../src/serviceManager
 )
 
 if(COVERAGE)

@@ -28,6 +28,55 @@ config ENYA_ADC_ACQUISITION_STACK_SIZE
   help
     The Electronya ADC acquisition service thread stack size in bytes.
 
+config ENYA_ADC_ACQUISITION_SAMPLING_RATE_US
+  int "Electronya ADC Acquisition Sampling Rate"
+  default 500
+  help
+    The ADC sampling rate in microseconds. Used to set the trigger timer period.
+
+config ENYA_ADC_ACQUISITION_FILTER_TAU
+  int "Electronya ADC Acquisition Filter Tau"
+  default 31
+  range 1 511
+  help
+    The ADC 3rd-order cascaded RC filter tau value (alpha * 512).
+    See AdcConfig_t documentation for calculation details.
+
+config ENYA_ADC_ACQUISITION_MAX_SUB_COUNT
+  int "Electronya ADC Acquisition Maximum Subscriber Count"
+  default 4
+  range 1 32
+  help
+    The maximum number of concurrent ADC data subscribers.
+
+config ENYA_ADC_ACQUISITION_NOTIFICATION_RATE_MS
+  int "Electronya ADC Acquisition Notification Rate"
+  default 100
+  help
+    The rate at which subscribers are notified with new ADC data, in milliseconds.
+    Also drives the service thread loop period.
+
+config ENYA_ADC_ACQUISITION_THREAD_PRIORITY
+  int "Electronya ADC Acquisition Thread Priority"
+  default 5
+  help
+    The ADC acquisition service thread scheduling priority (preemptive).
+
+config ENYA_ADC_ACQUISITION_SERVICE_PRIORITY
+  int "Electronya ADC Acquisition Service Priority"
+  default 1
+  range 0 2
+  help
+    The ADC acquisition service priority level for the service manager.
+    0 = CRITICAL, 1 = CORE, 2 = APPLICATION.
+
+config ENYA_ADC_ACQUISITION_HEARTBEAT_INTERVAL_MS
+  int "Electronya ADC Acquisition Heartbeat Interval"
+  default 1000
+  help
+    The interval in milliseconds at which the ADC acquisition service
+    updates its heartbeat with the service manager.
+
 config ENYA_ADC_ACQUISITION_SHELL
   bool "Electronya ADC Acquisition Shell Commands"
   default y

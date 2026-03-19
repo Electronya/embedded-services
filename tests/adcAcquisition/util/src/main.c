@@ -48,6 +48,7 @@ typedef void *osMemoryPoolId_t;
   FAKE(counter_us_to_ticks) \
   FAKE(counter_set_top_value) \
   FAKE(counter_start) \
+  FAKE(counter_stop) \
   FAKE(device_is_ready_mock) \
   FAKE(k_malloc) \
   FAKE(adcAcqFilterPushData) \
@@ -170,6 +171,7 @@ FAKE_VALUE_FUNC(int, adc_read_async, const struct device *, const struct adc_seq
 FAKE_VALUE_FUNC(uint32_t, counter_us_to_ticks, const struct device *, uint64_t);
 FAKE_VALUE_FUNC(int, counter_set_top_value, const struct device *, const struct counter_top_cfg *);
 FAKE_VALUE_FUNC(int, counter_start, const struct device *);
+FAKE_VALUE_FUNC(int, counter_stop, const struct device *);
 
 /* Mock device functions */
 FAKE_VALUE_FUNC(bool, device_is_ready_mock, const struct device *);
@@ -1053,6 +1055,44 @@ ZTEST(adc_util_tests, test_start_trigger_success)
                 "counter_start should be called once");
   zassert_equal(counter_start_fake.arg0_val, &mock_timer_device,
                 "counter_start should be called with trigger timer device");
+}
+
+/**
+ * @test The adcAcqUtilStopTrigger function must return an error when
+ * counter_stop fails.
+ */
+ZTEST(adc_util_tests, test_stop_trigger_counter_stop_failure)
+{
+  int result;
+
+  counter_stop_fake.return_val = -EIO;
+
+  result = adcAcqUtilStopTrigger();
+
+  zassert_equal(result, -EIO,
+                "adcAcqUtilStopTrigger should return -EIO when counter_stop fails");
+  zassert_equal(counter_stop_fake.call_count, 1,
+                "counter_stop should be called once");
+}
+
+/**
+ * @test The adcAcqUtilStopTrigger function must successfully stop
+ * the trigger timer.
+ */
+ZTEST(adc_util_tests, test_stop_trigger_success)
+{
+  int result;
+
+  counter_stop_fake.return_val = 0;
+
+  result = adcAcqUtilStopTrigger();
+
+  zassert_equal(result, 0,
+                "adcAcqUtilStopTrigger should return 0 on success");
+  zassert_equal(counter_stop_fake.call_count, 1,
+                "counter_stop should be called once");
+  zassert_equal(counter_stop_fake.arg0_val, &mock_timer_device,
+                "counter_stop should be called with trigger timer device");
 }
 
 /**

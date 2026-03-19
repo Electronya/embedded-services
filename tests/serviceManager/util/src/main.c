@@ -648,9 +648,7 @@ ZTEST(serviceMngrUtil, test_stopService_success)
   /* Verify result */
   zassert_equal(result, 0, "Expected success (0)");
   zassert_equal(mock_stop_callback_fake.call_count, 1, "Stop callback should be called once");
-
-  /* Verify service state was updated */
-  zassert_equal(serviceRegistry[5].state, SVC_STATE_STOPPED, "Service state should be STOPPED");
+  /* Note: state is confirmed by the service itself via serviceManagerConfirmState, not here */
 }
 
 /**
@@ -718,9 +716,7 @@ ZTEST(serviceMngrUtil, test_suspendService_success)
   /* Verify result */
   zassert_equal(result, 0, "Expected success (0)");
   zassert_equal(mock_suspend_callback_fake.call_count, 1, "Suspend callback should be called once");
-
-  /* Verify service state was updated */
-  zassert_equal(serviceRegistry[5].state, SVC_STATE_SUSPENDED, "Service state should be SUSPENDED");
+  /* Note: state is confirmed by the service itself via serviceManagerConfirmState, not here */
 }
 
 /**
@@ -791,6 +787,49 @@ ZTEST(serviceMngrUtil, test_resumeService_success)
 
   /* Verify service state was updated */
   zassert_equal(serviceRegistry[5].state, SVC_STATE_RUNNING, "Service state should be RUNNING");
+}
+
+/**
+ * @test The serviceMngrUtilSetSrvState function must return error when index is out of bounds.
+ */
+ZTEST(serviceMngrUtil, test_setSrvState_indexOutOfBounds)
+{
+  int result;
+
+  /* Execute with index beyond registered count (setup has count = 8) */
+  result = serviceMngrUtilSetSrvState(8, SVC_STATE_RUNNING);
+
+  /* Verify */
+  zassert_equal(result, -EINVAL, "Expected -EINVAL for index out of bounds");
+}
+
+/**
+ * @test The serviceMngrUtilSetSrvState function must successfully set service state.
+ */
+ZTEST(serviceMngrUtil, test_setSrvState_success)
+{
+  int result;
+
+  /* Execute: set index 5 to RUNNING */
+  result = serviceMngrUtilSetSrvState(5, SVC_STATE_RUNNING);
+
+  /* Verify result */
+  zassert_equal(result, 0, "Expected success (0)");
+  zassert_equal(serviceRegistry[5].state, SVC_STATE_RUNNING, "Service state should be RUNNING");
+
+  /* Execute: set index 5 to SUSPENDED */
+  result = serviceMngrUtilSetSrvState(5, SVC_STATE_SUSPENDED);
+
+  /* Verify result */
+  zassert_equal(result, 0, "Expected success (0)");
+  zassert_equal(serviceRegistry[5].state, SVC_STATE_SUSPENDED, "Service state should be SUSPENDED");
+
+  /* Execute: set index 5 back to STOPPED */
+  result = serviceMngrUtilSetSrvState(5, SVC_STATE_STOPPED);
+
+  /* Verify result */
+  zassert_equal(result, 0, "Expected success (0)");
+  zassert_equal(serviceRegistry[5].state, SVC_STATE_STOPPED, "Service state should be STOPPED");
 }
 
 /**

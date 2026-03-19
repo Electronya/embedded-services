@@ -93,6 +93,16 @@ int serviceMngrUtilSuspendService(size_t index);
 int serviceMngrUtilResumeService(size_t index);
 
 /**
+ * @brief   Set the state of a service in the registry.
+ *
+ * @param[in]   index: The registry index of the service.
+ * @param[in]   state: The new state to set.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int serviceMngrUtilSetSrvState(size_t index, ServiceState_t state);
+
+/**
  * @brief   Update the heartbeat timestamp for a service.
  *
  * @param[in]   index: The registry index of the service.

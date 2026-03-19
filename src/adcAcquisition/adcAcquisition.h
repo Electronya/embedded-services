@@ -78,23 +78,15 @@ typedef struct
 } AdcSubConfig_t;
 
 /**
- * @brief   Initialize the ADC acquisition.
+ * @brief   Initialize the ADC acquisition service.
  *
- * @param[in]   adcConfig: The ADC conversion configuration.
- * @param[in]   adcSubConfig: The ADC subscription configuration.
- * @param[in]   priority: The service priority.
- * @param[out]  threadId: The thread ID.
- *
- * @return  0 if successful, the error code otherwise.
- */
-int adcAcqInit(AdcConfig_t *adcConfig, AdcSubConfig_t *adcSubConfig, uint32_t priority, k_tid_t *threadId);
-
-/**
- * @brief   Start the ADC acquisition service.
+ *          Configures the ADC and subscriptions from Kconfig, creates and
+ *          names the service thread, and registers it with the service manager.
+ *          All configuration is driven by Kconfig symbols.
  *
  * @return  0 if successful, the error code otherwise.
  */
-int adcAcqStart(void);
+int adcAcqInit(void);
 
 /**
  * @brief   Subscribe to the ADC service.

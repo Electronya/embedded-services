@@ -129,6 +129,20 @@ int serviceManagerRequestSuspend(k_tid_t threadId);
 int serviceManagerRequestResume(k_tid_t threadId);
 
 /**
+ * @brief   Confirm a state change for a service.
+ *
+ *          Called by the service itself after completing a STOP or SUSPEND state
+ *          change. Must be called before k_thread_suspend() for SUSPEND, and
+ *          before exiting the thread loop for STOP.
+ *
+ * @param[in]   threadId: The thread ID of the service confirming its state.
+ * @param[in]   state: The new confirmed state.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int serviceManagerConfirmState(k_tid_t threadId, ServiceState_t state);
+
+/**
  * @brief   Update the heartbeat timestamp for a service.
  *
  *          Called by a service to signal it is still alive.

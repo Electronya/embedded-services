@@ -230,6 +230,20 @@ int serviceManagerRequestResume(k_tid_t threadId)
   return enqueueRequest(SVC_MGR_MSG_RESUME, threadId);
 }
 
+int serviceManagerConfirmState(k_tid_t threadId, ServiceState_t state)
+{
+  int index;
+
+  index = serviceMngrUtilGetIndexFromId(threadId);
+  if(index < 0)
+  {
+    LOG_ERR("ERROR %d: failed to find service by thread ID", index);
+    return index;
+  }
+
+  return serviceMngrUtilSetSrvState((size_t)index, state);
+}
+
 int serviceManagerUpdateHeartbeat(k_tid_t threadId)
 {
   int index;
