@@ -52,6 +52,13 @@ int adcAcqUtilInitSubscriptions(AdcSubConfig_t *adcSubConfig);
 int adcAcqUtilStartTrigger(void);
 
 /**
+ * @brief   Stop the ADC trigger.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int adcAcqUtilStopTrigger(void);
+
+/**
  * @brief   Process the acquired data.
  *
  * @return  0 if successful, the error code otherwise.

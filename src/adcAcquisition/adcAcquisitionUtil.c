@@ -520,6 +520,17 @@ int adcAcqUtilStartTrigger(void)
   return err;
 }
 
+int adcAcqUtilStopTrigger(void)
+{
+  int err;
+
+  err = counter_stop(ADC_TRIGGER_TIMER);
+  if(err < 0)
+    LOG_ERR("ERROR %d: unable to stop the trigger timer", err);
+
+  return err;
+}
+
 int adcAcqUtilProcessData(void)
 {
   int err;

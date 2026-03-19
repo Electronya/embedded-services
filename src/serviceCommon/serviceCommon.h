@@ -46,6 +46,19 @@ typedef struct
   Data_t data[];                                    /**< Flexible array of data bytes. */
 } SrvMsgPayload_t;
 
+/**
+ * @brief   Lifecycle control messages for services that use a dedicated control queue.
+ *
+ *          Used by services (e.g. ADC acquisition) where START and RESUME are handled
+ *          directly via k_thread_start()/k_thread_resume() since the thread cannot read
+ *          the queue when it has not started or is suspended.
+ */
+typedef enum
+{
+  SVC_CTRL_STOP,      /**< Request the service to stop. */
+  SVC_CTRL_SUSPEND,   /**< Request the service to suspend. */
+} ServiceCtrlMsg_t;
+
 #endif    /* SERVICE_COMMON_H */
 
 /** @} */

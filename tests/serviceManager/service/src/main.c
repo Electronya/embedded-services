@@ -44,6 +44,7 @@ FAKE_VALUE_FUNC(int, serviceMngrUtilFeedHardWdg);
 FAKE_VALUE_FUNC(int, serviceMngrUtilStopService, size_t);
 FAKE_VALUE_FUNC(int, serviceMngrUtilSuspendService, size_t);
 FAKE_VALUE_FUNC(int, serviceMngrUtilResumeService, size_t);
+FAKE_VALUE_FUNC(int, serviceMngrUtilSetSrvState, size_t, ServiceState_t);
 
 /* Mock kernel functions */
 #define k_thread_create k_thread_create_mock
@@ -74,6 +75,7 @@ FAKE_VALUE_FUNC(int, k_msgq_get_mock, struct k_msgq *, void *, k_timeout_t);
   FAKE(serviceMngrUtilStopService) \
   FAKE(serviceMngrUtilSuspendService) \
   FAKE(serviceMngrUtilResumeService) \
+  FAKE(serviceMngrUtilSetSrvState) \
   FAKE(k_thread_create_mock) \
   FAKE(k_thread_name_set_mock) \
   FAKE(k_thread_name_get_mock) \
@@ -760,6 +762,81 @@ ZTEST(serviceManager, test_requestResume_success)
                 "serviceMngrUtilGetIndexFromId should be called with the thread ID");
   zassert_equal(k_msgq_put_mock_fake.call_count, 1,
                 "k_msgq_put should be called once");
+}
+
+/**
+ * @test The serviceManagerConfirmState function must return error when the thread ID is not found.
+ */
+ZTEST(serviceManager, test_confirmState_threadNotFound)
+{
+  int result;
+
+  /* Setup: thread ID not found */
+  serviceMngrUtilGetIndexFromId_fake.return_val = -ENOENT;
+
+  /* Execute */
+  result = serviceManagerConfirmState((k_tid_t)0x1000, SVC_STATE_STOPPED);
+
+  /* Verify */
+  zassert_equal(result, -ENOENT, "Expected -ENOENT when thread ID not found");
+  zassert_equal(serviceMngrUtilGetIndexFromId_fake.call_count, 1,
+                "serviceMngrUtilGetIndexFromId should be called once");
+  zassert_equal(serviceMngrUtilGetIndexFromId_fake.arg0_val, (k_tid_t)0x1000,
+                "serviceMngrUtilGetIndexFromId should be called with the thread ID");
+  zassert_equal(serviceMngrUtilSetSrvState_fake.call_count, 0,
+                "serviceMngrUtilSetSrvState should not be called when thread not found");
+}
+
+/**
+ * @test The serviceManagerConfirmState function must return error when setting state fails.
+ */
+ZTEST(serviceManager, test_confirmState_setStateFails)
+{
+  int result;
+
+  /* Setup: thread found, set state fails */
+  serviceMngrUtilGetIndexFromId_fake.return_val = 3;
+  serviceMngrUtilSetSrvState_fake.return_val = -EINVAL;
+
+  /* Execute */
+  result = serviceManagerConfirmState((k_tid_t)0x1000, SVC_STATE_STOPPED);
+
+  /* Verify */
+  zassert_equal(result, -EINVAL, "Expected -EINVAL when set state fails");
+  zassert_equal(serviceMngrUtilSetSrvState_fake.call_count, 1,
+                "serviceMngrUtilSetSrvState should be called once");
+  zassert_equal(serviceMngrUtilSetSrvState_fake.arg0_val, 3,
+                "serviceMngrUtilSetSrvState should be called with the index");
+  zassert_equal(serviceMngrUtilSetSrvState_fake.arg1_val, SVC_STATE_STOPPED,
+                "serviceMngrUtilSetSrvState should be called with the state");
+}
+
+/**
+ * @test The serviceManagerConfirmState function must successfully confirm state change.
+ */
+ZTEST(serviceManager, test_confirmState_success)
+{
+  int result;
+
+  /* Setup: thread found, set state succeeds */
+  serviceMngrUtilGetIndexFromId_fake.return_val = 3;
+  serviceMngrUtilSetSrvState_fake.return_val = 0;
+
+  /* Execute */
+  result = serviceManagerConfirmState((k_tid_t)0x1000, SVC_STATE_SUSPENDED);
+
+  /* Verify */
+  zassert_equal(result, 0, "Expected success (0)");
+  zassert_equal(serviceMngrUtilGetIndexFromId_fake.call_count, 1,
+                "serviceMngrUtilGetIndexFromId should be called once");
+  zassert_equal(serviceMngrUtilGetIndexFromId_fake.arg0_val, (k_tid_t)0x1000,
+                "serviceMngrUtilGetIndexFromId should be called with the thread ID");
+  zassert_equal(serviceMngrUtilSetSrvState_fake.call_count, 1,
+                "serviceMngrUtilSetSrvState should be called once");
+  zassert_equal(serviceMngrUtilSetSrvState_fake.arg0_val, 3,
+                "serviceMngrUtilSetSrvState should be called with the index");
+  zassert_equal(serviceMngrUtilSetSrvState_fake.arg1_val, SVC_STATE_SUSPENDED,
+                "serviceMngrUtilSetSrvState should be called with the state");
 }
 
 /**
