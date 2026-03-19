@@ -215,6 +215,109 @@ ZTEST(serviceManager, test_run_allHealthy)
 }
 
 /**
+ * @test The run function must continue when processing a start message fails.
+ */
+ZTEST(serviceManager, test_run_processStartFails)
+{
+  test_queue_messages[0].type = SVC_MGR_MSG_START;
+  test_queue_messages[0].index = 2;
+  test_queue_msg_count = 1;
+  serviceMngrUtilStartService_fake.return_val = -EINVAL;
+
+  run(NULL, NULL, NULL);
+
+  zassert_equal(serviceMngrUtilStartService_fake.call_count, 1,
+                "serviceMngrUtilStartService should be called once");
+  zassert_equal(serviceMngrUtilStartService_fake.arg0_val, 2,
+                "serviceMngrUtilStartService should be called with index 2");
+  zassert_equal(serviceMngrUtilFeedHardWdg_fake.call_count, 1,
+                "run should continue and feed watchdog after start failure");
+}
+
+/**
+ * @test The run function must continue when processing a stop message fails.
+ */
+ZTEST(serviceManager, test_run_processStopFails)
+{
+  test_queue_messages[0].type = SVC_MGR_MSG_STOP;
+  test_queue_messages[0].index = 2;
+  test_queue_msg_count = 1;
+  serviceMngrUtilStopService_fake.return_val = -EINVAL;
+
+  run(NULL, NULL, NULL);
+
+  zassert_equal(serviceMngrUtilStopService_fake.call_count, 1,
+                "serviceMngrUtilStopService should be called once");
+  zassert_equal(serviceMngrUtilStopService_fake.arg0_val, 2,
+                "serviceMngrUtilStopService should be called with index 2");
+  zassert_equal(serviceMngrUtilFeedHardWdg_fake.call_count, 1,
+                "run should continue and feed watchdog after stop failure");
+}
+
+/**
+ * @test The run function must continue when processing a suspend message fails.
+ */
+ZTEST(serviceManager, test_run_processSuspendFails)
+{
+  test_queue_messages[0].type = SVC_MGR_MSG_SUSPEND;
+  test_queue_messages[0].index = 2;
+  test_queue_msg_count = 1;
+  serviceMngrUtilSuspendService_fake.return_val = -EINVAL;
+
+  run(NULL, NULL, NULL);
+
+  zassert_equal(serviceMngrUtilSuspendService_fake.call_count, 1,
+                "serviceMngrUtilSuspendService should be called once");
+  zassert_equal(serviceMngrUtilSuspendService_fake.arg0_val, 2,
+                "serviceMngrUtilSuspendService should be called with index 2");
+  zassert_equal(serviceMngrUtilFeedHardWdg_fake.call_count, 1,
+                "run should continue and feed watchdog after suspend failure");
+}
+
+/**
+ * @test The run function must continue when processing a resume message fails.
+ */
+ZTEST(serviceManager, test_run_processResumeFails)
+{
+  test_queue_messages[0].type = SVC_MGR_MSG_RESUME;
+  test_queue_messages[0].index = 2;
+  test_queue_msg_count = 1;
+  serviceMngrUtilResumeService_fake.return_val = -EINVAL;
+
+  run(NULL, NULL, NULL);
+
+  zassert_equal(serviceMngrUtilResumeService_fake.call_count, 1,
+                "serviceMngrUtilResumeService should be called once");
+  zassert_equal(serviceMngrUtilResumeService_fake.arg0_val, 2,
+                "serviceMngrUtilResumeService should be called with index 2");
+  zassert_equal(serviceMngrUtilFeedHardWdg_fake.call_count, 1,
+                "run should continue and feed watchdog after resume failure");
+}
+
+/**
+ * @test The run function must continue when it receives an unknown message type.
+ */
+ZTEST(serviceManager, test_run_processUnknownMsg)
+{
+  test_queue_messages[0].type = (ServiceMgrMsgType_t)99;
+  test_queue_messages[0].index = 2;
+  test_queue_msg_count = 1;
+
+  run(NULL, NULL, NULL);
+
+  zassert_equal(serviceMngrUtilStartService_fake.call_count, 0,
+                "serviceMngrUtilStartService should not be called");
+  zassert_equal(serviceMngrUtilStopService_fake.call_count, 0,
+                "serviceMngrUtilStopService should not be called");
+  zassert_equal(serviceMngrUtilSuspendService_fake.call_count, 0,
+                "serviceMngrUtilSuspendService should not be called");
+  zassert_equal(serviceMngrUtilResumeService_fake.call_count, 0,
+                "serviceMngrUtilResumeService should not be called");
+  zassert_equal(serviceMngrUtilFeedHardWdg_fake.call_count, 1,
+                "run should continue and feed watchdog on unknown message");
+}
+
+/**
  * @test The run function must process a start message from the queue.
  */
 ZTEST(serviceManager, test_run_processStart)
