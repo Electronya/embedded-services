@@ -1,0 +1,64 @@
+# Copyright (C) 2025 by Electronya
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig ENYA_SERVICE_MANAGER
+	bool "Service Manager"
+	default y
+	select WATCHDOG
+	help
+	  Enable the service manager module. The service manager acts as a
+	  virtual watchdog that controls hardware watchdog, starts registered
+	  services in priority order, manages service state (start, stop,
+	  suspend, resume), and monitors service health via heartbeats.
+
+if ENYA_SERVICE_MANAGER
+
+config ENYA_SERVICE_MANAGER_STACK_SIZE
+	int "Service manager thread stack size"
+	default 2048
+	help
+	  Stack size for the service manager thread in bytes.
+
+config ENYA_SERVICE_MANAGER_LOG_LEVEL
+	int "Service manager log level"
+	default 3
+	range 0 4
+	help
+	  Log level for the service manager module.
+	  0 = OFF, 1 = ERR, 2 = WRN, 3 = INF, 4 = DBG
+
+config SVC_MGR_MAX_SERVICES
+	int "Maximum number of services"
+	default 16
+	range 1 64
+	help
+	  Maximum number of services that can be registered with the
+	  service manager.
+
+config SVC_MGR_WDT_TIMEOUT_MS
+	int "Hardware watchdog timeout in milliseconds"
+	default 5000
+	range 1000 60000
+	help
+	  Hardware watchdog timeout in milliseconds. The service manager
+	  feeds the watchdog on every loop iteration. This timeout should
+	  be significantly larger than the loop period.
+
+config SVC_MGR_LOOP_PERIOD_MS
+	int "Service manager loop period in milliseconds"
+	default 100
+	range 10 1000
+	help
+	  Period at which the service manager thread runs. The manager
+	  checks heartbeats, processes state change requests, and feeds
+	  the watchdog on every iteration.
+
+config ENYA_SERVICE_MANAGER_SHELL
+	bool "Enable service manager shell commands"
+	default y
+	depends on SHELL
+	help
+	  Enable shell commands for the service manager. This allows
+	  querying service status and controlling services via the shell.
+
+endif # ENYA_SERVICE_MANAGER

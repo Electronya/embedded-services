@@ -634,7 +634,7 @@ ZTEST(datastore_cmd_tests, test_exec_read_datastore_read_fails)
   int result;
 
   /* Setup mocks */
-  findDatapointByName_fake.return_val = 0;
+  findDatapointByName_fake.custom_fake = findDatapointByName_with_entry;
   datastoreRead_fake.return_val = -EIO;
 
   result = execRead(shell, 1, argv);

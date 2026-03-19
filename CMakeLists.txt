@@ -15,3 +15,7 @@ endif()
 if(CONFIG_ENYA_DATASTORE)
   add_subdirectory(./src/datastore)
 endif()
+
+if(CONFIG_ENYA_SERVICE_MANAGER)
+  add_subdirectory(./src/serviceManager)
+endif()
