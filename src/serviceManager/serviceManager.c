@@ -20,6 +20,12 @@
 
 LOG_MODULE_REGISTER(serviceManager, CONFIG_ENYA_SERVICE_MANAGER_LOG_LEVEL);
 
+#ifdef CONFIG_ZTEST
+#ifndef SVC_MGR_RUN_ITERATIONS
+#define SVC_MGR_RUN_ITERATIONS 1
+#endif
+#endif
+
 typedef enum
 {
   SVC_MGR_MSG_START,

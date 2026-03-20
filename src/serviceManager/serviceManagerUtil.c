@@ -132,12 +132,8 @@ int serviceMngrUtilAddSrvToRegistry(const ServiceDescriptor_t *descriptor)
 
 ServiceDescriptor_t *serviceMngrUtilGetRegEntryByIndex(size_t index)
 {
-  /* Validate index */
   if(index >= registeredServiceCount)
-  {
-    LOG_ERR("ERROR %d: index out of bounds", -EINVAL);
     return NULL;
-  }
 
   return &serviceRegistry[index];
 }
