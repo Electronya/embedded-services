@@ -64,27 +64,32 @@ static void run(void *p1, void *p2, void *p3)
   {
     if(k_msgq_get(&serviceManagerQueue, &msg, K_MSEC(CONFIG_SVC_MGR_LOOP_PERIOD_MS)) == 0)
     {
+      descriptor = serviceMngrUtilGetRegEntryByIndex(msg.index);
       switch(msg.type)
       {
         case SVC_MGR_MSG_START:
           err = serviceMngrUtilStartService(msg.index);
           if(err < 0)
-            LOG_ERR("ERROR %d: failed to start service %zu", err, msg.index);
+            LOG_ERR("ERROR %d: failed to start service %s", err,
+                    descriptor ? k_thread_name_get(descriptor->threadId) : "unknown");
         break;
         case SVC_MGR_MSG_STOP:
           err = serviceMngrUtilStopService(msg.index);
           if(err < 0)
-            LOG_ERR("ERROR %d: failed to stop service %zu", err, msg.index);
+            LOG_ERR("ERROR %d: failed to stop service %s", err,
+                    descriptor ? k_thread_name_get(descriptor->threadId) : "unknown");
         break;
         case SVC_MGR_MSG_SUSPEND:
           err = serviceMngrUtilSuspendService(msg.index);
           if(err < 0)
-            LOG_ERR("ERROR %d: failed to suspend service %zu", err, msg.index);
+            LOG_ERR("ERROR %d: failed to suspend service %s", err,
+                    descriptor ? k_thread_name_get(descriptor->threadId) : "unknown");
         break;
         case SVC_MGR_MSG_RESUME:
           err = serviceMngrUtilResumeService(msg.index);
           if(err < 0)
-            LOG_ERR("ERROR %d: failed to resume service %zu", err, msg.index);
+            LOG_ERR("ERROR %d: failed to resume service %s", err,
+                    descriptor ? k_thread_name_get(descriptor->threadId) : "unknown");
         break;
         default:
           LOG_WRN("unknown message type %d", msg.type);
