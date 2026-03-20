@@ -160,7 +160,7 @@ int serviceManagerInit(void)
                              CONFIG_ENYA_SERVICE_MANAGER_STACK_SIZE,
                              run, NULL, NULL, NULL,
                              K_PRIO_PREEMPT(CONFIG_ENYA_SERVICE_MANAGER_THREAD_PRIORITY),
-                             0, K_FOREVER);
+                             0, K_NO_WAIT);
   k_thread_name_set(threadId, "serviceManager");
 
   LOG_INF("service manager initialized");
