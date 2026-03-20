@@ -17,6 +17,7 @@ target_include_directories(app
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   ${CMAKE_CURRENT_SOURCE_DIR}/../../../src/datastore
   ${CMAKE_CURRENT_SOURCE_DIR}/../../../src/serviceCommon
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../../src/serviceManager
 )
 
 # Suppress unused function warnings

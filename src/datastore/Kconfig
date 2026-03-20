@@ -50,6 +50,60 @@ config ENYA_DATASTORE_SHELL
       datastore binary_data write <id> <count> <values...> - Write binary values
       (Similar commands available for button, float, int, multi-state, uint)
 
+config ENYA_DATASTORE_MAX_BINARY_SUBS
+  int "Electronya Datastore Maximum Binary Subscriptions"
+  default 2
+  help
+    The maximum number of binary datapoint subscriptions.
+
+config ENYA_DATASTORE_MAX_BUTTON_SUBS
+  int "Electronya Datastore Maximum Button Subscriptions"
+  default 2
+  help
+    The maximum number of button datapoint subscriptions.
+
+config ENYA_DATASTORE_MAX_FLOAT_SUBS
+  int "Electronya Datastore Maximum Float Subscriptions"
+  default 2
+  help
+    The maximum number of float datapoint subscriptions.
+
+config ENYA_DATASTORE_MAX_INT_SUBS
+  int "Electronya Datastore Maximum Integer Subscriptions"
+  default 2
+  help
+    The maximum number of signed integer datapoint subscriptions.
+
+config ENYA_DATASTORE_MAX_MULTI_STATE_SUBS
+  int "Electronya Datastore Maximum Multi-State Subscriptions"
+  default 2
+  help
+    The maximum number of multi-state datapoint subscriptions.
+
+config ENYA_DATASTORE_MAX_UINT_SUBS
+  int "Electronya Datastore Maximum Unsigned Integer Subscriptions"
+  default 2
+  help
+    The maximum number of unsigned integer datapoint subscriptions.
+
+config ENYA_DATASTORE_THREAD_PRIORITY
+  int "Electronya Datastore Thread Priority"
+  default 5
+  help
+    The Zephyr preemptible thread priority for the datastore service thread.
+
+config ENYA_DATASTORE_SERVICE_PRIORITY
+  int "Electronya Datastore Service Priority"
+  default 1
+  help
+    The service manager priority level for the datastore service.
+
+config ENYA_DATASTORE_HEARTBEAT_INTERVAL_MS
+  int "Electronya Datastore Heartbeat Interval (ms)"
+  default 1000
+  help
+    The heartbeat interval in milliseconds for the datastore service.
+
 config FIRST_FLOAT_DEFAULT_VAL
   int "First Float Default Value"
   default 123

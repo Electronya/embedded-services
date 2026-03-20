@@ -112,15 +112,15 @@ typedef struct
 } DatastoreSubEntry_t;
 
 /**
- * @brief   Initialize the datastore.
+ * @brief   Initialize the datastore service.
  *
- * @param[in]   maxSubs: The maximum subscriptions for each datatype.
- * @param[in]   priority: The datastore thread priority
- * @param[out]  threadId: The service thread ID.
+ *          Allocates subscriptions from Kconfig, creates and names the service
+ *          thread, and registers it with the service manager. All configuration
+ *          is driven by Kconfig symbols.
  *
  * @return  0 if successful, the error code otherwise.
  */
-int datastoreInit(size_t maxSubs[DATAPOINT_TYPE_COUNT], uint32_t priority, k_tid_t *threadId);
+int datastoreInit(void);
 
 /**
  * @brief   Read a datapoint.

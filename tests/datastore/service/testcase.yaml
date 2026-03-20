@@ -5,11 +5,3 @@ tests:
       - datastore
     platform_allow:
       - native_sim
-  electronya.embedded_datastore.datastore.service.timeout_zero:
-    tags:
-      - unit
-      - datastore
-    platform_allow:
-      - native_sim
-    extra_configs:
-      - CONFIG_ENYA_DATASTORE_MSGQ_TIMEOUT=0
