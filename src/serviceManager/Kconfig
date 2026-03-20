@@ -53,6 +53,12 @@ config SVC_MGR_LOOP_PERIOD_MS
 	  checks heartbeats, processes state change requests, and feeds
 	  the watchdog on every iteration.
 
+config ENYA_SERVICE_MANAGER_THREAD_PRIORITY
+	int "Service manager thread priority"
+	default 1
+	help
+	  The Zephyr preemptible thread priority for the service manager thread.
+
 config ENYA_SERVICE_MANAGER_SHELL
 	bool "Enable service manager shell commands"
 	default y

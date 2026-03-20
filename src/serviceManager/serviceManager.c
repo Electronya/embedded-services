@@ -134,9 +134,10 @@ static int enqueueRequest(ServiceMgrMsgType_t type, k_tid_t threadId)
   return 0;
 }
 
-int serviceManagerInit(uint32_t priority, k_tid_t *threadId)
+int serviceManagerInit(void)
 {
   int err;
+  k_tid_t threadId;
 
   /* Initialize hardware watchdog */
   err = serviceMngrUtilInitHardWdg();
@@ -155,11 +156,12 @@ int serviceManagerInit(uint32_t priority, k_tid_t *threadId)
   }
 
   /* Start service manager thread */
-  *threadId = k_thread_create(&serviceManagerThread, serviceManagerStack,
-                              CONFIG_ENYA_SERVICE_MANAGER_STACK_SIZE,
-                              run, NULL, NULL, NULL,
-                              K_PRIO_PREEMPT(priority), 0, K_FOREVER);
-  k_thread_name_set(*threadId, "serviceManager");
+  threadId = k_thread_create(&serviceManagerThread, serviceManagerStack,
+                             CONFIG_ENYA_SERVICE_MANAGER_STACK_SIZE,
+                             run, NULL, NULL, NULL,
+                             K_PRIO_PREEMPT(CONFIG_ENYA_SERVICE_MANAGER_THREAD_PRIORITY),
+                             0, K_FOREVER);
+  k_thread_name_set(threadId, "serviceManager");
 
   LOG_INF("service manager initialized");
 
