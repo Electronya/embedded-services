@@ -17,6 +17,7 @@
 
 #include "datastore.h"
 #include "datastoreUtil.h"
+#include "serviceManager.h"
 
 /* Setting module logging */
 LOG_MODULE_REGISTER(DATASTORE_LOGGER_NAME, CONFIG_ENYA_DATASTORE_LOG_LEVEL);
@@ -49,6 +50,8 @@ typedef enum
 {
   DATASTORE_READ = 0,
   DATASTORE_WRITE,
+  DATASTORE_STOP,
+  DATASTORE_SUSPEND,
   DATASTORE_MSG_TYPE_COUNT,
 } DatastoreMsgtype_t;
 
@@ -103,67 +106,134 @@ static void run(void *p1, void *p2, void *p3)
   for(;;)
 #endif
   {
-    err = k_msgq_get(&datastoreQueue, &msg, K_MSEC(CONFIG_ENYA_DATASTORE_MSGQ_TIMEOUT));
-    if(err < 0)
+    if(k_msgq_get(&datastoreQueue, &msg, K_MSEC(CONFIG_ENYA_DATASTORE_MSGQ_TIMEOUT)) == 0)
     {
-      if(err != -EAGAIN)
+      switch(msg.msgType)
       {
-        LOG_ERR("ERROR %d: unable to get a message", err);
+        case DATASTORE_READ:
+          errOp = datastoreUtilRead(msg.datapointType, msg.datapointId, msg.valCount, msg.payload->data);
+        break;
+        case DATASTORE_WRITE:
+          errOp = datastoreUtilWrite(msg.datapointType, msg.datapointId, msg.payload->data, msg.valCount, bufferPool);
+          osMemoryPoolFree(msg.payload->poolId, msg.payload);
+        break;
+        case DATASTORE_STOP:
+          serviceManagerConfirmState(k_current_get(), SVC_STATE_STOPPED);
+          return;
+        case DATASTORE_SUSPEND:
+          serviceManagerConfirmState(k_current_get(), SVC_STATE_SUSPENDED);
+          k_thread_suspend(k_current_get());
+        break;
+        default:
+          LOG_WRN("unsupported message type %d", msg.msgType);
+        break;
       }
-      continue;
+
+      if(msg.response)
+      {
+        err = k_msgq_put(msg.response, &errOp, K_NO_WAIT);
+        if(err < 0)
+          LOG_ERR("ERROR %d: unable to respond to operation %d for datapoint type %d with ID %d",
+                  err, msg.msgType, msg.datapointType, msg.datapointId);
+      }
     }
 
-    switch(msg.msgType)
-    {
-      case DATASTORE_READ:
-        errOp = datastoreUtilRead(msg.datapointType, msg.datapointId, msg.valCount, msg.payload->data);
-      break;
-      case DATASTORE_WRITE:
-        errOp = datastoreUtilWrite(msg.datapointType, msg.datapointId, msg.payload->data, msg.valCount, bufferPool);
-        osMemoryPoolFree(msg.payload->poolId, msg.payload);
-      break;
-      default:
-        LOG_WRN("unsupported message type %d", msg.msgType);
-      break;
-    }
-
-    if(msg.response)
-    {
-      err = k_msgq_put(msg.response, &errOp, K_NO_WAIT);
-      if(err < 0)
-        LOG_ERR("ERROR %d: unable to respond to operation %d for datapoint type %d with ID %d",
-                err, msg.msgType, msg.datapointType, msg.datapointId);
-    }
+    serviceManagerUpdateHeartbeat(k_current_get());
   }
 }
 
-int datastoreInit(size_t maxSubs[DATAPOINT_TYPE_COUNT], uint32_t priority, k_tid_t *threadId)
+/**
+ * @brief   Start callback: starts the datastore thread.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+static int onStart(void)
+{
+  k_thread_start(&thread);
+  return 0;
+}
+
+/**
+ * @brief   Stop callback: enqueues a stop message to the datastore queue.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+static int onStop(void)
 {
   int err;
+  DatastoreMsg_t msg = { .msgType = DATASTORE_STOP };
+
+  err = k_msgq_put(&datastoreQueue, &msg, K_NO_WAIT);
+  if(err < 0)
+    LOG_ERR("ERROR %d: unable to enqueue datastore stop message", err);
+
+  return err;
+}
+
+/**
+ * @brief   Suspend callback: enqueues a suspend message to the datastore queue.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+static int onSuspend(void)
+{
+  int err;
+  DatastoreMsg_t msg = { .msgType = DATASTORE_SUSPEND };
+
+  err = k_msgq_put(&datastoreQueue, &msg, K_NO_WAIT);
+  if(err < 0)
+    LOG_ERR("ERROR %d: unable to enqueue datastore suspend message", err);
+
+  return err;
+}
+
+/**
+ * @brief   Resume callback: resumes the datastore thread.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+static int onResume(void)
+{
+  k_thread_resume(&thread);
+  return 0;
+}
+
+int datastoreInit(void)
+{
+  int err;
+  k_tid_t threadId;
   size_t datapointCounts[DATAPOINT_TYPE_COUNT] = {BINARY_DATAPOINT_COUNT, BUTTON_DATAPOINT_COUNT, FLOAT_DATAPOINT_COUNT,
                                                   INT_DATAPOINT_COUNT, MULTI_STATE_DATAPOINT_COUNT, UINT_DATAPOINT_COUNT};
+  ServiceDescriptor_t descriptor = {
+    .priority            = CONFIG_ENYA_DATASTORE_SERVICE_PRIORITY,
+    .heartbeatIntervalMs = CONFIG_ENYA_DATASTORE_HEARTBEAT_INTERVAL_MS,
+    .start               = onStart,
+    .stop                = onStop,
+    .suspend             = onSuspend,
+    .resume              = onResume,
+  };
 
-  err = datastoreUtilAllocateBinarySubs(maxSubs[DATAPOINT_BINARY]);
+  err = datastoreUtilAllocateBinarySubs(CONFIG_ENYA_DATASTORE_MAX_BINARY_SUBS);
   if(err < 0)
     return err;
 
-  err = datastoreUtilAllocateButtonSubs(maxSubs[DATAPOINT_BUTTON]);
+  err = datastoreUtilAllocateButtonSubs(CONFIG_ENYA_DATASTORE_MAX_BUTTON_SUBS);
   if(err < 0)
     return err;
 
-  err = datastoreUtilAllocateFloatSubs(maxSubs[DATAPOINT_FLOAT]);
+  err = datastoreUtilAllocateFloatSubs(CONFIG_ENYA_DATASTORE_MAX_FLOAT_SUBS);
   if(err < 0)
     return err;
 
-  err = datastoreUtilAllocateIntSubs(maxSubs[DATAPOINT_INT]);
+  err = datastoreUtilAllocateIntSubs(CONFIG_ENYA_DATASTORE_MAX_INT_SUBS);
   if(err < 0)
     return err;
 
-  err = datastoreUtilAllocateMultiStateSubs(maxSubs[DATAPOINT_MULTI_STATE]);
+  err = datastoreUtilAllocateMultiStateSubs(CONFIG_ENYA_DATASTORE_MAX_MULTI_STATE_SUBS);
   if(err < 0)
     return err;
 
-  err = datastoreUtilAllocateUintSubs(maxSubs[DATAPOINT_UINT]);
+  err = datastoreUtilAllocateUintSubs(CONFIG_ENYA_DATASTORE_MAX_UINT_SUBS);
   if(err < 0)
     return err;
 
@@ -171,12 +241,21 @@ int datastoreInit(size_t maxSubs[DATAPOINT_TYPE_COUNT], uint32_t priority, k_tid
   if(!bufferPool)
     return -ENOSPC;
 
-  *threadId = k_thread_create(&thread, datastoreStack, CONFIG_ENYA_DATASTORE_STACK_SIZE, run,
-                              NULL, NULL, NULL, K_PRIO_PREEMPT(priority), 0, K_FOREVER);
+  threadId = k_thread_create(&thread, datastoreStack, CONFIG_ENYA_DATASTORE_STACK_SIZE, run,
+                             NULL, NULL, NULL, K_PRIO_PREEMPT(CONFIG_ENYA_DATASTORE_THREAD_PRIORITY), 0, K_FOREVER);
 
-  err = k_thread_name_set(*threadId, STRINGIFY(DATASTORE_LOGGER_NAME));
-  if(err< 0)
+  err = k_thread_name_set(threadId, STRINGIFY(DATASTORE_LOGGER_NAME));
+  if(err < 0)
+  {
     LOG_ERR("ERROR %d: unable to set datastore thread name", err);
+    return err;
+  }
+
+  descriptor.threadId = threadId;
+
+  err = serviceManagerRegisterSrv(&descriptor);
+  if(err < 0)
+    LOG_ERR("ERROR %d: unable to register datastore service", err);
 
   return err;
 }
