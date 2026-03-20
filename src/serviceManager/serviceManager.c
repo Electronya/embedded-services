@@ -20,6 +20,12 @@
 
 LOG_MODULE_REGISTER(serviceManager, CONFIG_ENYA_SERVICE_MANAGER_LOG_LEVEL);
 
+#ifdef CONFIG_ZTEST
+#ifndef SVC_MGR_RUN_ITERATIONS
+#define SVC_MGR_RUN_ITERATIONS 1
+#endif
+#endif
+
 typedef enum
 {
   SVC_MGR_MSG_START,
@@ -58,27 +64,32 @@ static void run(void *p1, void *p2, void *p3)
   {
     if(k_msgq_get(&serviceManagerQueue, &msg, K_MSEC(CONFIG_SVC_MGR_LOOP_PERIOD_MS)) == 0)
     {
+      descriptor = serviceMngrUtilGetRegEntryByIndex(msg.index);
       switch(msg.type)
       {
         case SVC_MGR_MSG_START:
           err = serviceMngrUtilStartService(msg.index);
           if(err < 0)
-            LOG_ERR("ERROR %d: failed to start service %zu", err, msg.index);
+            LOG_ERR("ERROR %d: failed to start service %s", err,
+                    descriptor ? k_thread_name_get(descriptor->threadId) : "unknown");
         break;
         case SVC_MGR_MSG_STOP:
           err = serviceMngrUtilStopService(msg.index);
           if(err < 0)
-            LOG_ERR("ERROR %d: failed to stop service %zu", err, msg.index);
+            LOG_ERR("ERROR %d: failed to stop service %s", err,
+                    descriptor ? k_thread_name_get(descriptor->threadId) : "unknown");
         break;
         case SVC_MGR_MSG_SUSPEND:
           err = serviceMngrUtilSuspendService(msg.index);
           if(err < 0)
-            LOG_ERR("ERROR %d: failed to suspend service %zu", err, msg.index);
+            LOG_ERR("ERROR %d: failed to suspend service %s", err,
+                    descriptor ? k_thread_name_get(descriptor->threadId) : "unknown");
         break;
         case SVC_MGR_MSG_RESUME:
           err = serviceMngrUtilResumeService(msg.index);
           if(err < 0)
-            LOG_ERR("ERROR %d: failed to resume service %zu", err, msg.index);
+            LOG_ERR("ERROR %d: failed to resume service %s", err,
+                    descriptor ? k_thread_name_get(descriptor->threadId) : "unknown");
         break;
         default:
           LOG_WRN("unknown message type %d", msg.type);
@@ -134,9 +145,10 @@ static int enqueueRequest(ServiceMgrMsgType_t type, k_tid_t threadId)
   return 0;
 }
 
-int serviceManagerInit(uint32_t priority, k_tid_t *threadId)
+int serviceManagerInit(void)
 {
   int err;
+  k_tid_t threadId;
 
   /* Initialize hardware watchdog */
   err = serviceMngrUtilInitHardWdg();
@@ -155,11 +167,12 @@ int serviceManagerInit(uint32_t priority, k_tid_t *threadId)
   }
 
   /* Start service manager thread */
-  *threadId = k_thread_create(&serviceManagerThread, serviceManagerStack,
-                              CONFIG_ENYA_SERVICE_MANAGER_STACK_SIZE,
-                              run, NULL, NULL, NULL,
-                              K_PRIO_PREEMPT(priority), 0, K_FOREVER);
-  k_thread_name_set(*threadId, "serviceManager");
+  threadId = k_thread_create(&serviceManagerThread, serviceManagerStack,
+                             CONFIG_ENYA_SERVICE_MANAGER_STACK_SIZE,
+                             run, NULL, NULL, NULL,
+                             K_PRIO_PREEMPT(CONFIG_ENYA_SERVICE_MANAGER_THREAD_PRIORITY),
+                             0, K_NO_WAIT);
+  k_thread_name_set(threadId, "serviceManager");
 
   LOG_INF("service manager initialized");
 

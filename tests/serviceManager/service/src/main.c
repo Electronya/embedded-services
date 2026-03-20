@@ -27,6 +27,7 @@ DEFINE_FFF_GLOBALS;
 #define CONFIG_SVC_MGR_LOOP_PERIOD_MS 100
 #define CONFIG_ENYA_SERVICE_MANAGER_STACK_SIZE 2048
 #define CONFIG_SVC_MGR_MAX_SERVICES 16
+#define CONFIG_ENYA_SERVICE_MANAGER_THREAD_PRIORITY 1
 
 /* Include serviceManager.h for type definitions */
 #include "serviceManager.h"
@@ -60,8 +61,6 @@ FAKE_VALUE_FUNC(int, k_msgq_put_mock, struct k_msgq *, const void *, k_timeout_t
 FAKE_VALUE_FUNC(int, k_msgq_get_mock, struct k_msgq *, void *, k_timeout_t);
 
 /* FFF fakes list */
-#define SVC_MGR_RUN_ITERATIONS 1
-
 #define FFF_FAKES_LIST(FAKE) \
   FAKE(serviceMngrUtilInitHardWdg) \
   FAKE(serviceMngrUtilInitSrvRegistry) \
@@ -393,11 +392,10 @@ ZTEST(serviceManager, test_run_processResume)
 ZTEST(serviceManager, test_init_hardWdgFails)
 {
   int result;
-  k_tid_t threadId;
 
   serviceMngrUtilInitHardWdg_fake.return_val = -ENODEV;
 
-  result = serviceManagerInit(5, &threadId);
+  result = serviceManagerInit();
 
   zassert_equal(result, -ENODEV, "Expected -ENODEV when hardware watchdog init fails");
   zassert_equal(serviceMngrUtilInitHardWdg_fake.call_count, 1,
@@ -414,12 +412,11 @@ ZTEST(serviceManager, test_init_hardWdgFails)
 ZTEST(serviceManager, test_init_registryFails)
 {
   int result;
-  k_tid_t threadId;
 
   serviceMngrUtilInitHardWdg_fake.return_val = 0;
   serviceMngrUtilInitSrvRegistry_fake.return_val = -ENOMEM;
 
-  result = serviceManagerInit(5, &threadId);
+  result = serviceManagerInit();
 
   zassert_equal(result, -ENOMEM, "Expected -ENOMEM when registry init fails");
   zassert_equal(serviceMngrUtilInitHardWdg_fake.call_count, 1,
@@ -436,14 +433,13 @@ ZTEST(serviceManager, test_init_registryFails)
 ZTEST(serviceManager, test_init_success)
 {
   int result;
-  k_tid_t threadId;
   k_tid_t fakeThreadId = (k_tid_t)0xABCD;
 
   serviceMngrUtilInitHardWdg_fake.return_val = 0;
   serviceMngrUtilInitSrvRegistry_fake.return_val = 0;
   k_thread_create_mock_fake.return_val = fakeThreadId;
 
-  result = serviceManagerInit(5, &threadId);
+  result = serviceManagerInit();
 
   zassert_equal(result, 0, "Expected success (0)");
   zassert_equal(serviceMngrUtilInitHardWdg_fake.call_count, 1,
@@ -456,10 +452,9 @@ ZTEST(serviceManager, test_init_success)
                 "k_thread_create should be called with the correct stack size");
   zassert_equal(k_thread_create_mock_fake.arg3_val, run,
                 "k_thread_create should be called with run as entry");
-  zassert_equal(k_thread_create_mock_fake.arg7_val, K_PRIO_PREEMPT(5),
+  zassert_equal(k_thread_create_mock_fake.arg7_val,
+                K_PRIO_PREEMPT(CONFIG_ENYA_SERVICE_MANAGER_THREAD_PRIORITY),
                 "k_thread_create should be called with the correct priority");
-  zassert_equal(threadId, fakeThreadId,
-                "threadId output should be set to the created thread ID");
   zassert_equal(k_thread_name_set_mock_fake.call_count, 1,
                 "k_thread_name_set should be called once");
   zassert_equal(k_thread_name_set_mock_fake.arg0_val, fakeThreadId,

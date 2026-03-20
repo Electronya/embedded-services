@@ -129,6 +129,9 @@ static void util_tests_before(void *fixture)
   FFF_FAKES_LIST(RESET_FAKE);
   FFF_RESET_HISTORY();
 
+  /* Set default return values */
+  k_thread_name_get_mock_fake.return_val = "";
+
   /* Set custom fake for wdt_install_timeout */
   wdt_install_timeout_mock_fake.custom_fake = wdt_install_timeout_custom_fake;
 
@@ -804,32 +807,65 @@ ZTEST(serviceMngrUtil, test_setSrvState_indexOutOfBounds)
 }
 
 /**
- * @test The serviceMngrUtilSetSrvState function must successfully set service state.
+ * @test The serviceMngrUtilSetSrvState function must successfully set service state to running without resetting heartbeat.
  */
-ZTEST(serviceMngrUtil, test_setSrvState_success)
+ZTEST(serviceMngrUtil, test_setSrvState_running)
 {
   int result;
 
-  /* Execute: set index 5 to RUNNING */
+  serviceRegistry[5].missedHeartbeats = 2;
+  serviceRegistry[5].lastHeartbeatMs = 1000;
+
   result = serviceMngrUtilSetSrvState(5, SVC_STATE_RUNNING);
 
-  /* Verify result */
   zassert_equal(result, 0, "Expected success (0)");
   zassert_equal(serviceRegistry[5].state, SVC_STATE_RUNNING, "Service state should be RUNNING");
+  zassert_equal(serviceRegistry[5].missedHeartbeats, 2,
+                "Missed heartbeats should not be reset when transitioning to RUNNING");
+  zassert_equal(k_uptime_get_mock_fake.call_count, 0,
+                "k_uptime_get should not be called when transitioning to RUNNING");
+}
 
-  /* Execute: set index 5 to SUSPENDED */
+/**
+ * @test The serviceMngrUtilSetSrvState function must reset heartbeat tracking when setting service state to suspended.
+ */
+ZTEST(serviceMngrUtil, test_setSrvState_suspended)
+{
+  int result;
+
+  serviceRegistry[5].missedHeartbeats = 2;
+  serviceRegistry[5].lastHeartbeatMs = 0;
+  k_uptime_get_mock_fake.return_val = 7000;
+
   result = serviceMngrUtilSetSrvState(5, SVC_STATE_SUSPENDED);
 
-  /* Verify result */
   zassert_equal(result, 0, "Expected success (0)");
   zassert_equal(serviceRegistry[5].state, SVC_STATE_SUSPENDED, "Service state should be SUSPENDED");
+  zassert_equal(serviceRegistry[5].missedHeartbeats, 0,
+                "Missed heartbeats should be reset to 0 on suspend");
+  zassert_equal(serviceRegistry[5].lastHeartbeatMs, 7000,
+                "lastHeartbeatMs should be reset to current uptime on suspend");
+}
 
-  /* Execute: set index 5 back to STOPPED */
+/**
+ * @test The serviceMngrUtilSetSrvState function must reset heartbeat tracking when setting service state to stopped.
+ */
+ZTEST(serviceMngrUtil, test_setSrvState_stopped)
+{
+  int result;
+
+  serviceRegistry[5].missedHeartbeats = 2;
+  serviceRegistry[5].lastHeartbeatMs = 0;
+  k_uptime_get_mock_fake.return_val = 9000;
+
   result = serviceMngrUtilSetSrvState(5, SVC_STATE_STOPPED);
 
-  /* Verify result */
   zassert_equal(result, 0, "Expected success (0)");
   zassert_equal(serviceRegistry[5].state, SVC_STATE_STOPPED, "Service state should be STOPPED");
+  zassert_equal(serviceRegistry[5].missedHeartbeats, 0,
+                "Missed heartbeats should be reset to 0 on stop");
+  zassert_equal(serviceRegistry[5].lastHeartbeatMs, 9000,
+                "lastHeartbeatMs should be reset to current uptime on stop");
 }
 
 /**
@@ -927,6 +963,30 @@ ZTEST(serviceMngrUtil, test_checkSrvHeartbeat_indexOutOfBounds)
 }
 
 /**
+ * @test The serviceMngrUtilCheckSrvHeartbeat function must return 0 without checking heartbeat when service is not running.
+ */
+ZTEST(serviceMngrUtil, test_checkSrvHeartbeat_serviceNotRunning)
+{
+  int result;
+
+  /* Setup: service is suspended with stale heartbeat that would otherwise trigger a miss */
+  serviceRegistry[5].state = SVC_STATE_SUSPENDED;
+  serviceRegistry[5].lastHeartbeatMs = 0;
+  serviceRegistry[5].missedHeartbeats = 0;
+  k_uptime_get_mock_fake.return_val = 5000;
+
+  /* Execute */
+  result = serviceMngrUtilCheckSrvHeartbeat(5);
+
+  /* Verify: returns 0, missed count untouched, k_uptime_get not called */
+  zassert_equal(result, 0, "Expected 0 for non-running service");
+  zassert_equal(serviceRegistry[5].missedHeartbeats, 0,
+                "Missed heartbeat count should not be incremented for suspended service");
+  zassert_equal(k_uptime_get_mock_fake.call_count, 0,
+                "k_uptime_get should not be called for non-running service");
+}
+
+/**
  * @test The serviceMngrUtilCheckSrvHeartbeat function must not increment missed count when heartbeat is on time.
  */
 ZTEST(serviceMngrUtil, test_checkSrvHeartbeat_heartbeatOnTime)
@@ -934,6 +994,7 @@ ZTEST(serviceMngrUtil, test_checkSrvHeartbeat_heartbeatOnTime)
   int result;
 
   /* lastHeartbeatMs=4000, interval=2000, now=5000 -> elapsed=1000 < 2000 */
+  serviceRegistry[5].state = SVC_STATE_RUNNING;
   serviceRegistry[5].lastHeartbeatMs = 4000;
   k_uptime_get_mock_fake.return_val = 5000;
 
@@ -954,6 +1015,7 @@ ZTEST(serviceMngrUtil, test_checkSrvHeartbeat_heartbeatMissed)
   int result;
 
   /* lastHeartbeatMs=2000, interval=2000, now=5000 -> elapsed=3000 >= 2000 */
+  serviceRegistry[5].state = SVC_STATE_RUNNING;
   serviceRegistry[5].lastHeartbeatMs = 2000;
   k_uptime_get_mock_fake.return_val = 5000;
   k_thread_name_get_mock_fake.return_val = "test_service";
@@ -979,6 +1041,7 @@ ZTEST(serviceMngrUtil, test_checkSrvHeartbeat_timeout)
   int result;
 
   /* Pre-set missed heartbeats at max (3), one more will trigger timeout */
+  serviceRegistry[5].state = SVC_STATE_RUNNING;
   serviceRegistry[5].missedHeartbeats = SVC_MGR_MAX_MISSED_HEARTBEATS;
   serviceRegistry[5].lastHeartbeatMs = 2000;
   k_uptime_get_mock_fake.return_val = 5000;

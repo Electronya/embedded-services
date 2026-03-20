@@ -123,21 +123,17 @@ int serviceMngrUtilAddSrvToRegistry(const ServiceDescriptor_t *descriptor)
 
   registeredServiceCount++;
 
-  LOG_INF("service registered (thread: %p, priority: %d, heartbeat: %d ms, total: %d)",
-          descriptor->threadId, descriptor->priority, descriptor->heartbeatIntervalMs,
-          registeredServiceCount);
+  LOG_INF("service registered (name: %s, priority: %d, heartbeat: %d ms, total: %d)",
+          k_thread_name_get(descriptor->threadId), descriptor->priority,
+          descriptor->heartbeatIntervalMs, registeredServiceCount);
 
   return 0;
 }
 
 ServiceDescriptor_t *serviceMngrUtilGetRegEntryByIndex(size_t index)
 {
-  /* Validate index */
   if(index >= registeredServiceCount)
-  {
-    LOG_ERR("ERROR %d: index out of bounds", -EINVAL);
     return NULL;
-  }
 
   return &serviceRegistry[index];
 }
@@ -193,7 +189,7 @@ int serviceMngrUtilStartService(size_t index)
   /* Update service state */
   serviceRegistry[index].state = SVC_STATE_RUNNING;
 
-  LOG_INF("service started (index: %zu)", index);
+  LOG_INF("service started: %s", k_thread_name_get(serviceRegistry[index].threadId));
 
   return 0;
 }
@@ -224,7 +220,7 @@ int serviceMngrUtilStopService(size_t index)
     return err;
   }
 
-  LOG_INF("service stop requested (index: %zu)", index);
+  LOG_INF("service stop requested: %s", k_thread_name_get(serviceRegistry[index].threadId));
 
   return 0;
 }
@@ -255,7 +251,7 @@ int serviceMngrUtilSuspendService(size_t index)
     return err;
   }
 
-  LOG_INF("service suspend requested (index: %zu)", index);
+  LOG_INF("service suspend requested: %s", k_thread_name_get(serviceRegistry[index].threadId));
 
   return 0;
 }
@@ -289,7 +285,7 @@ int serviceMngrUtilResumeService(size_t index)
   /* Update service state */
   serviceRegistry[index].state = SVC_STATE_RUNNING;
 
-  LOG_INF("service resumed (index: %zu)", index);
+  LOG_INF("service resumed: %s", k_thread_name_get(serviceRegistry[index].threadId));
 
   return 0;
 }
@@ -305,7 +301,15 @@ int serviceMngrUtilSetSrvState(size_t index, ServiceState_t state)
 
   serviceRegistry[index].state = state;
 
-  LOG_DBG("service state updated (index: %zu, state: %d)", index, state);
+  /* Reset heartbeat tracking when leaving running state */
+  if(state != SVC_STATE_RUNNING)
+  {
+    serviceRegistry[index].lastHeartbeatMs = k_uptime_get();
+    serviceRegistry[index].missedHeartbeats = 0;
+  }
+
+  LOG_DBG("service state updated (name: %s, state: %d)",
+          k_thread_name_get(serviceRegistry[index].threadId), state);
 
   return 0;
 }
@@ -323,7 +327,8 @@ int serviceMngrUtilUpdateSrvHeartbeat(size_t index)
   serviceRegistry[index].lastHeartbeatMs = k_uptime_get();
   serviceRegistry[index].missedHeartbeats = 0;
 
-  LOG_DBG("heartbeat updated (index: %zu, time: %lld ms)", index,
+  LOG_DBG("heartbeat updated (name: %s, time: %lld ms)",
+          k_thread_name_get(serviceRegistry[index].threadId),
           serviceRegistry[index].lastHeartbeatMs);
 
   return 0;
@@ -339,6 +344,10 @@ int serviceMngrUtilCheckSrvHeartbeat(size_t index)
     LOG_ERR("ERROR %d: index out of bounds", -EINVAL);
     return -EINVAL;
   }
+
+  /* Skip heartbeat check for non-running services */
+  if(serviceRegistry[index].state != SVC_STATE_RUNNING)
+    return 0;
 
   /* Check if heartbeat interval has elapsed */
   elapsed = k_uptime_get() - serviceRegistry[index].lastHeartbeatMs;

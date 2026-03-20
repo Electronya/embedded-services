@@ -158,6 +158,6 @@ SHELL_STATIC_SUBCMD_SET_CREATE(svcMgr_sub,
   SHELL_CMD_ARG(resume, NULL, "Resume a service. Usage: resume <index>", execResume, 2, 0),
   SHELL_SUBCMD_SET_END);
 
-SHELL_CMD_REGISTER(svc_mgr, &svcMgr_sub, "Service manager commands.", NULL);
+SHELL_CMD_REGISTER(srv_mgr, &svcMgr_sub, "Service manager commands.", NULL);
 
 /** @} */

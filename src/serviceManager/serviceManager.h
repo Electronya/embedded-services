@@ -62,14 +62,12 @@ typedef struct
  * @brief   Initialize the service manager.
  *
  *          Initializes the hardware watchdog, service registry, and starts
- *          the service manager thread.
- *
- * @param[in]   priority: The thread priority.
- * @param[out]  threadId: The service manager thread ID.
+ *          the service manager thread. All configuration is driven by
+ *          Kconfig symbols.
  *
  * @return  0 if successful, the error code otherwise.
  */
-int serviceManagerInit(uint32_t priority, k_tid_t *threadId);
+int serviceManagerInit(void);
 
 /**
  * @brief   Register a service with the service manager.
