@@ -1,0 +1,97 @@
+/**
+ * @defgroup adc-acquisition ADC Acquisition Service
+ * @brief High-performance, timer-triggered ADC sampling with DMA transfer and digital filtering.
+ *
+ * The ADC Acquisition Service provides timer-triggered ADC sampling with DMA transfer, a 3rd-order
+ * cascaded RC digital filter, and a publish-subscribe mechanism for distributing ADC data to multiple
+ * consumers. The service is fully configured via devicetree and operates in a dedicated thread.
+ *
+ * ## Features
+ *
+ * - **Timer-Triggered Acquisition**: Configurable sampling rate using hardware timer triggers
+ * - **DMA-Based Transfer**: Efficient zero-copy data acquisition using Direct Memory Access
+ * - **3rd-Order Cascaded RC Filtering**: Digital low-pass filter with configurable cutoff frequency
+ * - **Publish-Subscribe Pattern**: Memory pool-based asynchronous data distribution to multiple subscribers
+ * - **VREFINT Calibration**: Automatic VDD voltage measurement using internal voltage reference
+ * - **Shell Commands**: Runtime debugging and inspection via Zephyr shell
+ *
+ * ## Configuration
+ *
+ * | Kconfig symbol | Description |
+ * |---|---|
+ * | `CONFIG_ENYA_ADC_ACQUISITION` | Enable the ADC acquisition service |
+ * | `CONFIG_ENYA_ADC_ACQUISITION_LOG_LEVEL` | Log level |
+ * | `CONFIG_ENYA_ADC_ACQUISITION_STACK_SIZE` | Service thread stack size |
+ *
+ * ## API
+ *
+ * See @ref adcAcquisition.h and @ref adcAcquisitionUtil.h for the full API.
+ */
+
+/**
+ * @defgroup datastore Datastore Service
+ * @brief Centralized, thread-safe data management with publish-subscribe and optional NVM persistence.
+ *
+ * The Embedded Datastore provides a centralized, thread-safe data management service for embedded
+ * applications. It supports multiple datapoint types with a publish-subscribe pattern for data
+ * distribution, optional NVM persistence, and a shell command interface for runtime debugging.
+ *
+ * ## Features
+ *
+ * - **Multiple Datapoint Types**: Binary, Button, Float, Integer, Multi-State, and Unsigned Integer
+ * - **Publish-Subscribe Pattern**: Asynchronous data distribution to multiple subscribers
+ * - **NVM Persistence**: Optional non-volatile memory storage for datapoints
+ * - **Thread-Safe**: Dedicated service thread with message queue synchronization
+ * - **Shell Commands**: Runtime inspection and modification via Zephyr shell
+ * - **X-Macro Configuration**: Compile-time datapoint definition using X-macros
+ *
+ * ## Supported Datapoint Types
+ *
+ * | Type | Description | Value Type |
+ * |------|-------------|------------|
+ * | Binary | Boolean/digital values | `bool` |
+ * | Button | Button state (unpressed, short press, long press) | `ButtonState_t` |
+ * | Float | Floating point values | `float` |
+ * | Integer | Signed 32-bit integers | `int32_t` |
+ * | Multi-State | Enumerated states | `uint32_t` |
+ * | Unsigned Integer | Unsigned 32-bit integers | `uint32_t` |
+ *
+ * ## Configuration
+ *
+ * | Kconfig symbol | Description |
+ * |---|---|
+ * | `CONFIG_ENYA_DATASTORE` | Enable the datastore service |
+ * | `CONFIG_ENYA_DATASTORE_LOG_LEVEL` | Log level |
+ *
+ * ## API
+ *
+ * See @ref datastore.h and @ref datastoreUtil.h for the full API.
+ */
+
+/**
+ * @defgroup serviceManager Service Manager
+ * @brief Lifecycle management service that supervises all other services.
+ *
+ * The Service Manager is the central supervisor for all services in the firmware. It provides
+ * unified start, stop, suspend, and resume control, together with watchdog-backed heartbeat
+ * monitoring to detect and report unresponsive services.
+ *
+ * ## Features
+ *
+ * - **Centralized Lifecycle Control**: Start, stop, suspend, and resume any registered service
+ * - **Watchdog-Backed Heartbeat Monitoring**: Configurable timeout to detect unresponsive services
+ * - **Shell Commands**: Runtime inspection via Zephyr shell
+ * - **Index-Free Logging**: Thread-name based log identification
+ *
+ * ## Configuration
+ *
+ * | Kconfig symbol | Description |
+ * |---|---|
+ * | `CONFIG_ENYA_SERVICE_MANAGER` | Enable the service manager |
+ * | `CONFIG_ENYA_SERVICE_MANAGER_THREAD_PRIORITY` | Service manager thread priority |
+ * | `CONFIG_ENYA_SERVICE_MANAGER_SHELL` | Enable shell commands |
+ *
+ * ## API
+ *
+ * See @ref serviceManager.h and @ref serviceManagerUtil.h for the full API.
+ */

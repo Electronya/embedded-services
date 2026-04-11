@@ -1,0 +1,174 @@
+/*
+ * Electronya branding for doxygen-awesome
+ *
+ * Palette
+ *   Slot 1  Deep navy    #111D27  Main page background
+ *   Slot 2  Dark surface #1A2530  Cards, panels, sidebar, header
+ *   Slot 3  Teal         #1ABC9C  Accent — buttons, links, highlights
+ *   Slot 4  Muted slate  #8FA3B1  Body text, captions, secondary text
+ *   Slot 5  Off-white    #E8EDF2  Headings, primary text
+ */
+
+html,
+html:not(.light-mode) {
+    /* --- Accent --- */
+    --primary-color:                    #1ABC9C;
+    --primary-dark-color:               #16A085;
+    --primary-light-color:              #48D1BA;
+    --on-primary-color:                 #111D27;
+
+    /* --- Page --- */
+    --page-background-color:            #111D27;
+    --page-foreground-color:            #E8EDF2;
+    --page-secondary-foreground-color:  #8FA3B1;
+
+    /* --- Surfaces --- */
+    --separator-color:                  #253342;
+    --odd-color:                        rgba(26, 37, 48, 0.5);
+    --box-shadow:                       0 2px 10px 0 rgba(0, 0, 0, 0.4);
+
+    /* --- Header / sidebar --- */
+    --header-background:                #111D27;
+    --header-foreground:                #E8EDF2;
+    --side-nav-background:              #111D27;
+    --top-height:                       135px;
+
+    /* --- Search --- */
+    --searchbar-background:             #1A2530;
+    --searchbar-foreground:             #E8EDF2;
+
+    /* --- Links --- */
+    --link-color:                       #1ABC9C;
+
+    /* --- Code / fragments --- */
+    --code-background:                  #1A2530;
+    --code-foreground:                  #E8EDF2;
+    --section-code-background:          rgba(26, 37, 48, 0.6);
+    --section-code-border:              rgba(143, 163, 177, 0.25);
+    --fragment-background:              #1A2530;
+    --fragment-foreground:              #E8EDF2;
+    --fragment-keyword:                 #1ABC9C;
+    --fragment-keywordtype:             #48D1BA;
+    --fragment-keywordflow:             #E8A44A;
+    --fragment-token:                   #7EC699;
+    --fragment-comment:                 #8FA3B1;
+    --fragment-link:                    #1ABC9C;
+    --fragment-preprocessor:            #48D1BA;
+    --fragment-linenumber-color:        #8FA3B1;
+    --fragment-linenumber-background:   #1A2530;
+    --fragment-linenumber-border:       #253342;
+
+    /* --- Tables --- */
+    --tablehead-background:             #1A2530;
+    --tablehead-foreground:             #E8EDF2;
+
+    /* --- Blockquote --- */
+    --blockquote-background:            #1A2530;
+    --blockquote-foreground:            #8FA3B1;
+
+    /* --- Admonition boxes --- */
+    --warning-color:                    #2E2000;
+    --warning-color-dark:               #F1B602;
+    --warning-color-darker:             #F5D87A;
+    --note-color:                       #0D2237;
+    --note-color-dark:                  #1ABC9C;
+    --note-color-darker:                #B2E8DF;
+    --todo-color:                       #1A1A30;
+    --todo-color-dark:                  #7661B3;
+    --todo-color-darker:                #C0B0E8;
+    --deprecated-color:                 #1E2530;
+    --deprecated-color-dark:            #8FA3B1;
+    --deprecated-color-darker:          #C8D5DE;
+    --bug-color:                        #2E0D0D;
+    --bug-color-dark:                   #C0392B;
+    --bug-color-darker:                 #F5B1AA;
+    --invariant-color:                  #0D2318;
+    --invariant-color-dark:             #1ABC9C;
+    --invariant-color-darker:           #B2E8DF;
+}
+
+/* ------------------------------------------------------------------ */
+/* Force palette — bypass doxygen.css hardcoded values                 */
+/* ------------------------------------------------------------------ */
+
+body {
+    background-color: #111D27 !important;
+    color: #E8EDF2 !important;
+}
+
+#top,
+#nav-tree,
+#side-nav,
+#page-nav {
+    background-color: #111D27 !important;
+}
+
+#page-nav {
+    border-left: 1px solid #253342 !important;
+}
+
+h1, h2, h3, h4, h5, h6,
+.title, h1.groupheader, h2.groupheader, h3.groupheader {
+    color: #E8EDF2 !important;
+}
+
+/* ------------------------------------------------------------------ */
+/* Structural overrides                                                 */
+/* ------------------------------------------------------------------ */
+
+/* Hide sidebar nav-sync button */
+#nav-sync {
+    display: none !important;
+}
+
+/* doxygen 1.16 grid container — revert to block for sidebar-only layout */
+#container {
+    display: block !important;
+}
+
+/* Parameter names */
+.paramname {
+    color: #C0392B;
+}
+
+dl.section dd, dl.bug dd, dl.deprecated dd {
+    margin-inline-start: revert;
+}
+
+/* ------------------------------------------------------------------ */
+/* Title area                                                           */
+/* ------------------------------------------------------------------ */
+
+#titlearea {
+    width: 100%;
+    padding: 0;
+    text-align: center;
+}
+
+#titlearea table,
+#titlearea tbody,
+#titlearea tr {
+    display: block;
+    width: 100%;
+}
+
+#projectlogo {
+    display: block;
+    width: 100%;
+    text-align: center;
+    vertical-align: unset;
+}
+
+#projectlogo img {
+    display: block;
+    margin: 12px auto;
+    height: 60px;
+    max-height: none !important;
+}
+
+/* Project version injected by electronya.js */
+#projectversion {
+    color: var(--page-secondary-foreground-color);
+    padding-top: 8px;
+    text-align: center;
+}

@@ -8,7 +8,7 @@
  *
  *            ADC acquisition service API definition.
  *
- * @defgroup  adc-acquisition adc-acquisition
+ * @defgroup adc-acquisition ADC Acquisition Service
  *
  * @{
  */
