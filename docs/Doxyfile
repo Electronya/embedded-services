@@ -1,61 +1,28 @@
 #---------------------------------------------------------------------------
+# Electronya Embedded Services — Doxyfile
+#---------------------------------------------------------------------------
+
+@INCLUDE = _theme/base/Doxyfile.base
+
+#---------------------------------------------------------------------------
 # Project
 #---------------------------------------------------------------------------
 
-DOXYFILE_ENCODING      = UTF-8
 PROJECT_NAME           = "Electronya Embedded Services"
 PROJECT_BRIEF          = "Embedded services for Zephyr RTOS based firmware"
+PROJECT_LOGO           = _theme/sphinx/logo.png
 OUTPUT_DIRECTORY       = ../doxygen-out
-OUTPUT_LANGUAGE        = English
-
-#---------------------------------------------------------------------------
-# Build options
-#---------------------------------------------------------------------------
-
-EXTRACT_ALL            = YES
-EXTRACT_STATIC         = YES
-EXTRACT_PRIVATE        = NO
-SHOW_INCLUDE_FILES     = YES
-ALWAYS_DETAILED_SEC    = YES
-INLINE_INHERITED_MEMB  = YES
-FULL_PATH_NAMES        = YES
-STRIP_FROM_PATH        = ../src
-BRIEF_MEMBER_DESC      = YES
-REPEAT_BRIEF           = YES
-JAVADOC_AUTOBRIEF      = YES
-OPTIMIZE_OUTPUT_FOR_C  = YES
-
-#---------------------------------------------------------------------------
-# Warnings
-#---------------------------------------------------------------------------
-
-WARN_IF_UNDOCUMENTED   = YES
-WARN_IF_DOC_ERROR      = YES
-WARN_NO_PARAMDOC       = YES
 
 #---------------------------------------------------------------------------
 # Input
 #---------------------------------------------------------------------------
 
-INPUT                  = ../src
+INPUT                  = ../src \
+                         .
 FILE_PATTERNS          = *.c \
-                         *.h
+                         *.h \
+                         *.dox
 RECURSIVE              = YES
 EXCLUDE_PATTERNS       = */tests/* \
                          */build/*
-
-#---------------------------------------------------------------------------
-# XML output (consumed by Breathe / Sphinx)
-#---------------------------------------------------------------------------
-
-GENERATE_XML           = YES
-XML_OUTPUT             = xml
-
-#---------------------------------------------------------------------------
-# Disable all other generators
-#---------------------------------------------------------------------------
-
-GENERATE_HTML          = NO
-GENERATE_LATEX         = NO
-GENERATE_MAN           = NO
-GENERATE_RTF           = NO
+STRIP_FROM_PATH        = ../src
