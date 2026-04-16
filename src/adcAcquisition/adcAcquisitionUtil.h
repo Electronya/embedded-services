@@ -29,7 +29,7 @@
 /**
  * @brief   Initialize the ADC.
  *
- * @param[in]   dev: The ADC device.
+ * @param[in]   adcConfig: The ADC device.
  *
  * @return  0 if successful, the error code otherwise.
  */

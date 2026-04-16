@@ -1,7 +1,7 @@
 /**
  * Copyright (C) 2025 by Electronya
  *
- * @file      adcAcquisitionRcFilter.h
+ * @file      adcAcquisitionFilter.h
  * @author    jbacon
  * @date      2025-10-11
  * @brief     ADC Acquisition Service Filter Stage.
@@ -79,7 +79,7 @@ int adcAcqFilterPushData(size_t chanId, int32_t rawData, int32_t tau);
  * @brief   Get the unfiltered data.
  *
  * @param[in]   chanId: The channel ID.
- * @param[out]  filtData: The output buffer.
+ * @param[out]  rawData: The output buffer.
  *
  * @return  0 if successful, the error code otherwise.
  */

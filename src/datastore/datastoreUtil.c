@@ -1,7 +1,7 @@
 /**
  * Copyright (C) 2025 by Electronya
  *
- * @file      datastoreUtils.c
+ * @file      datastoreUtil.c
  * @author    jbacon
  * @date      2025-08-17
  * @brief     Datastore Utilities Implementation
