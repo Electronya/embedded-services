@@ -29,7 +29,7 @@
 /**
  * @brief   Initialize the ADC.
  *
- * @param[in]   adcConfig: The ADC device.
+ * @param[in]   adcConfig: The ADC configuration.
  *
  * @return  0 if successful, the error code otherwise.
  */
@@ -68,7 +68,10 @@ int adcAcqUtilProcessData(void);
 /**
  * @brief   Notify the active subscribers.
  *
- * @return  0 if successful, the error code otherwise.
+ *          Errors from pool allocation or subscriber callbacks are logged and
+ *          skipped; notification continues for remaining subscribers.
+ *
+ * @return  Always returns 0.
  */
 int adcAcqUtilNotifySubscribers(void);
 
@@ -77,7 +80,7 @@ int adcAcqUtilNotifySubscribers(void);
  *
  * @param[in]   callback: The subscription callback.
  *
- * @return  0 if successful, the error code otherwise.
+ * @return  0 if successful, -ENOSPC if the maximum subscription count is reached.
  */
 int adcAcqUtilAddSubscription(AdcSubCallback_t callback);
 
@@ -94,9 +97,9 @@ int adcAcqUtilRemoveSubscription(AdcSubCallback_t callback);
  * @brief   Set the subscription pause state.
  *
  * @param[in]   callback: The subscription callback.
- * @param[in]   isPaused: The pause state flag.
+ * @param[in]   isPaused: true to pause the subscription, false to unpause.
  *
- * @return  0 if successful, the error code otherwise.
+ * @return  0 if successful, -ESRCH if the subscription is not found.
  */
 int adcAcqUtilSetSubPauseState(AdcSubCallback_t callback, bool isPaused);
 
@@ -113,7 +116,7 @@ size_t adcAcqUtilGetChanCount(void);
  * @param[in]   chanId: The channel ID.
  * @param[out]  rawVal: The raw value pointer.
  *
- * @return  0 if successful, the error code otherwise.
+ * @return  0 if successful, -EINVAL if chanId is out of range or rawVal is NULL.
  */
 int adcAcqUtilGetRaw(size_t chanId, uint32_t *rawVal);
 
@@ -123,7 +126,7 @@ int adcAcqUtilGetRaw(size_t chanId, uint32_t *rawVal);
  * @param[in]   chanId: The channel ID.
  * @param[out]  voltVal: The volt value pointer.
  *
- * @return  0 if successful, the error code otherwise.
+ * @return  0 if successful, -EINVAL if chanId is out of range or voltVal is NULL.
  */
 int adcAcqUtilGetVolt(size_t chanId, float *voltVal);
 

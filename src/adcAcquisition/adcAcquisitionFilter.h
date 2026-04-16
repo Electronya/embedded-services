@@ -60,7 +60,7 @@
  *
  * @param[in]   chanCount: The channel count.
  *
- * @return  0 if successful, the error code otherwise.
+ * @return  0 if successful, -ENOSPC if the filter buffer allocation fails.
  */
 int adcAcqFilterInit(size_t chanCount);
 
@@ -69,9 +69,10 @@ int adcAcqFilterInit(size_t chanCount);
  *
  * @param[in]   chanId: The channel ID.
  * @param[in]   rawData: The raw data to push.
- * @param[in]   tau: The filter tau value.
+ * @param[in]   tau: The filter tau value (valid range 1–511; out-of-range values
+ *                   are clamped, no error is returned).
  *
- * @return  0 if successful, the error code otherwise.
+ * @return  0 if successful, -EINVAL if chanId is out of range.
  */
 int adcAcqFilterPushData(size_t chanId, int32_t rawData, int32_t tau);
 
@@ -81,7 +82,7 @@ int adcAcqFilterPushData(size_t chanId, int32_t rawData, int32_t tau);
  * @param[in]   chanId: The channel ID.
  * @param[out]  rawData: The output buffer.
  *
- * @return  0 if successful, the error code otherwise.
+ * @return  0 if successful, -EINVAL if chanId is out of range or rawData is NULL.
  */
 int adcAcqFilterGetRawData(size_t chanId, int32_t *rawData);
 
@@ -91,7 +92,7 @@ int adcAcqFilterGetRawData(size_t chanId, int32_t *rawData);
  * @param[in]   chanId: The channel ID.
  * @param[out]  filtData: The output buffer.
  *
- * @return  0 if successful, the error code otherwise.
+ * @return  0 if successful, -EINVAL if chanId is out of range or filtData is NULL.
  */
 int adcAcqFilterGetFirstOrderData(size_t chanId, int32_t *filtData);
 
@@ -101,7 +102,7 @@ int adcAcqFilterGetFirstOrderData(size_t chanId, int32_t *filtData);
  * @param[in]   chanId: The channel ID.
  * @param[out]  filtData: The output buffer.
  *
- * @return  0 if successful, the error code otherwise.
+ * @return  0 if successful, -EINVAL if chanId is out of range or filtData is NULL.
  */
 int adcAcqFilterGetSecondOrderData(size_t chanId, int32_t *filtData);
 
@@ -111,7 +112,7 @@ int adcAcqFilterGetSecondOrderData(size_t chanId, int32_t *filtData);
  * @param[in]   chanId: The channel ID.
  * @param[out]  filtData: The output buffer.
  *
- * @return  0 if successful, the error code otherwise.
+ * @return  0 if successful, -EINVAL if chanId is out of range or filtData is NULL.
  */
 int adcAcqFilterGetThirdOrderData(size_t chanId, int32_t *filtData);
 
