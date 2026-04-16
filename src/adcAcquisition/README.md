@@ -226,7 +226,7 @@ if (err < 0) {
 err = adcAcqPauseSubscription(adcCallback);
 
 /* Resume a paused subscription */
-err = adcAqcUnpauseSubscription(adcCallback);
+err = adcAcqUnpauseSubscription(adcCallback);
 
 /* Unsubscribe completely */
 err = adcAcqUnsubscribe(adcCallback);
