@@ -6,10 +6,10 @@ from conf_base import *
 
 # -- Project -----------------------------------------------------------------
 
-project   = "Electronya Embedded Services"
+project   = "Embedded Services"
 copyright = "Electronya"
 author    = "Electronya"
-html_title = "Electronya Embedded Services"
+html_title = "Embedded Services"
 
 # -- Breathe -----------------------------------------------------------------
 
