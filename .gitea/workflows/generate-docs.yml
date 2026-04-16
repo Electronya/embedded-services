@@ -1,0 +1,48 @@
+name: Generate Documentation
+
+on:
+  push:
+    branches: [ '*' ]
+
+jobs:
+  generate-docs:
+    runs-on: homelab-amd64
+    container:
+      image: gitea.main-server.home/electronya/electronya-firm-builder:latest
+
+    env:
+      NODE_TLS_REJECT_UNAUTHORIZED: '0'
+
+    steps:
+    - name: Fix DNS for artifact upload
+      run: |
+        NPM_IP=$(getent hosts npm | awk '{print $1}')
+        if [ -n "$NPM_IP" ]; then
+          echo "$NPM_IP gitea.main-server.home" >> /etc/hosts
+          echo "Added gitea.main-server.home -> $NPM_IP"
+        else
+          echo "Warning: Could not resolve npm hostname"
+        fi
+
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Install Python documentation dependencies
+      run: |
+        python3 -m venv .venv
+        source .venv/bin/activate
+        pip install --quiet sphinx breathe myst-parser sphinx-rtd-theme sphinxcontrib-mermaid
+
+    - name: Generate documentation
+      run: |
+        source .venv/bin/activate
+        ./docs/generate.sh
+
+    - name: Upload documentation artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: documentation
+        path: sphinx-out/
+        retention-days: 30
