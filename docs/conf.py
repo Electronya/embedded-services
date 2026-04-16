@@ -18,3 +18,7 @@ breathe_projects = {
 }
 breathe_default_project = "embedded-services"
 breathe_default_members = ("members",)
+
+# -- Master doc ---------------------------------------------------------------
+
+master_doc = "index"
