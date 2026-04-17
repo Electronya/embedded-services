@@ -26,7 +26,7 @@ jobs:
 
     - name: Configure SSH deploy key
       run: |
-        apt-get install -y -q openssh-client
+        apt-get update -q && apt-get install -y -q openssh-client
         mkdir -p ~/.ssh
         echo "${{ secrets.ORG_ZEPHYR_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
         chmod 600 ~/.ssh/id_ed25519
