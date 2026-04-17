@@ -24,6 +24,13 @@ jobs:
           echo "Warning: Could not resolve npm hostname"
         fi
 
+    - name: Configure SSH deploy key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.ORG_ZEPHYR_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+        ssh-keyscan -H gitea.main-server.home >> ~/.ssh/known_hosts 2>/dev/null
+
     - name: Checkout
       uses: actions/checkout@v4
       with:
