@@ -14,6 +14,13 @@ jobs:
       NODE_TLS_REJECT_UNAUTHORIZED: '0'
 
     steps:
+    - name: Install CA certificate
+      run: |
+        if [ -f /usr/local/share/ca-certificates/electronya-ca.crt ]; then
+          cp /usr/local/share/ca-certificates/electronya-ca.crt /usr/local/share/ca-certificates/
+          update-ca-certificates
+        fi
+
     - name: Configure SSH deploy key
       run: |
         mkdir -p ~/.ssh
