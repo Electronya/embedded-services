@@ -39,7 +39,7 @@ jobs:
 
     - name: Generate documentation
       run: |
-        source .venv/bin/activate
+        . .venv/bin/activate
         ./docs/generate.sh
 
     - name: Upload documentation artifact
