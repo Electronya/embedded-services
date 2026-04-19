@@ -14,22 +14,17 @@ jobs:
       NODE_TLS_REJECT_UNAUTHORIZED: '0'
 
     steps:
-    - name: Fix DNS for artifact upload
-      run: |
-        NPM_IP=$(getent hosts npm | awk '{print $1}')
-        if [ -n "$NPM_IP" ]; then
-          echo "$NPM_IP gitea.main-server.home" >> /etc/hosts
-          echo "Added gitea.main-server.home -> $NPM_IP"
-        else
-          echo "Warning: Could not resolve npm hostname"
-        fi
-
     - name: Configure SSH deploy key
       run: |
         mkdir -p ~/.ssh
         echo "${{ secrets.ORG_ZEPHYR_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
         chmod 600 ~/.ssh/id_ed25519
         ssh-keyscan -H gitea.main-server.home >> ~/.ssh/known_hosts 2>/dev/null || true
+
+    - name: Debug SSH connectivity
+      run: |
+        nc -zv gitea.main-server.home 22 || echo "port 22 refused"
+        cat /etc/resolv.conf
 
     - name: Checkout
       uses: actions/checkout@v4

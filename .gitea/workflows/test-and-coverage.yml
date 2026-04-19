@@ -14,17 +14,6 @@ jobs:
       NODE_TLS_REJECT_UNAUTHORIZED: '0'
 
     steps:
-    - name: Fix DNS for artifact upload
-      run: |
-        # Route to nginx proxy manager (handles HTTPS on port 443)
-        NPM_IP=$(getent hosts npm | awk '{print $1}')
-        if [ -n "$NPM_IP" ]; then
-          echo "$NPM_IP gitea.main-server.home" >> /etc/hosts
-          echo "Added gitea.main-server.home -> $NPM_IP"
-        else
-          echo "Warning: Could not resolve npm hostname"
-        fi
-
     - name: Checkout
       uses: actions/checkout@v4
       with:
