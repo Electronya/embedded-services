@@ -14,6 +14,18 @@ jobs:
       NODE_TLS_REJECT_UNAUTHORIZED: '0'
 
     steps:
+    - name: Check for CA certificate
+      run: |
+        echo "=== Checking if CA file is mounted ==="
+        ls -la /usr/local/share/ca-certificates/electronya-ca.crt && echo "✓ File exists!" || echo "✗ File NOT found!"
+
+        echo ""
+        echo "=== Content of /usr/local/share/ca-certificates/ ==="
+        ls -la /usr/local/share/ca-certificates/ || echo "Directory doesn't exist"
+
+        echo ""
+        echo "=== All mounted volumes ==="
+        mount | grep electronya || echo "No electronya mounts"
     - name: Install CA certificate
       run: |
         if [ -f /usr/local/share/ca-certificates/electronya-ca.crt ]; then
