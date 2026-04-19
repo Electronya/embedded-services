@@ -21,11 +21,6 @@ jobs:
         chmod 600 ~/.ssh/id_ed25519
         ssh-keyscan -H gitea.main-server.home >> ~/.ssh/known_hosts 2>/dev/null || true
 
-    - name: Debug SSH connectivity
-      run: |
-        nc -zv gitea.main-server.home 22 || echo "port 22 refused"
-        cat /etc/resolv.conf
-
     - name: Checkout
       uses: actions/checkout@v4
       with:
