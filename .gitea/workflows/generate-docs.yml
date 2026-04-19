@@ -34,7 +34,7 @@ jobs:
     - name: Install Python documentation dependencies
       run: |
         python3 -m venv .venv
-        source .venv/bin/activate
+        . .venv/bin/activate
         pip install --quiet sphinx breathe myst-parser sphinx-rtd-theme sphinxcontrib-mermaid
 
     - name: Generate documentation
