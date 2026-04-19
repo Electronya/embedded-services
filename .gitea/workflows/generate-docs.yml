@@ -43,3 +43,27 @@ jobs:
         name: documentation
         path: sphinx-out/
         retention-days: 30
+
+    - name: Publish documentation to project-docs
+      env:
+        GITEA_TOKEN: ${{ secrets.ORG_GITEA_TOKEN }}
+      run: |
+        VERSION=$(git tag --points-at HEAD | head -1)
+        if [ -z "$VERSION" ]; then
+          VERSION=$(git rev-parse --short HEAD)
+        fi
+
+        git clone https://oauth2:${GITEA_TOKEN}@gitea.main-server.home/Electronya/project-docs.git
+
+        mkdir -p project-docs/embedded-services/${VERSION}
+        cp -r sphinx-out/. project-docs/embedded-services/${VERSION}/
+
+        rm -rf project-docs/embedded-services/latest
+        cp -r sphinx-out/. project-docs/embedded-services/latest/
+
+        cd project-docs
+        git config user.email "ci@electronya.local"
+        git config user.name "Electronya CI"
+        git add .
+        git commit -m "docs(embedded-services): publish ${VERSION}"
+        git push
