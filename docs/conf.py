@@ -22,3 +22,9 @@ breathe_default_members = ("members",)
 # -- Master doc ---------------------------------------------------------------
 
 master_doc = "index"
+
+# -- Docs portal -------------------------------------------------------------
+
+html_context = {
+    "docs_portal_url": "../../index.html",
+}
