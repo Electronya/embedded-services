@@ -68,6 +68,7 @@ jobs:
         cp -r sphinx-out/. project-docs/embedded-services/latest/
 
         cd project-docs
+        python3 generate-index.py
         git config user.email "ci@electronya.local"
         git config user.name "Electronya CI"
         git add .
