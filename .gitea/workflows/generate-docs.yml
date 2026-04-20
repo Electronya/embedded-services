@@ -26,10 +26,10 @@ jobs:
         echo ""
         echo "=== All mounted volumes ==="
         mount | grep electronya || echo "No electronya mounts"
+
     - name: Install CA certificate
       run: |
         if [ -f /usr/local/share/ca-certificates/electronya-ca.crt ]; then
-          cp /usr/local/share/ca-certificates/electronya-ca.crt /usr/local/share/ca-certificates/
           update-ca-certificates
         fi
 
