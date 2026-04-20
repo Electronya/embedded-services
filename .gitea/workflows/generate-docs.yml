@@ -60,6 +60,7 @@ jobs:
         fi
 
         git clone https://oauth2:${GITEA_TOKEN}@gitea.main-server.home/Electronya/project-docs.git
+        cd project-docs && git submodule update --init && cd ..
 
         mkdir -p project-docs/embedded-services/${VERSION}
         cp -r sphinx-out/. project-docs/embedded-services/${VERSION}/
