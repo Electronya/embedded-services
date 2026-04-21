@@ -51,7 +51,8 @@ static struct k_thread thread;
  * @param[in]   p2: The second parameter.
  * @param[in]   p3: The third parameter.
  */
-void run(void *p1, void *p2, void *p3) {
+void run(void *p1, void *p2, void *p3)
+{
   int err;
   uint32_t notificationRate = (uint32_t)(uintptr_t)p1;
   ServiceCtrlMsg_t ctrlMsg;
@@ -103,7 +104,8 @@ void run(void *p1, void *p2, void *p3) {
  *
  * @return  0 if successful, the error code otherwise.
  */
-static int onStart(void) {
+static int onStart(void)
+{
   int err;
 
   k_thread_start(&thread);
@@ -120,7 +122,8 @@ static int onStart(void) {
  *
  * @return  0 if successful, the error code otherwise.
  */
-static int onStop(void) {
+static int onStop(void)
+{
   int err;
   ServiceCtrlMsg_t msg = SVC_CTRL_STOP;
 
@@ -136,7 +139,8 @@ static int onStop(void) {
  *
  * @return  0 if successful, the error code otherwise.
  */
-static int onSuspend(void) {
+static int onSuspend(void)
+{
   int err;
   ServiceCtrlMsg_t msg = SVC_CTRL_SUSPEND;
 
@@ -152,7 +156,8 @@ static int onSuspend(void) {
  *
  * @return  0 if successful, the error code otherwise.
  */
-static int onResume(void) {
+static int onResume(void)
+{
   int err;
 
   k_thread_resume(&thread);
@@ -164,7 +169,8 @@ static int onResume(void) {
   return err;
 }
 
-int adcAcqInit(void) {
+int adcAcqInit(void)
+{
   int err;
   k_tid_t threadId;
   AdcConfig_t adcConfig = {
@@ -218,19 +224,23 @@ int adcAcqInit(void) {
   return err;
 }
 
-int adcAcqSubscribe(AdcSubCallback_t callback) {
+int adcAcqSubscribe(AdcSubCallback_t callback)
+{
   return adcAcqUtilAddSubscription(callback);
 }
 
-int adcAcqUnsubscribe(AdcSubCallback_t callback) {
+int adcAcqUnsubscribe(AdcSubCallback_t callback)
+{
   return adcAcqUtilRemoveSubscription(callback);
 }
 
-int adcAcqPauseSubscription(AdcSubCallback_t callback) {
+int adcAcqPauseSubscription(AdcSubCallback_t callback)
+{
   return adcAcqUtilSetSubPauseState(callback, true);
 }
 
-int adcAcqUnpauseSubscription(AdcSubCallback_t callback) {
+int adcAcqUnpauseSubscription(AdcSubCallback_t callback)
+{
   return adcAcqUtilSetSubPauseState(callback, false);
 }
 
