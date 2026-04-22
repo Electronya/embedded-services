@@ -8,7 +8,7 @@
  *
  *            Datastore service API definition
  *
- * @defgroup  datastore datastore
+ * @defgroup datastore Datastore Service
  *
  * @{
  */

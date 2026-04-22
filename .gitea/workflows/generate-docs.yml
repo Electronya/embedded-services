@@ -1,0 +1,76 @@
+name: Generate Documentation
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+jobs:
+  generate-docs:
+    runs-on: homelab-amd64
+    container:
+      image: gitea.main-server.home/electronya/electronya-firm-builder:latest
+
+    env:
+      NODE_TLS_REJECT_UNAUTHORIZED: '0'
+
+    steps:
+    - name: Install CA certificate
+      run: |
+        if [ -f /usr/local/share/ca-certificates/electronya-ca.crt ]; then
+          update-ca-certificates
+        fi
+
+    - name: Configure SSH deploy key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.ORG_ZEPHYR_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+        ssh-keyscan -H gitea.main-server.home >> ~/.ssh/known_hosts 2>/dev/null || true
+
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Install Python documentation dependencies
+      run: |
+        python3 -m venv .venv
+        . .venv/bin/activate
+        pip install --quiet sphinx breathe myst-parser sphinx-rtd-theme sphinxcontrib-mermaid
+
+    - name: Generate documentation
+      run: |
+        . .venv/bin/activate
+        ./docs/generate.sh
+
+    - name: Upload documentation artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: documentation
+        path: sphinx-out/
+        retention-days: 30
+
+    - name: Publish documentation to project-docs
+      env:
+        GITEA_TOKEN: ${{ secrets.ORG_GITEA_TOKEN }}
+      run: |
+        VERSION=$(git tag --points-at HEAD | head -1)
+        if [ -z "$VERSION" ]; then
+          VERSION=$(git rev-parse --short HEAD)
+        fi
+
+        git clone https://oauth2:${GITEA_TOKEN}@gitea.main-server.home/Electronya/project-docs.git
+        cd project-docs && git submodule update --init && cd ..
+
+        mkdir -p project-docs/embedded-services/${VERSION}
+        cp -r sphinx-out/. project-docs/embedded-services/${VERSION}/
+
+        rm -rf project-docs/embedded-services/latest
+        cp -r sphinx-out/. project-docs/embedded-services/latest/
+
+        cd project-docs
+        git config user.email "ci@electronya.local"
+        git config user.name "Electronya CI"
+        git add .
+        git commit -m "docs(embedded-services): publish ${VERSION}"
+        git push

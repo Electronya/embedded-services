@@ -35,29 +35,19 @@ This service is designed to be integrated into target application projects as a 
 
 ## Integration
 
-### Adding as Git Subtree
+The datastore is part of the `embedded-services` west module. Add the module to your
+application's `west.yml`:
 
-Add the embedded-datastore to your project:
-
-```bash
-cd /path/to/your/project
-git subtree add --prefix embedded-datastore https://github.com/electronya/embedded-datastore.git main --squash
+```yaml
+projects:
+  - name: embedded-services
+    url: <repo-url>
+    path: apps/embedded-services
+    revision: main
 ```
 
-Update the subtree:
-
-```bash
-git subtree pull --prefix embedded-datastore https://github.com/electronya/embedded-datastore.git main --squash
-```
-
-### CMakeLists.txt Integration
-
-Add to your project's `CMakeLists.txt`:
-
-```cmake
-add_subdirectory(embedded-datastore)
-target_link_libraries(app PRIVATE enya_datastore)
-```
+No additional `CMakeLists.txt` changes are needed — the module is picked up automatically
+by Zephyr's module system via `zephyr/module.yml`.
 
 ## Configuration
 

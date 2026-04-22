@@ -11,7 +11,8 @@
  *            in priority order, managing service state, and monitoring
  *            service health via heartbeats.
  *
- * @ingroup   serviceManager
+ * @defgroup serviceManager Service Manager
+ *
  * @{
  */
 

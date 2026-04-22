@@ -2,7 +2,7 @@
 
 ## Overview
 
-The ADC Acquisition Service provides high-performance, timer-triggered ADC sampling with DMA transfer, digital filtering, and a publish-subscribe mechanism for distributing ADC data to multiple consumers. The service is fully configured via devicetree and operates in a dedicated thread.
+The ADC Acquisition Service provides high-performance, timer-triggered ADC sampling with DMA transfer, digital filtering, and a publish-subscribe mechanism for distributing ADC data to multiple consumers. The service is fully configured via Kconfig and devicetree and operates in a dedicated thread.
 
 ## Features
 
@@ -18,30 +18,35 @@ The ADC Acquisition Service provides high-performance, timer-triggered ADC sampl
 ## Architecture
 
 ### Thread Model
-The service runs in a dedicated thread that:
-1. Waits for timer-triggered ADC conversions (via semaphore)
-2. Processes raw ADC data and applies digital filtering
-3. Calculates voltage values using VREFINT calibration
-4. Notifies subscribers at configured intervals
+
+The service runs a dedicated thread that loops at the notification rate interval:
+1. Polls the control queue with a `notificationRate` timeout (handles stop/suspend requests)
+2. Processes filtered ADC data and calculates voltage values using VREFINT calibration
+3. Notifies active subscribers by allocating a memory pool block and calling each callback
+
+ADC sampling happens independently and asynchronously: a hardware timer fires at the sampling
+rate, triggers an async ADC conversion via DMA, and the completion callback pushes raw samples
+into the digital filter buffers. The service thread reads the filter output on each notification
+interval.
 
 ### Data Flow
 
 ```mermaid
 flowchart LR
-    A[Timer Trigger] --> B[ADC]
-    B --> C[DMA]
-    C --> D[Raw Buffer]
-    D --> E[Digital Filter]
-    E --> F[Voltage Conversion]
-    F --> G[Subscribers]
+    A[Timer Trigger] --> B[ADC + DMA]
+    B --> C[Raw Buffer]
+    C --> D[Digital Filter]
+    D --> E[Voltage Conversion]
+    E --> F[Subscribers]
 ```
 
 ### Memory Pool Pattern
+
 The service uses CMSIS-RTOS v2 memory pools to pass ADC data to subscribers:
 - Pool is created with `2 × maxSubCount` blocks
-- Each block contains: `sizeof(AdcSubData_t) + (channelCount × sizeof(float))`
-- Data includes embedded pool ID for proper cleanup
-- Subscribers **must** free memory after processing using `osMemoryPoolFree(data->pool, data)`
+- Each block contains: `sizeof(SrvMsgPayload_t) + (channelCount × sizeof(float))`
+- Data includes the embedded pool ID (`poolId`) for proper cleanup
+- Subscribers **must** free memory after processing: `osMemoryPoolFree(data->poolId, data)`
 
 ## Configuration
 
@@ -52,6 +57,10 @@ Enable the service in `prj.conf`:
 CONFIG_ENYA_ADC_ACQUISITION=y
 CONFIG_ENYA_ADC_ACQUISITION_LOG_LEVEL=3
 CONFIG_ENYA_ADC_ACQUISITION_STACK_SIZE=1024
+CONFIG_ENYA_ADC_ACQUISITION_SAMPLING_RATE_US=500
+CONFIG_ENYA_ADC_ACQUISITION_FILTER_TAU=31
+CONFIG_ENYA_ADC_ACQUISITION_MAX_SUB_COUNT=4
+CONFIG_ENYA_ADC_ACQUISITION_NOTIFICATION_RATE_MS=10
 ```
 
 Required dependencies:
@@ -66,7 +75,7 @@ CONFIG_HEAP_MEM_POOL_SIZE=8192
 
 ### Devicetree Configuration
 
-Define ADC channels in `zephyr,user` node and create an alias for the trigger timer:
+Define ADC channels in the `zephyr,user` node and create an alias for the trigger timer:
 
 ```dts
 / {
@@ -112,9 +121,11 @@ Define ADC channels in `zephyr,user` node and create an alias for the trigger ti
 
 ## Digital Filtering
 
-The service implements a 3rd-order cascaded RC low-pass filter using integer mathematics for efficiency.
+The service implements a 3rd-order cascaded RC low-pass filter using integer mathematics for
+efficiency.
 
 ### Filter Equation
+
 Each stage uses: `y[n] = y[n-1] + α × (x[n] - y[n-1])`
 where `α = tau / 512` (FILTER_PRESCALE = 9)
 
@@ -141,6 +152,7 @@ To calculate the tau value for a desired 3rd-order cutoff frequency (`fc_3rd`):
 4. Round to nearest integer (valid range: 1 to 511)
 
 ### Example Calculation
+
 For `fs = 2000 Hz` (samplingRate = 500 μs) and desired `fc_3rd = 10 Hz`:
 ```
 fc_1st = 10 / 0.5098 ≈ 19.6 Hz
@@ -149,67 +161,44 @@ tau = 0.0614 × 512 ≈ 31
 ```
 
 **Note**: Each RC stage has cutoff `fc_1st`, but cascading three stages results in:
-```
-fc_3rd = fc_1st × 0.5098
-```
+`fc_3rd = fc_1st × 0.5098`
 
 ## API Usage
 
 ### Initialization
 
+The service is fully configured via Kconfig — no runtime parameters are required:
+
 ```c
 #include "adcAcquisition.h"
 
-AdcConfig_t adcConfig = {
-  .samplingRate = 500,    /* 2 kHz sampling (500 μs period) */
-  .filterTau = 31         /* 10 Hz 3rd-order cutoff */
-};
-
-AdcSubConfig_t subConfig = {
-  .maxSubCount = 4,
-  .notificationRate = 10  /* Notify subscribers every 10 ms */
-};
-
-k_tid_t threadId;
-int err = adcAcqInit(&adcConfig, &subConfig, 5, &threadId);
+int err = adcAcqInit();
 if (err < 0) {
   LOG_ERR("ADC init failed: %d", err);
-  return err;
-}
-
-err = adcAcqStart();
-if (err < 0) {
-  LOG_ERR("ADC start failed: %d", err);
   return err;
 }
 ```
 
 ### Subscribing to ADC Data
 
-```c
-int adcCallback(AdcSubData_t *data)
-{
-  int err = 0;
+The callback receives a `SrvMsgPayload_t` containing voltage values for all channels as floats.
+The subscriber **must** free the payload back to the pool before returning.
 
-  /* Validate data */
-  if (data->valCount != 4) {
-    osMemoryPoolFree(data->pool, data);
-    return -EINVAL;
+```c
+int adcCallback(SrvMsgPayload_t *data)
+{
+  size_t chanCount = data->dataLen / sizeof(float);
+  float *voltages = (float *)data->data;
+
+  /* Process voltage values */
+  for (size_t i = 0; i < chanCount; i++) {
+    LOG_INF("ch%d: %.3f V", i, (double)voltages[i]);
   }
 
-  /* Process ADC values */
-  float adc0 = data->values[0];
-  float adc1 = data->values[1];
-  float adc4 = data->values[2];
-  float vrefint = data->values[3];
+  /* CRITICAL: always free memory back to pool */
+  osMemoryPoolFree(data->poolId, data);
 
-  /* Do work with values... */
-  err = processData(adc0, adc1, adc4);
-
-  /* CRITICAL: Always free memory back to pool */
-  osMemoryPoolFree(data->pool, data);
-
-  return err;
+  return 0;
 }
 
 /* Subscribe to ADC updates */
@@ -226,7 +215,7 @@ if (err < 0) {
 err = adcAcqPauseSubscription(adcCallback);
 
 /* Resume a paused subscription */
-err = adcAqcUnpauseSubscription(adcCallback);
+err = adcAcqUnpauseSubscription(adcCallback);
 
 /* Unsubscribe completely */
 err = adcAcqUnsubscribe(adcCallback);
@@ -247,34 +236,30 @@ SUCCESS: channel 0 raw value: 8192
 
 # Get voltage value for channel 0
 uart:~$ adc_acq get_volt 0
-SUCCESS: channel 0 volt value: 1.650000
+SUCCESS: channel 0 volt value: 1.650 V
 ```
 
 ## Memory Pool Sizing
 
 The service automatically calculates memory pool size based on configuration:
 
-- **Block Size**: `sizeof(AdcSubData_t) + (channelCount × sizeof(float))`
-  - For 4 channels: `8 + (4 × 4) = 24 bytes` per block
+- **Block Size**: `sizeof(SrvMsgPayload_t) + (channelCount × sizeof(float))`
+- **Block Count**: `2 × CONFIG_ENYA_ADC_ACQUISITION_MAX_SUB_COUNT`
 
-- **Block Count**: `2 × maxSubCount`
-  - For 4 max subscribers: `2 × 4 = 8 blocks`
-
-- **Total Pool Memory**: `blockSize × blockCount`
-  - For example: `24 × 8 = 192 bytes`
-
-Ensure `CONFIG_CMSIS_V2_MEM_SLAB_MAX_DYNAMIC_SIZE` is larger than the total pool memory.
+Ensure `CONFIG_CMSIS_V2_MEM_SLAB_MAX_DYNAMIC_SIZE` is larger than the total pool memory
+(`blockSize × blockCount`).
 
 ## Best Practices
 
-1. **Always Free Memory**: Subscribers must call `osMemoryPoolFree(data->pool, data)` after processing
+1. **Always Free Memory**: Subscribers must call `osMemoryPoolFree(data->poolId, data)` after processing
 2. **Keep Callbacks Fast**: Callbacks run in the service thread context; avoid blocking operations
 3. **Use Message Queues**: For heavy processing, copy data to a message queue and free immediately:
    ```c
-   int callback(AdcSubData_t *data) {
-     int err = k_msgq_put(&myQueue, data->values, K_NO_WAIT);
-     osMemoryPoolFree(data->pool, data);
-     return err;
+   int callback(SrvMsgPayload_t *data) {
+     float voltages[MY_CHAN_COUNT];
+     memcpy(voltages, data->data, data->dataLen);
+     osMemoryPoolFree(data->poolId, data);
+     return k_msgq_put(&myQueue, voltages, K_NO_WAIT);
    }
    ```
 4. **Configure Adequate Heap**: Ensure heap size accommodates memory pool requirements
@@ -283,6 +268,7 @@ Ensure `CONFIG_CMSIS_V2_MEM_SLAB_MAX_DYNAMIC_SIZE` is larger than the total pool
 ## Troubleshooting
 
 ### Pool Allocation Failures
+
 **Symptom**: `ERROR: pool allocation failed for subscription X`
 
 **Causes**:
@@ -290,11 +276,12 @@ Ensure `CONFIG_CMSIS_V2_MEM_SLAB_MAX_DYNAMIC_SIZE` is larger than the total pool
 - Callbacks taking too long (blocking pool returns)
 
 **Solutions**:
-- Verify all callbacks free memory with `osMemoryPoolFree()`
-- Increase `maxSubCount` (increases pool size)
-- Reduce `notificationRate` (slower callback frequency)
+- Verify all callbacks call `osMemoryPoolFree(data->poolId, data)`
+- Increase `CONFIG_ENYA_ADC_ACQUISITION_MAX_SUB_COUNT` (increases pool size)
+- Increase `CONFIG_ENYA_ADC_ACQUISITION_NOTIFICATION_RATE_MS` (slower callback frequency)
 
 ### Memory Pool Creation Failure
+
 **Symptom**: `ERROR -12: unable to create subscription data pool`
 
 **Causes**:
@@ -310,5 +297,5 @@ Ensure `CONFIG_CMSIS_V2_MEM_SLAB_MAX_DYNAMIC_SIZE` is larger than the total pool
 - Service uses VREFINT (internal voltage reference) for VDD measurement and voltage calibration
 - Timer trigger prevents ADC overruns with a busy flag
 - Digital filter state is maintained across conversions for each channel
-- Subscription array uses dynamic allocation with compile-time limits
-- Thread priority should be set based on system requirements (typically 5-10)
+- Subscription array uses dynamic allocation with Kconfig-defined limits
+- Thread priority is set via `CONFIG_ENYA_ADC_ACQUISITION_THREAD_PRIORITY`

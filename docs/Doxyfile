@@ -1,0 +1,28 @@
+#---------------------------------------------------------------------------
+# Electronya Embedded Services — Doxyfile
+#---------------------------------------------------------------------------
+
+@INCLUDE = _theme/base/Doxyfile.base
+
+#---------------------------------------------------------------------------
+# Project
+#---------------------------------------------------------------------------
+
+PROJECT_NAME           = "Electronya Embedded Services"
+PROJECT_BRIEF          = "Embedded services for Zephyr RTOS based firmware"
+PROJECT_LOGO           = _theme/sphinx/logo.png
+OUTPUT_DIRECTORY       = ../doxygen-out
+
+#---------------------------------------------------------------------------
+# Input
+#---------------------------------------------------------------------------
+
+INPUT                  = ../src \
+                         .
+FILE_PATTERNS          = *.c \
+                         *.h \
+                         *.dox
+RECURSIVE              = YES
+EXCLUDE_PATTERNS       = */tests/* \
+                         */build/*
+STRIP_FROM_PATH        = ../src

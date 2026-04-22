@@ -17,6 +17,9 @@
 
 #include "adcAcquisitionUtil.h"
 
+/**
+ * @brief   The maximum length of the value string.
+ */
 #define MAX_VAL_STR_LEN                                         (10)
 
 /**
@@ -26,7 +29,7 @@
  * @param[in]   argc: The count of argument.
  * @param[in]   argv: The vector of argument.
  *
- * @return  0 if successful the error code otherwise.
+ * @return  Always returns 0.
  */
 static int execGetChanCount(const struct shell *shell, size_t argc, char **argv)
 {
@@ -114,7 +117,7 @@ static int execGetVolt(const struct shell *shell, size_t argc, char **argv)
 SHELL_STATIC_SUBCMD_SET_CREATE(adcAqc_sub,
   SHELL_CMD(get_chan_count, NULL, "Get the channel count.\n\tUsage: adc_acq get_chan_count", execGetChanCount),
   SHELL_CMD_ARG(get_raw, NULL, "Get a channel raw value.\n\tUsage: adc_acq get_raw <chan ID>", execGetRaw, 2, 0),
-  SHELL_CMD_ARG(get_volt, NULL, "Get a channel volt value.\n\tUsage: adc_acq get_raw <chan ID>", execGetVolt, 2, 0),
+  SHELL_CMD_ARG(get_volt, NULL, "Get a channel volt value.\n\tUsage: adc_acq get_volt <chan ID>", execGetVolt, 2, 0),
   SHELL_SUBCMD_SET_END);
 SHELL_CMD_REGISTER(adc_acq, &adcAqc_sub, "ADC acquisition commands.",	NULL);
 

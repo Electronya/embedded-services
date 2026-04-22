@@ -1085,7 +1085,7 @@ ZTEST(adc_service_tests, test_pause_subscription_success)
 }
 
 /**
- * @test The adcAqcUnpauseSubscription function must return error when adcAcqUtilSetSubPauseState fails.
+ * @test The adcAcqUnpauseSubscription function must return error when adcAcqUtilSetSubPauseState fails.
  */
 ZTEST(adc_service_tests, test_unpause_subscription_failure)
 {
@@ -1095,11 +1095,11 @@ ZTEST(adc_service_tests, test_unpause_subscription_failure)
   adcAcqUtilSetSubPauseState_fake.return_val = -ENOENT;
 
   /* Execute */
-  result = adcAqcUnpauseSubscription(dummyCallback);
+  result = adcAcqUnpauseSubscription(dummyCallback);
 
   /* Verify return value */
   zassert_equal(result, -ENOENT,
-                "adcAqcUnpauseSubscription should return error from adcAcqUtilSetSubPauseState");
+                "adcAcqUnpauseSubscription should return error from adcAcqUtilSetSubPauseState");
 
   /* Verify adcAcqUtilSetSubPauseState was called with correct parameters */
   zassert_equal(adcAcqUtilSetSubPauseState_fake.call_count, 1,
@@ -1111,7 +1111,7 @@ ZTEST(adc_service_tests, test_unpause_subscription_failure)
 }
 
 /**
- * @test The adcAqcUnpauseSubscription function must unpause a subscription.
+ * @test The adcAcqUnpauseSubscription function must unpause a subscription.
  */
 ZTEST(adc_service_tests, test_unpause_subscription_success)
 {
@@ -1121,11 +1121,11 @@ ZTEST(adc_service_tests, test_unpause_subscription_success)
   adcAcqUtilSetSubPauseState_fake.return_val = 0;
 
   /* Execute */
-  result = adcAqcUnpauseSubscription(dummyCallback);
+  result = adcAcqUnpauseSubscription(dummyCallback);
 
   /* Verify return value */
   zassert_equal(result, 0,
-                "adcAqcUnpauseSubscription should return 0 on success");
+                "adcAcqUnpauseSubscription should return 0 on success");
 
   /* Verify adcAcqUtilSetSubPauseState was called with correct parameters */
   zassert_equal(adcAcqUtilSetSubPauseState_fake.call_count, 1,
