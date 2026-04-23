@@ -22,7 +22,7 @@
 #include <zephyr/kernel.h>
 
 /**
- * @brief Service state values.
+ * @brief   Service state values.
  */
 typedef enum
 {
@@ -32,7 +32,7 @@ typedef enum
 } ServiceState_t;
 
 /**
- * @brief Service priority levels.
+ * @brief   Service priority levels.
  */
 typedef enum
 {
@@ -43,7 +43,7 @@ typedef enum
 } ServicePriority_t;
 
 /**
- * @brief Service descriptor structure.
+ * @brief   Service descriptor structure.
  */
 typedef struct
 {

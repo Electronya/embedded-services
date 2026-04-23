@@ -19,18 +19,33 @@
 #include "serviceManager.h"
 #include "serviceManagerUtil.h"
 
+/**
+ * @brief   Service state display strings.
+ */
 static const char *svcStateStr[] = {
   [SVC_STATE_STOPPED]   = "stopped",
   [SVC_STATE_RUNNING]   = "running",
   [SVC_STATE_SUSPENDED] = "suspended",
 };
 
+/**
+ * @brief   Service priority display strings.
+ */
 static const char *svcPriorityStr[] = {
   [SVC_PRIORITY_CRITICAL]    = "critical",
   [SVC_PRIORITY_CORE]        = "core",
   [SVC_PRIORITY_APPLICATION] = "application",
 };
 
+/**
+ * @brief   Execute the list command.
+ *
+ * @param[in]   shell: The shell handle.
+ * @param[in]   argc: The count of arguments.
+ * @param[in]   argv: The vector of arguments.
+ *
+ * @return  Always returns 0.
+ */
 static int execLs(const struct shell *shell, size_t argc, char **argv)
 {
   size_t index = 0;
@@ -54,6 +69,15 @@ static int execLs(const struct shell *shell, size_t argc, char **argv)
   return 0;
 }
 
+/**
+ * @brief   Execute the start command.
+ *
+ * @param[in]   shell: The shell handle.
+ * @param[in]   argc: The count of arguments.
+ * @param[in]   argv: The vector of arguments.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
 static int execStart(const struct shell *shell, size_t argc, char **argv)
 {
   int err = 0;
@@ -78,6 +102,15 @@ static int execStart(const struct shell *shell, size_t argc, char **argv)
   return 0;
 }
 
+/**
+ * @brief   Execute the stop command.
+ *
+ * @param[in]   shell: The shell handle.
+ * @param[in]   argc: The count of arguments.
+ * @param[in]   argv: The vector of arguments.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
 static int execStop(const struct shell *shell, size_t argc, char **argv)
 {
   int err = 0;
@@ -102,6 +135,15 @@ static int execStop(const struct shell *shell, size_t argc, char **argv)
   return 0;
 }
 
+/**
+ * @brief   Execute the suspend command.
+ *
+ * @param[in]   shell: The shell handle.
+ * @param[in]   argc: The count of arguments.
+ * @param[in]   argv: The vector of arguments.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
 static int execSuspend(const struct shell *shell, size_t argc, char **argv)
 {
   int err = 0;
@@ -126,6 +168,15 @@ static int execSuspend(const struct shell *shell, size_t argc, char **argv)
   return 0;
 }
 
+/**
+ * @brief   Execute the resume command.
+ *
+ * @param[in]   shell: The shell handle.
+ * @param[in]   argc: The count of arguments.
+ * @param[in]   argv: The vector of arguments.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
 static int execResume(const struct shell *shell, size_t argc, char **argv)
 {
   int err = 0;
