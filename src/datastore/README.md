@@ -66,7 +66,28 @@ CONFIG_CMSIS_RTOS_V2=y
 Optional configuration:
 
 ```kconfig
-# Customize default values
+# Thread configuration
+CONFIG_ENYA_DATASTORE_STACK_SIZE=512
+CONFIG_ENYA_DATASTORE_THREAD_PRIORITY=5
+CONFIG_ENYA_DATASTORE_MSGQ_TIMEOUT=100
+
+# Service Manager integration
+CONFIG_ENYA_DATASTORE_SERVICE_PRIORITY=1
+CONFIG_ENYA_DATASTORE_HEARTBEAT_INTERVAL_MS=1000
+
+# Maximum subscribers per datapoint type
+CONFIG_ENYA_DATASTORE_MAX_BINARY_SUBS=2
+CONFIG_ENYA_DATASTORE_MAX_BUTTON_SUBS=2
+CONFIG_ENYA_DATASTORE_MAX_FLOAT_SUBS=2
+CONFIG_ENYA_DATASTORE_MAX_INT_SUBS=2
+CONFIG_ENYA_DATASTORE_MAX_MULTI_STATE_SUBS=2
+CONFIG_ENYA_DATASTORE_MAX_UINT_SUBS=2
+
+# Shell commands
+CONFIG_ENYA_DATASTORE_SHELL=y
+CONFIG_ENYA_DATASTORE_BUFFER_SIZE=32
+
+# Example: Customize default values for specific datapoints
 CONFIG_FIRST_FLOAT_DEFAULT_VAL=123
 CONFIG_SECOND_INT_DEFAULT_VAL=-12
 ```
@@ -226,6 +247,27 @@ graph TB
     SM -.->|Notify| C2
 ```
 
+### Service Manager Integration
+
+The datastore service automatically registers with the service manager during initialization, enabling centralized lifecycle management and health monitoring.
+
+**Lifecycle Management**:
+- **Start**: Service thread begins processing requests
+- **Stop**: Service thread terminates gracefully
+- **Suspend**: Service thread pauses processing
+- **Resume**: Service thread resumes from suspended state
+
+**Health Monitoring**:
+- The service sends periodic heartbeat messages to the service manager
+- Heartbeat interval configured via `CONFIG_ENYA_DATASTORE_HEARTBEAT_INTERVAL_MS`
+- Service manager monitors for missed heartbeats to detect service failures
+
+**Priority**:
+- Service priority within the service manager hierarchy: `CONFIG_ENYA_DATASTORE_SERVICE_PRIORITY`
+- Lower numbers indicate higher priority for startup/shutdown sequencing
+
+The service manager integration ensures the datastore service coordinates properly with other system services and participates in system-wide lifecycle events.
+
 ## API Usage
 
 ### Initialization
@@ -233,22 +275,18 @@ graph TB
 ```c
 #include "datastore.h"
 
-size_t maxSubs[DATAPOINT_TYPE_COUNT] = {
-  4,  // Binary
-  4,  // Button
-  4,  // Float
-  4,  // Integer
-  4,  // Multi-State
-  4   // Unsigned Integer
-};
-
-k_tid_t threadId;
-int err = datastoreInit(maxSubs, 5, &threadId);
+int err = datastoreInit();
 if (err < 0) {
   LOG_ERR("Datastore init failed: %d", err);
   return err;
 }
 ```
+
+**Note**: All configuration is done via Kconfig:
+- Maximum subscribers per datapoint type: `CONFIG_ENYA_DATASTORE_MAX_*_SUBS`
+- Thread priority: `CONFIG_ENYA_DATASTORE_THREAD_PRIORITY`
+- Stack size: `CONFIG_ENYA_DATASTORE_STACK_SIZE`
+- The service automatically registers with the service manager for lifecycle management
 
 ### Reading Datapoints
 
@@ -461,11 +499,8 @@ int sensorEnableCallback(SrvMsgPayload_t *payload, size_t valCount)
 /* Application initialization */
 void app_init(void)
 {
-  size_t maxSubs[DATAPOINT_TYPE_COUNT] = {4, 4, 4, 4, 4, 4};
-  k_tid_t threadId;
-
   /* Initialize datastore */
-  datastoreInit(maxSubs, 5, &threadId);
+  datastoreInit();
 
   /* Subscribe to sensor enable changes */
   DatastoreSubEntry_t sub = {

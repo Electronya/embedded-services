@@ -50,7 +50,7 @@ static Datapoint_t floats[] = {
 };
 
 /**
- * @brief   Singed integer datapoints.
+ * @brief   Signed integer datapoints.
  * @note    Data is coming from X-macros in datastoreMeta.h
  */
 static Datapoint_t ints[] = {
@@ -132,7 +132,7 @@ static struct DatastoreSubs multiStateSubs  = {.entries = NULL, .maxCount = 0, .
 static struct DatastoreSubs uintSubs  = {.entries = NULL, .maxCount = 0, .activeCount = 0};
 
 /**
- * @brief   Check if the binary datapoint is in rage of the subscription.
+ * @brief   Check if the binary datapoint is in range of the subscription.
  *
  * @param[in]   datapointId: The datapoint ID.
  * @param[in]   sub: The subscription.
@@ -200,7 +200,7 @@ static inline int notifyBinarySubs(uint32_t datapointId, osMemoryPoolId_t pool)
 }
 
 /**
- * @brief   Check if the button datapoint is in rage of the subscription.
+ * @brief   Check if the button datapoint is in range of the subscription.
  *
  * @param[in]   datapointId: The datapoint ID.
  * @param[in]   sub: The subscription.
@@ -268,7 +268,7 @@ static inline int notifyButtonSubs(uint32_t datapointId, osMemoryPoolId_t pool)
 }
 
 /**
- * @brief   Check if the float datapoint is in rage of the subscription.
+ * @brief   Check if the float datapoint is in range of the subscription.
  *
  * @param[in]   datapointId: The datapoint ID.
  * @param[in]   sub: The subscription.
@@ -336,7 +336,7 @@ static inline int notifyFloatSubs(uint32_t datapointId, osMemoryPoolId_t pool)
 }
 
 /**
- * @brief   Check if the signed integer datapoint is in rage of the subscription.
+ * @brief   Check if the signed integer datapoint is in range of the subscription.
  *
  * @param[in]   datapointId: The datapoint ID.
  * @param[in]   sub: The subscription.
@@ -404,7 +404,7 @@ static inline int notifyIntSubs(uint32_t datapointId, osMemoryPoolId_t pool)
 }
 
 /**
- * @brief   Check if the multi-state datapoint is in rage of the subscription.
+ * @brief   Check if the multi-state datapoint is in range of the subscription.
  *
  * @param[in]   datapointId: The datapoint ID.
  * @param[in]   sub: The subscription.
@@ -472,7 +472,7 @@ static inline int notifyMultiStateSubs(uint32_t datapointId, osMemoryPoolId_t po
 }
 
 /**
- * @brief   Check if the unsigned integer datapoint is in rage of the subscription.
+ * @brief   Check if the unsigned integer datapoint is in range of the subscription.
  *
  * @param[in]   datapointId: The datapoint ID.
  * @param[in]   sub: The subscription.
@@ -532,7 +532,7 @@ static inline int notifyUintSubs(uint32_t datapointId, osMemoryPoolId_t pool)
     {
       err = notifyUintSub(uintSubs.entries + i, pool);
       if(err < 0)
-        LOG_ERR("ERROR %d: unable to notify for binary entry %d", err, i);
+        LOG_ERR("ERROR %d: unable to notify for unsigned integer entry %d", err, i);
     }
   }
 
@@ -646,7 +646,7 @@ int datastoreUtilAllocateUintSubs(size_t maxSubCount)
   if(!uintSubs.entries)
   {
     err = -ENOSPC;
-    LOG_ERR("ERROR %d: unable to allocate memory for multi-state subscriptions", err);
+    LOG_ERR("ERROR %d: unable to allocate memory for unsigned integer subscriptions", err);
     return err;
   }
 

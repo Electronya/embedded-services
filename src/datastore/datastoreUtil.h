@@ -80,7 +80,7 @@ int datastoreUtilAllocateUintSubs(size_t maxSubCount);
 /**
  * @brief   Calculate the maximum buffer size.
  *
- * @param[in]   datapointCounts: The datapoint count for each types.
+ * @param[in]   datapointCounts: The datapoint count for each type.
  *
  * @return  The calculated maximum buffer size.
  */
