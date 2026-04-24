@@ -26,6 +26,9 @@ LOG_MODULE_REGISTER(serviceManager, CONFIG_ENYA_SERVICE_MANAGER_LOG_LEVEL);
 #endif
 #endif
 
+/**
+ * @brief   The service manager message type.
+ */
 typedef enum
 {
   SVC_MGR_MSG_START,
@@ -34,16 +37,37 @@ typedef enum
   SVC_MGR_MSG_RESUME,
 } ServiceMgrMsgType_t;
 
+/**
+ * @brief   The service manager message.
+ */
 typedef struct
 {
-  ServiceMgrMsgType_t type;
-  size_t index;
+  ServiceMgrMsgType_t type;   /**< Message type. */
+  size_t index;               /**< Registry index of the target service. */
 } ServiceMgrMsg_t;
 
+/**
+ * @brief   The service manager thread stack area.
+ */
 K_THREAD_STACK_DEFINE(serviceManagerStack, CONFIG_ENYA_SERVICE_MANAGER_STACK_SIZE);
+
+/**
+ * @brief   The service manager thread.
+ */
 static struct k_thread serviceManagerThread;
+
+/**
+ * @brief   The service manager message queue.
+ */
 K_MSGQ_DEFINE(serviceManagerQueue, sizeof(ServiceMgrMsg_t), CONFIG_SVC_MGR_MAX_SERVICES, 4);
 
+/**
+ * @brief   The service manager monitor thread.
+ *
+ * @param[in]   p1: Unused thread parameter.
+ * @param[in]   p2: Unused thread parameter.
+ * @param[in]   p3: Unused thread parameter.
+ */
 static void run(void *p1, void *p2, void *p3)
 {
   size_t index;
@@ -119,6 +143,14 @@ static void run(void *p1, void *p2, void *p3)
   }
 }
 
+/**
+ * @brief   Enqueue a lifecycle request for a service.
+ *
+ * @param[in]   type:     The message type (start, stop, suspend, resume).
+ * @param[in]   threadId: The thread ID of the target service.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
 static int enqueueRequest(ServiceMgrMsgType_t type, k_tid_t threadId)
 {
   int index;

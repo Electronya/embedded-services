@@ -51,19 +51,21 @@ sequenceDiagram
 
     App->>SvcMgr: serviceManagerInit()
     Note over SvcMgr: Init HW watchdog, registry, start monitor thread
-    App->>Svc: svcNInit(config, priority, &threadId)
-    App->>SvcMgr: serviceManagerRegisterSrv(&descriptor)
+    App->>Svc: svcNInit()
+    Svc->>SvcMgr: serviceManagerRegisterSrv(&descriptor)
     App->>SvcMgr: serviceManagerStartAll()
-    SvcMgr->>Svc: k_thread_start() [CRITICAL first, then CORE, APPLICATION]
+    SvcMgr->>Svc: start() callback then k_thread_start() [CRITICAL first]
     Svc-->>SvcMgr: serviceManagerUpdateHeartbeat(threadId) [periodic]
 ```
 
 ### Heartbeat Protocol
 
 Each registered service must periodically call `serviceManagerUpdateHeartbeat()` from its
-own thread. If the interval (`heartbeatIntervalMs`) elapses without a heartbeat, the
-service manager increments `missedHeartbeats` and stops feeding the hardware watchdog,
-eventually triggering a system reset.
+own thread. Each monitor loop iteration where `heartbeatIntervalMs` has elapsed since the
+last update increments `missedHeartbeats`. After **3 consecutive missed heartbeats** the
+monitor stops feeding the hardware watchdog, eventually triggering a system reset.
+
+Heartbeat checking is skipped for services in `SVC_STATE_STOPPED` or `SVC_STATE_SUSPENDED`.
 
 ### State Confirmation Protocol
 
@@ -223,72 +225,56 @@ A service managed by the service manager must:
 ```c
 #include <zephyr/kernel.h>
 #include "serviceManager.h"
-#include "myService.h"
+#include "serviceCommon.h"
 
 K_THREAD_STACK_DEFINE(myServiceStack, 1024);
 static struct k_thread myServiceThread;
-static k_tid_t myServiceThreadId;
 
-static volatile bool shouldStop = false;
-static volatile bool shouldSuspend = false;
+K_MSGQ_DEFINE(myServiceCtrlQueue, sizeof(ServiceCtrlMsg_t), 4, 4);
 
 static int onStop(void)
 {
-  shouldStop = true;
-  return 0;
+  ServiceCtrlMsg_t msg = SVC_CTRL_STOP;
+  return k_msgq_put(&myServiceCtrlQueue, &msg, K_NO_WAIT);
 }
 
 static int onSuspend(void)
 {
-  shouldSuspend = true;
-  return 0;
+  ServiceCtrlMsg_t msg = SVC_CTRL_SUSPEND;
+  return k_msgq_put(&myServiceCtrlQueue, &msg, K_NO_WAIT);
 }
 
 static void myServiceRun(void *p1, void *p2, void *p3)
 {
+  ServiceCtrlMsg_t ctrlMsg;
+
   ARG_UNUSED(p1); ARG_UNUSED(p2); ARG_UNUSED(p3);
 
   for (;;) {
-    if (shouldStop) {
-      shouldStop = false;
-      serviceManagerConfirmState(k_current_get(), SVC_STATE_STOPPED);
-      return;
-    }
-    if (shouldSuspend) {
-      shouldSuspend = false;
-      serviceManagerConfirmState(k_current_get(), SVC_STATE_SUSPENDED);
-      k_thread_suspend(k_current_get());
-      /* resumed by service manager */
+    if (k_msgq_get(&myServiceCtrlQueue, &ctrlMsg, K_NO_WAIT) == 0) {
+      if (ctrlMsg == SVC_CTRL_STOP) {
+        serviceManagerConfirmState(k_current_get(), SVC_STATE_STOPPED);
+        return;
+      }
+      if (ctrlMsg == SVC_CTRL_SUSPEND) {
+        serviceManagerConfirmState(k_current_get(), SVC_STATE_SUSPENDED);
+        k_thread_suspend(k_current_get());
+        /* resumed by service manager */
+      }
     }
 
-    /* Do work */
     doWork();
-
-    /* Heartbeat */
     serviceManagerUpdateHeartbeat(k_current_get());
-
     k_sleep(K_MSEC(100));
   }
 }
 
-int myServiceInit(k_tid_t *threadId)
+int myServiceInit(void)
 {
-  *threadId = k_thread_create(&myServiceThread, myServiceStack, 1024,
-                               myServiceRun, NULL, NULL, NULL,
-                               K_PRIO_PREEMPT(5), 0, K_FOREVER);
-  k_thread_name_set(*threadId, "myService");
-  myServiceThreadId = *threadId;
-  return 0;
-}
-
-/* In application main */
-void main(void)
-{
-  k_tid_t threadId;
-
-  serviceManagerInit();
-
-  myServiceInit(&threadId);
+  k_tid_t threadId = k_thread_create(&myServiceThread, myServiceStack, 1024,
+                                     myServiceRun, NULL, NULL, NULL,
+                                     K_PRIO_PREEMPT(5), 0, K_FOREVER);
+  k_thread_name_set(threadId, "myService");
 
   ServiceDescriptor_t desc = {
     .threadId            = threadId,
@@ -297,8 +283,14 @@ void main(void)
     .stop                = onStop,
     .suspend             = onSuspend,
   };
-  serviceManagerRegisterSrv(&desc);
+  return serviceManagerRegisterSrv(&desc);
+}
 
+/* In application main */
+void main(void)
+{
+  serviceManagerInit();
+  myServiceInit();
   serviceManagerStartAll();
 }
 ```
@@ -352,7 +344,7 @@ SUCCESS: service 1 resumed
 **Cause**: Service is not calling `serviceManagerConfirmState()` before stopping/suspending.
 
 **Solutions**:
-- Verify the stop/suspend callbacks set a flag that the service thread checks
+- Verify the stop/suspend callbacks correctly signal the service thread (e.g. enqueue a control message)
 - Verify the thread loop actually reaches the `serviceManagerConfirmState()` call
 - Check for blocking calls in the service that prevent the thread from running
 
