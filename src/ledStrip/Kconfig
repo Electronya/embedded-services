@@ -1,0 +1,98 @@
+# Electronya LED Strip Service
+# Copyright (C) 2026 by Electronya
+
+config ENYA_LED_STRIP
+  bool "Electronya LED Strip Service"
+  default n
+  depends on LED_STRIP && CMSIS_RTOS_V2
+  help
+    The Electronya LED strip service.
+
+    Drives a single LED strip at a constant refresh rate via the Zephyr LED
+    strip driver API. Supports RGB and RGBW strips through DTS color-mapping
+    configuration. Channel ordering is the producer's responsibility.
+
+    Requires a DTS alias "led-strip" bound to a compatible LED strip device.
+
+if ENYA_LED_STRIP
+
+config ENYA_LED_STRIP_LOG_LEVEL
+  int "Electronya LED Strip Log Level"
+  default 3
+  help
+    The Electronya LED strip service log level.
+    0=OFF, 1=ERR, 2=WRN, 3=INF, 4=DBG
+
+config ENYA_LED_STRIP_STACK_SIZE
+  int "Electronya LED Strip Stack Size"
+  default 1024
+  help
+    The LED strip service thread stack size in bytes.
+
+config ENYA_LED_STRIP_THREAD_PRIORITY
+  int "Electronya LED Strip Thread Priority"
+  default 5
+  help
+    The LED strip service thread scheduling priority (preemptive).
+
+config ENYA_LED_STRIP_SERVICE_PRIORITY
+  int "Electronya LED Strip Service Priority"
+  default 2
+  range 0 2
+  help
+    The LED strip service priority level for the service manager.
+    0 = CRITICAL, 1 = CORE, 2 = APPLICATION.
+
+config ENYA_LED_STRIP_HEARTBEAT_INTERVAL_MS
+  int "Electronya LED Strip Heartbeat Interval (ms)"
+  default 1000
+  help
+    The interval in milliseconds at which the LED strip service updates
+    its heartbeat with the service manager.
+
+config ENYA_LED_STRIP_NUM_CHANNELS
+  int "Electronya LED Strip Channels Per Pixel"
+  default 4
+  range 3 4
+  help
+    The number of channels per pixel. Must match the length of the DTS
+    color-mapping property of the LED strip device.
+    3 = RGB, 4 = RGBW.
+
+    This value also controls the LedPixel_t type: a value of 4 adds
+    the ch3 field and array entry; a value of 3 omits them. Referencing
+    ch3 in a 3-channel build is a compile-time error.
+
+config ENYA_LED_STRIP_REFRESH_RATE_HZ
+  int "Electronya LED Strip Refresh Rate (Hz)"
+  default 60
+  range 1 120
+  help
+    The rate at which the LED strip service pushes the current frame to
+    hardware, regardless of producer frame rate.
+
+config ENYA_LED_STRIP_MSG_COUNT
+  int "Electronya LED Strip Message Queue Depth"
+  default 4
+  range 1 16
+  help
+    The depth of the LED strip service control message queue. This queue
+    carries lightweight control messages (brightness, fill, frame submit
+    notifications) — not pixel data. The pixel data pool always has
+    exactly 2 blocks.
+
+config ENYA_LED_STRIP_SHELL
+  bool "Electronya LED Strip Shell Commands"
+  default y
+  depends on SHELL
+  help
+    Enable shell commands for the LED strip service.
+    Provides commands to control brightness and fill the strip.
+
+    Commands:
+      led_strip brightness <0-255>              - Set global brightness
+      led_strip fill <ch0> <ch1> <ch2>          - Fill all pixels (RGB)
+      led_strip fill <ch0> <ch1> <ch2> <ch3>    - Fill all pixels (RGBW)
+      led_strip off                             - Turn off all pixels
+
+endif
