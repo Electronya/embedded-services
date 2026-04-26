@@ -126,7 +126,7 @@ FAKE_VALUE_FUNC(int, serviceManagerRegisterSrv, const ServiceDescriptor_t *);
 FAKE_VALUE_FUNC(int, ledStripUtilInitStrip);
 FAKE_VALUE_FUNC(int, ledStripUtilInitFramebuffers);
 FAKE_VOID_FUNC(ledStripUtilSetBrightness, uint8_t);
-FAKE_VALUE_FUNC(int, ledStripUtilActivateFrame, LedPixel_t *);
+FAKE_VOID_FUNC(ledStripUtilActivateFrame, LedPixel_t *);
 FAKE_VALUE_FUNC(int, ledStripUtilPushFrame);
 
 #define FFF_FAKES_LIST(FAKE) \
@@ -237,27 +237,6 @@ static void service_tests_before(void *f)
   k_msgq_put_mock_fake.custom_fake = k_msgq_put_capture;
   serviceManagerRegisterSrv_fake.custom_fake = serviceManagerRegisterSrv_capture;
   k_msgq_get_mock_fake.custom_fake = k_msgq_get_no_message;
-}
-
-/**
- * @test The run function must log error but continue when activating a new frame fails.
- */
-ZTEST_F(ledStrip, test_run_activateFrameFails)
-{
-  fixture->test_queue_messages[0].type = LED_STRIP_NEW_FRAME_MSG;
-  fixture->test_queue_messages[0].framebuffer = NULL;
-  fixture->test_queue_msg_count = 1;
-  k_msgq_get_mock_fake.custom_fake = k_msgq_get_from_run_queue;
-  ledStripUtilActivateFrame_fake.return_val = -EIO;
-
-  run(NULL, NULL, NULL);
-
-  zassert_equal(ledStripUtilActivateFrame_fake.call_count, 1,
-                "ledStripUtilActivateFrame should be called once for the new frame message");
-  zassert_equal(ledStripUtilPushFrame_fake.call_count, LED_STRIP_RUN_ITERATIONS,
-                "ledStripUtilPushFrame should still be called despite activateFrame failure");
-  zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, LED_STRIP_RUN_ITERATIONS,
-                "serviceManagerUpdateHeartbeat should still be called despite activateFrame failure");
 }
 
 /**

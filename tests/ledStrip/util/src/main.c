@@ -96,6 +96,81 @@ static void util_tests_before(void *fixture)
 }
 
 /**
+ * @test applyGlobalBrightness must leave all channels unchanged at full brightness.
+ */
+ZTEST(ledStripUtil, test_applyGlobalBrightness_fullBrightness)
+{
+  LedPixel_t frame[5];
+
+  for(size_t i = 0; i < 5; ++i)
+  {
+    frame[i].ch0 = 255;
+    frame[i].ch1 = 128;
+    frame[i].ch2 = 64;
+  }
+
+  ledStripUtilSetBrightness(255);
+  applyGlobalBrightness(frame);
+
+  for(size_t i = 0; i < 5; ++i)
+  {
+    zassert_equal(frame[i].ch0, 255, "ch0 should be unchanged at full brightness");
+    zassert_equal(frame[i].ch1, 128, "ch1 should be unchanged at full brightness");
+    zassert_equal(frame[i].ch2, 64,  "ch2 should be unchanged at full brightness");
+  }
+}
+
+/**
+ * @test applyGlobalBrightness must zero all channels at zero brightness.
+ */
+ZTEST(ledStripUtil, test_applyGlobalBrightness_zeroBrightness)
+{
+  LedPixel_t frame[5];
+
+  for(size_t i = 0; i < 5; ++i)
+  {
+    frame[i].ch0 = 255;
+    frame[i].ch1 = 128;
+    frame[i].ch2 = 64;
+  }
+
+  ledStripUtilSetBrightness(0);
+  applyGlobalBrightness(frame);
+
+  for(size_t i = 0; i < 5; ++i)
+  {
+    zassert_equal(frame[i].ch0, 0, "ch0 should be 0 at zero brightness");
+    zassert_equal(frame[i].ch1, 0, "ch1 should be 0 at zero brightness");
+    zassert_equal(frame[i].ch2, 0, "ch2 should be 0 at zero brightness");
+  }
+}
+
+/**
+ * @test applyGlobalBrightness must scale all channels correctly at partial brightness.
+ */
+ZTEST(ledStripUtil, test_applyGlobalBrightness_partialBrightness)
+{
+  LedPixel_t frame[5];
+
+  for(size_t i = 0; i < 5; ++i)
+  {
+    frame[i].ch0 = 255;
+    frame[i].ch1 = 255;
+    frame[i].ch2 = 0;
+  }
+
+  ledStripUtilSetBrightness(128);
+  applyGlobalBrightness(frame);
+
+  for(size_t i = 0; i < 5; ++i)
+  {
+    zassert_equal(frame[i].ch0, 128, "ch0 should be scaled to 128 at half brightness");
+    zassert_equal(frame[i].ch1, 128, "ch1 should be scaled to 128 at half brightness");
+    zassert_equal(frame[i].ch2, 0,   "ch2 should remain 0 at half brightness");
+  }
+}
+
+/**
  * @test ledStripUtilInitStrip must return -EBUSY when the device is not ready.
  */
 ZTEST(ledStripUtil, test_initStrip_deviceNotReady)
@@ -166,6 +241,132 @@ ZTEST(ledStripUtil, test_initFramebuffers_success)
                 DT_N_NODELABEL_ws2812_P_chain_length *
                 DT_N_NODELABEL_ws2812_P_color_mapping_LEN,
                 "Block size should be pixel_count * num_channels");
+}
+
+/**
+ * @test ledStripUtilGetNextFramebuffer must return NULL when the pool allocation fails.
+ */
+ZTEST(ledStripUtil, test_getNextFramebuffer_allocFails)
+{
+  LedPixel_t *result;
+
+  osMemoryPoolAlloc_fake.return_val = NULL;
+
+  result = ledStripUtilGetNextFramebuffer();
+
+  zassert_is_null(result, "Expected NULL when pool allocation fails");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+}
+
+/**
+ * @test ledStripUtilGetNextFramebuffer must return the allocated block on success.
+ */
+ZTEST(ledStripUtil, test_getNextFramebuffer_success)
+{
+  LedPixel_t mockBlock[5];
+  LedPixel_t *result;
+
+  osMemoryPoolAlloc_fake.return_val = mockBlock;
+
+  result = ledStripUtilGetNextFramebuffer();
+
+  zassert_equal(result, mockBlock,
+                "Expected the allocated block returned by osMemoryPoolAlloc");
+  zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
+                "osMemoryPoolAlloc should be called once");
+  zassert_equal(osMemoryPoolAlloc_fake.arg1_val, FRAMEBUFFER_ALLOC_TIMEOUT,
+                "osMemoryPoolAlloc should be called with the allocation timeout");
+}
+
+/**
+ * @test ledStripUtilActivateFrame must free the current frame and store the new one.
+ */
+ZTEST(ledStripUtil, test_activateFrame_success)
+{
+  osMemoryPoolId_t mockPool = (osMemoryPoolId_t)0x1000;
+  LedPixel_t oldFrame[5];
+  LedPixel_t newFrame[5];
+
+  osMemoryPoolNew_fake.return_val = mockPool;
+  ledStripUtilInitFramebuffers();
+
+  ledStripUtilActivateFrame(oldFrame);
+  FFF_FAKES_LIST(RESET_FAKE);
+
+  ledStripUtilActivateFrame(newFrame);
+
+  zassert_equal(osMemoryPoolFree_fake.call_count, 1,
+                "osMemoryPoolFree should be called once to release the previous frame");
+  zassert_equal(osMemoryPoolFree_fake.arg0_val, mockPool,
+                "osMemoryPoolFree should be called with the framebuffer pool");
+  zassert_equal(osMemoryPoolFree_fake.arg1_val, oldFrame,
+                "osMemoryPoolFree should be called with the previous frame");
+}
+
+/**
+ * @test ledStripUtilPushFrame must return error when updating the LED strip channels fails.
+ */
+ZTEST(ledStripUtil, test_pushFrame_updateChannelsFails)
+{
+  int result;
+
+  led_strip_update_channels_mock_fake.return_val = -EIO;
+
+  result = ledStripUtilPushFrame();
+
+  zassert_equal(result, -EIO,
+                "ledStripUtilPushFrame should return error from led_strip_update_channels");
+  zassert_equal(led_strip_update_channels_mock_fake.call_count, 1,
+                "led_strip_update_channels should be called once");
+}
+
+/**
+ * @test ledStripUtilPushFrame must push the active frame to the LED strip on success.
+ */
+ZTEST(ledStripUtil, test_pushFrame_success)
+{
+  LedPixel_t mockFrame[5];
+  int result;
+
+  ledStripUtilActivateFrame(mockFrame);
+
+  result = ledStripUtilPushFrame();
+
+  zassert_equal(result, 0, "ledStripUtilPushFrame should return 0 on success");
+  zassert_equal(led_strip_update_channels_mock_fake.call_count, 1,
+                "led_strip_update_channels should be called once");
+  zassert_equal(led_strip_update_channels_mock_fake.arg0_val, &mock_led_strip_dev,
+                "led_strip_update_channels should be called with the LED strip device");
+  zassert_equal(led_strip_update_channels_mock_fake.arg1_val, (uint8_t *)mockFrame,
+                "led_strip_update_channels should be called with the active frame");
+  zassert_equal(led_strip_update_channels_mock_fake.arg2_val, CONFIG_ENYA_LED_STRIP_NUM_CHANNELS,
+                "led_strip_update_channels should be called with the number of channels");
+}
+
+/**
+ * @test ledStripUtilSetBrightness must store the brightness value used by applyGlobalBrightness.
+ */
+ZTEST(ledStripUtil, test_setBrightness_success)
+{
+  LedPixel_t frame[5];
+
+  for(size_t i = 0; i < 5; ++i)
+  {
+    frame[i].ch0 = 255;
+    frame[i].ch1 = 255;
+    frame[i].ch2 = 255;
+  }
+
+  ledStripUtilSetBrightness(128);
+  applyGlobalBrightness(frame);
+
+  for(size_t i = 0; i < 5; ++i)
+  {
+    zassert_equal(frame[i].ch0, 128, "ch0 should be scaled to 128 after setting brightness to 128");
+    zassert_equal(frame[i].ch1, 128, "ch1 should be scaled to 128 after setting brightness to 128");
+    zassert_equal(frame[i].ch2, 128, "ch2 should be scaled to 128 after setting brightness to 128");
+  }
 }
 
 ZTEST_SUITE(ledStripUtil, NULL, util_tests_setup, util_tests_before, NULL, NULL);

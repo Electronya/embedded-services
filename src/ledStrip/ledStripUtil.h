@@ -48,10 +48,8 @@ LedPixel_t *ledStripUtilGetNextFramebuffer(void);
  * @brief   Activate a new frame.
  *
  * @param[in]   newFrame: The new frame to activate.
- *
- * @return  0 if successful, the error code otherwiese.
  */
-int ledStripUtilActivateFrame(LedPixel_t *frame);
+void ledStripUtilActivateFrame(LedPixel_t *frame);
 
 /**
  * @brief   Push the active frame.
@@ -63,9 +61,9 @@ int ledStripUtilPushFrame(void);
 /**
  * @brief   Set global brightness.
  *
- * @param[in]   birghtness: The global brightness.
+ * @param[in]   newBirghtness: The global brightness.
  */
-void ledStripUtilSetBrightness(uint8_t brightness);
+void ledStripUtilSetBrightness(uint8_t newBrightness);
 
 #endif /* LEDSTRIPUTIL_H */
 

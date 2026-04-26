@@ -114,9 +114,7 @@ static void run(void *p1, void *p2, void *p3)
       switch(msg.type)
       {
         case LED_STRIP_NEW_FRAME_MSG:
-          err = ledStripUtilActivateFrame(msg.framebuffer);
-          if(err < 0)
-            LOG_ERR("ERROR %d: uanble to activate new frame", err);
+          ledStripUtilActivateFrame(msg.framebuffer);
           break;
         case LED_STRIP_STOP_MSG:
           state = SVC_STATE_STOPPED;
