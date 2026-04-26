@@ -16,6 +16,8 @@
 #ifndef LEDSTRIPUTIL_H
 #define LEDSTRIPUTIL_H
 
+#include "ledStrip.h"
+
 /**
  * @brief   LED strip service logger name
  */
@@ -34,6 +36,22 @@ int ledStripUtilInitStrip(void);
  * @return  0 if successful, the error code otherwiese.
  */
 int ledStripUtilInitFramebuffers(void);
+
+/**
+ * @brief   Activate a new frame.
+ *
+ * @param[in]   newFrame: The new frame to activate.
+ *
+ * @return  0 if successful, the error code otherwiese.
+ */
+int ledStripUtilActivateFrame(LedPixel_t *frame);
+
+/**
+ * @brief   Push the active frame.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int ledStripUtilPushFrame(void);
 
 #endif /* LEDSTRIPUTIL_H */
 
