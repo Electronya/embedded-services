@@ -248,4 +248,33 @@ int ledStripInit(void)
   return err;
 }
 
+LedPixel_t *ledStripGetNextFramebuffer(void)
+{
+  return ledStripUtilGetNextFramebuffer();
+}
+
+int ledStripUpdateFrame(LedPixel_t *frame)
+{
+  int err;
+  LedStripMessage_t msg = {.type = LED_STRIP_NEW_FRAME_MSG, .framebuffer = frame};
+
+  err = k_msgq_put(&ledStipMsgQueue, &msg, K_NO_WAIT);
+  if(err < 0)
+    LOG_ERR("ERROR %d: unable to push the new frame", err);
+
+  return err;
+}
+
+int ledStripSetBrightness(uint8_t brightness)
+{
+  int err;
+  LedStripMessage_t msg = {.type = LED_STRIP_BRIGHTNESS_MSG, .brightness = brightness};
+
+  err = k_msgq_put(&ledStipMsgQueue, &msg, K_NO_WAIT);
+  if(err < 0)
+    LOG_ERR("ERROR %d: unable to push new brightness", err);
+
+  return err;
+}
+
 /** @} */

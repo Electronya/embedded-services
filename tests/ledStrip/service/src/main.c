@@ -125,6 +125,7 @@ FAKE_VALUE_FUNC(int, serviceManagerRegisterSrv, const ServiceDescriptor_t *);
 /* Mock ledStripUtil functions */
 FAKE_VALUE_FUNC(int, ledStripUtilInitStrip);
 FAKE_VALUE_FUNC(int, ledStripUtilInitFramebuffers);
+FAKE_VALUE_FUNC(LedPixel_t *, ledStripUtilGetNextFramebuffer);
 FAKE_VOID_FUNC(ledStripUtilSetBrightness, uint8_t);
 FAKE_VOID_FUNC(ledStripUtilActivateFrame, LedPixel_t *);
 FAKE_VALUE_FUNC(int, ledStripUtilPushFrame);
@@ -146,6 +147,7 @@ FAKE_VALUE_FUNC(int, ledStripUtilPushFrame);
   FAKE(serviceManagerRegisterSrv) \
   FAKE(ledStripUtilInitStrip) \
   FAKE(ledStripUtilInitFramebuffers) \
+  FAKE(ledStripUtilGetNextFramebuffer) \
   FAKE(ledStripUtilSetBrightness) \
   FAKE(ledStripUtilActivateFrame) \
   FAKE(ledStripUtilPushFrame)
@@ -735,6 +737,112 @@ ZTEST_F(ledStrip, test_ledStripInit_success)
                 "descriptor suspend callback should be onSuspend");
   zassert_equal(fixture->captured_descriptor.resume, onResume,
                 "descriptor resume callback should be onResume");
+}
+
+/**
+ * @test ledStripGetNextFramebuffer must return NULL when the pool allocation fails.
+ */
+ZTEST_F(ledStrip, test_ledStripGetNextFramebuffer_allocFails)
+{
+  LedPixel_t *result;
+
+  ledStripUtilGetNextFramebuffer_fake.return_val = NULL;
+
+  result = ledStripGetNextFramebuffer();
+
+  zassert_is_null(result, "ledStripGetNextFramebuffer should return NULL when allocation fails");
+  zassert_equal(ledStripUtilGetNextFramebuffer_fake.call_count, 1,
+                "ledStripUtilGetNextFramebuffer should be called once");
+}
+
+/**
+ * @test ledStripGetNextFramebuffer must return the allocated block on success.
+ */
+ZTEST_F(ledStrip, test_ledStripGetNextFramebuffer_success)
+{
+  LedPixel_t mockBlock;
+  LedPixel_t *result;
+
+  ledStripUtilGetNextFramebuffer_fake.return_val = &mockBlock;
+
+  result = ledStripGetNextFramebuffer();
+
+  zassert_equal(result, &mockBlock,
+                "ledStripGetNextFramebuffer should return the block from the pool");
+  zassert_equal(ledStripUtilGetNextFramebuffer_fake.call_count, 1,
+                "ledStripUtilGetNextFramebuffer should be called once");
+}
+
+/**
+ * @test ledStripUpdateFrame must return error when queuing the new frame message fails.
+ */
+ZTEST_F(ledStrip, test_ledStripUpdateFrame_msgqPutFails)
+{
+  LedPixel_t mockFrame;
+  int result;
+
+  k_msgq_put_mock_fake.return_val = -EAGAIN;
+
+  result = ledStripUpdateFrame(&mockFrame);
+
+  zassert_equal(result, -EAGAIN,
+                "ledStripUpdateFrame should return error from k_msgq_put");
+  zassert_equal(k_msgq_put_mock_fake.call_count, 1,
+                "k_msgq_put should be called once");
+}
+
+/**
+ * @test ledStripUpdateFrame must enqueue a new frame message with the correct frame pointer.
+ */
+ZTEST_F(ledStrip, test_ledStripUpdateFrame_success)
+{
+  LedPixel_t mockFrame;
+  int result;
+
+  result = ledStripUpdateFrame(&mockFrame);
+
+  zassert_equal(result, 0, "ledStripUpdateFrame should return 0");
+  zassert_equal(k_msgq_put_mock_fake.call_count, 1,
+                "k_msgq_put should be called once");
+  zassert_equal(fixture->captured_msg.type, LED_STRIP_NEW_FRAME_MSG,
+                "k_msgq_put should be called with a NEW_FRAME message");
+  zassert_equal(fixture->captured_msg.framebuffer, &mockFrame,
+                "k_msgq_put should be called with the correct frame pointer");
+}
+
+/**
+ * @test ledStripSetBrightness must return error when queuing the brightness message fails.
+ */
+ZTEST_F(ledStrip, test_ledStripSetBrightness_msgqPutFails)
+{
+  int result;
+
+  k_msgq_put_mock_fake.return_val = -EAGAIN;
+
+  result = ledStripSetBrightness(128);
+
+  zassert_equal(result, -EAGAIN,
+                "ledStripSetBrightness should return error from k_msgq_put");
+  zassert_equal(k_msgq_put_mock_fake.call_count, 1,
+                "k_msgq_put should be called once");
+}
+
+/**
+ * @test ledStripSetBrightness must enqueue a brightness message with the correct value.
+ */
+ZTEST_F(ledStrip, test_ledStripSetBrightness_success)
+{
+  int result;
+
+  result = ledStripSetBrightness(128);
+
+  zassert_equal(result, 0, "ledStripSetBrightness should return 0");
+  zassert_equal(k_msgq_put_mock_fake.call_count, 1,
+                "k_msgq_put should be called once");
+  zassert_equal(fixture->captured_msg.type, LED_STRIP_BRIGHTNESS_MSG,
+                "k_msgq_put should be called with a BRIGHTNESS message");
+  zassert_equal(fixture->captured_msg.brightness, 128,
+                "k_msgq_put should be called with the correct brightness value");
 }
 
 ZTEST_SUITE(ledStrip, NULL, service_tests_setup, service_tests_before, NULL, NULL);

@@ -40,6 +40,31 @@ typedef union
  */
 int ledStripInit(void);
 
+/**
+ * @brief   Get the next framebuffer.
+ *
+ * @return  The next framebuffer if successful, NULL otherwise.
+ */
+LedPixel_t *ledStripGetNextFramebuffer(void);
+
+/**
+ * @brief   Update frame.
+ *
+ * @param[in]   frame: The frame.
+ *
+ * @return  0 if successfulm the error code otherwise.
+ */
+int ledStripUpdateFrame(LedPixel_t *frame);
+
+/**
+ * @brief   Set the brightness.
+ *
+ * @param[in]   brightness: The brighness.
+ *
+ * @return  0 if successful, the error code otherwise.
+ */
+int ledStripSetBrightness(uint8_t brightness);
+
 #endif /* LEDSTRIP_H */
 
 /** @} */
