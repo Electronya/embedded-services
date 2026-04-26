@@ -165,11 +165,22 @@ struct ledStrip_fixture
   LedStripMessage_t test_queue_messages[4];
   size_t test_queue_msg_count;
   size_t test_queue_msg_read;
+  LedStripMessage_t captured_msg;
   ServiceDescriptor_t captured_descriptor;
 };
 
 static struct ledStrip_fixture test_fixture;
 static struct ledStrip_fixture *current_fixture;
+
+/* Message capture helper for k_msgq_put */
+static int k_msgq_put_capture(struct k_msgq *q, const void *data, k_timeout_t timeout)
+{
+  ARG_UNUSED(q);
+  ARG_UNUSED(timeout);
+  if(data)
+    current_fixture->captured_msg = *(const LedStripMessage_t *)data;
+  return k_msgq_put_mock_fake.return_val;
+}
 
 /* Descriptor capture helper for serviceManagerRegisterSrv */
 static int serviceManagerRegisterSrv_capture(const ServiceDescriptor_t *descriptor)
@@ -221,6 +232,7 @@ static void service_tests_before(void *f)
 
   memset(current_fixture, 0, sizeof(*current_fixture));
 
+  k_msgq_put_mock_fake.custom_fake = k_msgq_put_capture;
   serviceManagerRegisterSrv_fake.custom_fake = serviceManagerRegisterSrv_capture;
   k_msgq_get_mock_fake.custom_fake = k_msgq_get_no_message;
 }
@@ -489,6 +501,231 @@ ZTEST_F(ledStrip, test_run_successSuspend)
                 "k_thread_suspend should be called once on SUSPEND");
   zassert_equal(k_thread_suspend_mock_fake.arg0_val, mockTid,
                 "k_thread_suspend should be called with the current thread ID");
+}
+
+/**
+ * @test The onStart callback must start the service thread.
+ */
+ZTEST_F(ledStrip, test_onStart_success)
+{
+  int result;
+
+  result = onStart();
+
+  zassert_equal(result, 0, "onStart should return 0");
+  zassert_equal(k_thread_start_mock_fake.call_count, 1,
+                "k_thread_start should be called once");
+  zassert_equal(k_thread_start_mock_fake.arg0_val, &thread,
+                "k_thread_start should be called with the service thread");
+}
+
+/**
+ * @test The onStop callback must return error when queuing the stop message fails.
+ */
+ZTEST_F(ledStrip, test_onStop_msgqPutFails)
+{
+  int result;
+
+  k_msgq_put_mock_fake.return_val = -EAGAIN;
+
+  result = onStop();
+
+  zassert_equal(result, -EAGAIN,
+                "onStop should return error from k_msgq_put");
+  zassert_equal(k_msgq_put_mock_fake.call_count, 1,
+                "k_msgq_put should be called once");
+}
+
+/**
+ * @test The onStop callback must enqueue a stop message to the service queue.
+ */
+ZTEST_F(ledStrip, test_onStop_success)
+{
+  int result;
+
+  result = onStop();
+
+  zassert_equal(result, 0, "onStop should return 0");
+  zassert_equal(k_msgq_put_mock_fake.call_count, 1,
+                "k_msgq_put should be called once");
+  zassert_equal(fixture->captured_msg.type, LED_STRIP_STOP_MSG,
+                "k_msgq_put should be called with a STOP message");
+}
+
+/**
+ * @test The onSuspend callback must return error when queuing the suspend message fails.
+ */
+ZTEST_F(ledStrip, test_onSuspend_msgqPutFails)
+{
+  int result;
+
+  k_msgq_put_mock_fake.return_val = -EAGAIN;
+
+  result = onSuspend();
+
+  zassert_equal(result, -EAGAIN,
+                "onSuspend should return error from k_msgq_put");
+  zassert_equal(k_msgq_put_mock_fake.call_count, 1,
+                "k_msgq_put should be called once");
+}
+
+/**
+ * @test The onSuspend callback must enqueue a suspend message to the service queue.
+ */
+ZTEST_F(ledStrip, test_onSuspend_success)
+{
+  int result;
+
+  result = onSuspend();
+
+  zassert_equal(result, 0, "onSuspend should return 0");
+  zassert_equal(k_msgq_put_mock_fake.call_count, 1,
+                "k_msgq_put should be called once");
+  zassert_equal(fixture->captured_msg.type, LED_STRIP_SUSPEND_MSG,
+                "k_msgq_put should be called with a SUSPEND message");
+}
+
+/**
+ * @test The onResume callback must restart the frame timer and resume the service thread.
+ */
+ZTEST_F(ledStrip, test_onResume_success)
+{
+  int result;
+
+  result = onResume();
+
+  zassert_equal(result, 0, "onResume should return 0");
+  zassert_equal(k_thread_resume_mock_fake.call_count, 1,
+                "k_thread_resume should be called once");
+  zassert_equal(k_thread_resume_mock_fake.arg0_val, &thread,
+                "k_thread_resume should be called with the service thread");
+}
+
+/**
+ * @test The init function must return error when initializing the strip fails.
+ */
+ZTEST_F(ledStrip, test_ledStripInit_initStripFails)
+{
+  int result;
+
+  ledStripUtilInitStrip_fake.return_val = -EIO;
+
+  result = ledStripInit();
+
+  zassert_equal(result, -EIO, "ledStripInit should return error from initStrip");
+  zassert_equal(ledStripUtilInitStrip_fake.call_count, 1,
+                "ledStripUtilInitStrip should be called once");
+  zassert_equal(ledStripUtilInitFramebuffers_fake.call_count, 0,
+                "ledStripUtilInitFramebuffers should not be called when initStrip fails");
+  zassert_equal(k_thread_create_mock_fake.call_count, 0,
+                "k_thread_create should not be called when initStrip fails");
+}
+
+/**
+ * @test The init function must return error when initializing the framebuffers fails.
+ */
+ZTEST_F(ledStrip, test_ledStripInit_initFramebuffersFails)
+{
+  int result;
+
+  ledStripUtilInitFramebuffers_fake.return_val = -EIO;
+
+  result = ledStripInit();
+
+  zassert_equal(result, -EIO, "ledStripInit should return error from initFramebuffers");
+  zassert_equal(ledStripUtilInitFramebuffers_fake.call_count, 1,
+                "ledStripUtilInitFramebuffers should be called once");
+  zassert_equal(k_thread_create_mock_fake.call_count, 0,
+                "k_thread_create should not be called when initFramebuffers fails");
+}
+
+/**
+ * @test The init function must return error when setting the thread name fails.
+ */
+ZTEST_F(ledStrip, test_ledStripInit_threadNameSetFails)
+{
+  int result;
+
+  k_thread_name_set_mock_fake.return_val = -EIO;
+
+  result = ledStripInit();
+
+  zassert_equal(result, -EIO, "ledStripInit should return error from k_thread_name_set");
+  zassert_equal(k_thread_create_mock_fake.call_count, 1,
+                "k_thread_create should be called once");
+  zassert_equal(k_thread_name_set_mock_fake.call_count, 1,
+                "k_thread_name_set should be called once");
+  zassert_equal(serviceManagerRegisterSrv_fake.call_count, 0,
+                "serviceManagerRegisterSrv should not be called when setting thread name fails");
+}
+
+/**
+ * @test The init function must return error when registering the service fails.
+ */
+ZTEST_F(ledStrip, test_ledStripInit_registerSrvFails)
+{
+  int result;
+
+  serviceManagerRegisterSrv_fake.return_val = -EIO;
+
+  result = ledStripInit();
+
+  zassert_equal(result, -EIO, "ledStripInit should return error from serviceManagerRegisterSrv");
+  zassert_equal(ledStripUtilInitStrip_fake.call_count, 1,
+                "ledStripUtilInitStrip should be called once");
+  zassert_equal(ledStripUtilInitFramebuffers_fake.call_count, 1,
+                "ledStripUtilInitFramebuffers should be called once");
+  zassert_equal(k_thread_create_mock_fake.call_count, 1,
+                "k_thread_create should be called once");
+  zassert_equal(k_thread_name_set_mock_fake.call_count, 1,
+                "k_thread_name_set should be called once");
+  zassert_equal(serviceManagerRegisterSrv_fake.call_count, 1,
+                "serviceManagerRegisterSrv should be called once");
+}
+
+/**
+ * @test The init function must initialize the strip, the framebuffers, create the thread
+ *       and register the service with the correct descriptor.
+ */
+ZTEST_F(ledStrip, test_ledStripInit_success)
+{
+  int result;
+  k_tid_t mockTid = (k_tid_t)0x1234;
+
+  k_thread_create_mock_fake.return_val = mockTid;
+
+  result = ledStripInit();
+
+  zassert_equal(result, 0, "ledStripInit should return 0");
+  zassert_equal(ledStripUtilInitStrip_fake.call_count, 1,
+                "ledStripUtilInitStrip should be called once");
+  zassert_equal(ledStripUtilInitFramebuffers_fake.call_count, 1,
+                "ledStripUtilInitFramebuffers should be called once");
+  zassert_equal(k_thread_create_mock_fake.call_count, 1,
+                "k_thread_create should be called once");
+  zassert_equal(k_thread_create_mock_fake.arg0_val, &thread,
+                "k_thread_create should be called with the service thread");
+  zassert_equal(k_thread_name_set_mock_fake.call_count, 1,
+                "k_thread_name_set should be called once");
+  zassert_equal(k_thread_name_set_mock_fake.arg0_val, mockTid,
+                "k_thread_name_set should be called with the thread ID returned by k_thread_create");
+  zassert_equal(serviceManagerRegisterSrv_fake.call_count, 1,
+                "serviceManagerRegisterSrv should be called once");
+  zassert_equal(fixture->captured_descriptor.threadId, mockTid,
+                "descriptor threadId should match the created thread ID");
+  zassert_equal(fixture->captured_descriptor.priority, CONFIG_ENYA_LED_STRIP_SERVICE_PRIORITY,
+                "descriptor priority should match Kconfig");
+  zassert_equal(fixture->captured_descriptor.heartbeatIntervalMs,
+                CONFIG_ENYA_LED_STRIP_HEARTBEAT_INTERVAL_MS,
+                "descriptor heartbeatIntervalMs should match Kconfig");
+  zassert_equal(fixture->captured_descriptor.start, onStart,
+                "descriptor start callback should be onStart");
+  zassert_equal(fixture->captured_descriptor.stop, onStop,
+                "descriptor stop callback should be onStop");
+  zassert_equal(fixture->captured_descriptor.suspend, onSuspend,
+                "descriptor suspend callback should be onSuspend");
+  zassert_equal(fixture->captured_descriptor.resume, onResume,
+                "descriptor resume callback should be onResume");
 }
 
 ZTEST_SUITE(ledStrip, NULL, service_tests_setup, service_tests_before, NULL, NULL);
