@@ -38,6 +38,13 @@ int ledStripUtilInitStrip(void);
 int ledStripUtilInitFramebuffers(void);
 
 /**
+ * @brief   Get the next framebuffer.
+ *
+ * @retunr  The framebuffer handle if successful, NULL otherwise.
+ */
+LedPixel_t *ledStripUtilGetNextFramebuffer(void);
+
+/**
  * @brief   Activate a new frame.
  *
  * @param[in]   newFrame: The new frame to activate.
@@ -52,6 +59,13 @@ int ledStripUtilActivateFrame(LedPixel_t *frame);
  * @return  0 if successful, the error code otherwise.
  */
 int ledStripUtilPushFrame(void);
+
+/**
+ * @brief   Set global brightness.
+ *
+ * @param[in]   birghtness: The global brightness.
+ */
+void ledStripUtilSetBrightness(uint8_t brightness);
 
 #endif /* LEDSTRIPUTIL_H */
 

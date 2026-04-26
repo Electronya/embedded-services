@@ -44,6 +44,7 @@ typedef enum
   LED_STRIP_STOP_MSG = 0,
   LED_STRIP_SUSPEND_MSG,
   LED_STRIP_NEW_FRAME_MSG,
+  LED_STRIP_BRIGHTNESS_MSG,
   LED_STIP_MGS_TYPE_COUNT
 } LedStipMsgType_t;
 
@@ -53,6 +54,7 @@ typedef enum
 typedef struct
 {
   LedStipMsgType_t type;
+  uint8_t brightness;
   LedPixel_t *framebuffer;
 } LedStripMessage_t;
 
@@ -131,6 +133,9 @@ static void run(void *p1, void *p2, void *p3)
           if(err < 0)
             LOG_ERR("ERROR %d: unable to confirm the suspended state", err);
           k_thread_suspend(k_current_get());
+          break;
+        case LED_STRIP_BRIGHTNESS_MSG:
+          ledStripUtilSetBrightness(msg.brightness);
           break;
         default:
           err = -ENOTSUP;

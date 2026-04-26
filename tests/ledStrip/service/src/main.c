@@ -125,6 +125,7 @@ FAKE_VALUE_FUNC(int, serviceManagerRegisterSrv, const ServiceDescriptor_t *);
 /* Mock ledStripUtil functions */
 FAKE_VALUE_FUNC(int, ledStripUtilInitStrip);
 FAKE_VALUE_FUNC(int, ledStripUtilInitFramebuffers);
+FAKE_VOID_FUNC(ledStripUtilSetBrightness, uint8_t);
 FAKE_VALUE_FUNC(int, ledStripUtilActivateFrame, LedPixel_t *);
 FAKE_VALUE_FUNC(int, ledStripUtilPushFrame);
 
@@ -145,6 +146,7 @@ FAKE_VALUE_FUNC(int, ledStripUtilPushFrame);
   FAKE(serviceManagerRegisterSrv) \
   FAKE(ledStripUtilInitStrip) \
   FAKE(ledStripUtilInitFramebuffers) \
+  FAKE(ledStripUtilSetBrightness) \
   FAKE(ledStripUtilActivateFrame) \
   FAKE(ledStripUtilPushFrame)
 
@@ -501,6 +503,34 @@ ZTEST_F(ledStrip, test_run_successSuspend)
                 "k_thread_suspend should be called once on SUSPEND");
   zassert_equal(k_thread_suspend_mock_fake.arg0_val, mockTid,
                 "k_thread_suspend should be called with the current thread ID");
+}
+
+/**
+ * @test The run function must set the brightness when a brightness message is received.
+ */
+ZTEST_F(ledStrip, test_run_successBrightness)
+{
+  fixture->test_queue_messages[0].type       = LED_STRIP_BRIGHTNESS_MSG;
+  fixture->test_queue_messages[0].brightness = 128;
+  fixture->test_queue_msg_count              = 1;
+  k_msgq_get_mock_fake.custom_fake           = k_msgq_get_from_run_queue;
+
+  run(NULL, NULL, NULL);
+
+  zassert_equal(ledStripUtilSetBrightness_fake.call_count, 1,
+                "ledStripUtilSetBrightness should be called once for the brightness message");
+  zassert_equal(ledStripUtilSetBrightness_fake.arg0_val, 128,
+                "ledStripUtilSetBrightness should be called with the brightness from the message");
+  zassert_equal(ledStripUtilActivateFrame_fake.call_count, 0,
+                "ledStripUtilActivateFrame should not be called on a brightness message");
+  zassert_equal(k_thread_abort_mock_fake.call_count, 0,
+                "k_thread_abort should not be called on a brightness message");
+  zassert_equal(k_thread_suspend_mock_fake.call_count, 0,
+                "k_thread_suspend should not be called on a brightness message");
+  zassert_equal(ledStripUtilPushFrame_fake.call_count, LED_STRIP_RUN_ITERATIONS,
+                "ledStripUtilPushFrame should be called for each iteration");
+  zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, LED_STRIP_RUN_ITERATIONS,
+                "serviceManagerUpdateHeartbeat should be called for each iteration");
 }
 
 /**
