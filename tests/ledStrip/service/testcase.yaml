@@ -1,0 +1,8 @@
+tests:
+  electronya.embedded_services.led_strip.service:
+    tags:
+      - unit_test
+      - led_strip
+    platform_allow:
+      - native_sim
+      - native_sim/native/64

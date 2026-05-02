@@ -19,6 +19,7 @@
 #include <soc.h>
 
 #include "adcAcquisitionUtil.h"
+#include "adcAcquisitionVref.h"
 #include "adcAcquisitionFilter.h"
 
 /* Setting module logging */
@@ -161,63 +162,14 @@ static inline int enableVrefint(void)
 {
   int err = 0;
 
-#if defined(CONFIG_ENYA_ADC_VREF_STM32_CCR)
-  /* STM32G0/G4/L4/L5/H7/WB/WL: ADC_CCR_VREFEN */
-  #if defined(ADC1_COMMON)
-  ADC1_COMMON->CCR |= ADC_CCR_VREFEN;
-  #ifndef READ_ADC1_COMMON_CCR
-  #define READ_ADC1_COMMON_CCR() (ADC1_COMMON->CCR)
-  #endif
-  if(!(READ_ADC1_COMMON_CCR() & ADC_CCR_VREFEN))
+#if defined(STM32_ADC_VREF_REG)
+  STM32_ADC_VREF_REG |= STM32_ADC_VREF_BIT;
+  if(!(STM32_ADC_VREF_REG_READ & STM32_ADC_VREF_BIT))
     err = -EIO;
-  #elif defined(ADC12_COMMON)
-  ADC12_COMMON->CCR |= ADC_CCR_VREFEN;
-  if(!(ADC12_COMMON->CCR & ADC_CCR_VREFEN))
-    err = -EIO;
-  #elif defined(ADC_COMMON)
-  ADC_COMMON->CCR |= ADC_CCR_VREFEN;
-  if(!(ADC_COMMON->CCR & ADC_CCR_VREFEN))
-    err = -EIO;
-  #else
-  #error "ADC Common register base not found for this STM32 variant"
-  #endif
-
-#elif defined(CONFIG_ENYA_ADC_VREF_STM32_CCR_TSVREFE)
-  /* STM32F3: ADC_CCR_TSVREFE */
-  #if defined(ADC1_COMMON)
-  ADC1_COMMON->CCR |= ADC_CCR_TSVREFE;
-  if(!(ADC1_COMMON->CCR & ADC_CCR_TSVREFE))
-    err = -EIO;
-  #else
-  #error "ADC1_COMMON not found for STM32F3"
-  #endif
-
-#elif defined(CONFIG_ENYA_ADC_VREF_STM32_CR2)
-  /* STM32F1/F2/F4: ADC_CR2_TSVREFE */
-  #if defined(ADC1)
-  ADC1->CR2 |= ADC_CR2_TSVREFE;
-  if(!(ADC1->CR2 & ADC_CR2_TSVREFE))
-    err = -EIO;
-  #else
-  #error "ADC1 not found for legacy STM32"
-  #endif
-
-#elif defined(CONFIG_ENYA_ADC_VREF_DEVICETREE)
-  /* No register manipulation needed - handled by devicetree/HAL */
-  LOG_DBG("VREFINT configured via devicetree");
-
-#elif defined(CONFIG_ENYA_ADC_VREF_NONE)
-  /* No action needed */
-  LOG_DBG("VREFINT enable not required");
-
-#else
-  #error "No ADC VREF enable method selected in Kconfig"
-#endif
-
-#if defined(CONFIG_ENYA_ADC_VREF_STABILIZATION_US)
-  /* Wait for VREFINT to stabilize */
+#if CONFIG_ENYA_ADC_VREF_STABILIZATION_US > 0
   if(!err)
     k_busy_wait(CONFIG_ENYA_ADC_VREF_STABILIZATION_US);
+#endif
 #endif
 
   return err;
@@ -404,8 +356,8 @@ static enum adc_action adcSeqCallback(const struct device *dev, const struct adc
  */
 static inline void setupSequence(void)
 {
-  sequence.oversampling = OVERSAMPLING_SETTING;
-  sequence.resolution = OVERSAMPLING_RESOLUTION;
+  sequence.oversampling = adcChannels[0].oversampling;
+  sequence.resolution = adcChannels[0].resolution;
   sequence.calibrate = false;
   sequence.options = &seqOptions;
   sequence.buffer = buffer;

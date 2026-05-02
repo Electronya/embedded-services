@@ -6,14 +6,17 @@ config ENYA_EMBEDDED_SERVICES
   default y
   help
     The Electronya embedded services.
+      - Service Manager
       - ADC Acquisition
       - Datastore
+      - LED Strip
 
 if ENYA_EMBEDDED_SERVICES
 
 rsource "src/serviceCommon/Kconfig"
+rsource "src/serviceManager/Kconfig"
 rsource "src/adcAcquisition/Kconfig"
 rsource "src/datastore/Kconfig"
-rsource "src/serviceManager/Kconfig"
+rsource "src/ledStrip/Kconfig"
 
 endif

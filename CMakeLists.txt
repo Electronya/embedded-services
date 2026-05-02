@@ -19,3 +19,7 @@ endif()
 if(CONFIG_ENYA_SERVICE_MANAGER)
   add_subdirectory(./src/serviceManager)
 endif()
+
+if(CONFIG_ENYA_LED_STRIP)
+  add_subdirectory(./src/ledStrip)
+endif()

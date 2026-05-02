@@ -95,7 +95,7 @@ static uint16_t mock_vrefint_cal __attribute__((unused)) = 1500;
 #define _SOC__H_
 
 /* Mock ADC devicetree macro */
-#define ADC_DT_SPEC_GET_BY_IDX(node, idx) {.dev = (const struct device *)0x1000, .channel_id = idx, .resolution = 12}
+#define ADC_DT_SPEC_GET_BY_IDX(node, idx) {.dev = (const struct device *)0x1000, .channel_id = idx, .resolution = 12, .oversampling = 0}
 
 /* Mock timer device and devicetree macros for adc-trigger alias */
 static const struct device mock_timer_device __attribute__((unused)) = {0};
@@ -153,6 +153,7 @@ struct adc_dt_spec {
   const struct device *dev;
   uint8_t channel_id;
   uint8_t resolution;
+  uint8_t oversampling;
 };
 
 struct counter_top_cfg {
@@ -190,6 +191,9 @@ FAKE_VALUE_FUNC(int, osMemoryPoolFree, osMemoryPoolId_t, void *);
 
 /* Mock subscription callback */
 FAKE_VALUE_FUNC(int, mock_subscription_callback, SrvMsgPayload_t *);
+
+/* Override VREF readback for unit testing (mock_vrefen_fails simulation) */
+#define STM32_ADC_VREF_REG_READ READ_ADC1_COMMON_CCR()
 
 /* Include utility implementation */
 #include "adcAcquisitionUtil.c"
@@ -595,8 +599,8 @@ ZTEST(adc_util_tests, test_setup_sequence)
   setupSequence();
 
   /* Verify sequence structure is initialized correctly */
-  zassert_equal(sequence.oversampling, OVERSAMPLING_SETTING,
-                "sequence.oversampling should be set to OVERSAMPLING_SETTING");
+  zassert_equal(sequence.oversampling, 0,
+                "sequence.oversampling should be 0 (read from DTS, no oversampling)");
   zassert_equal(sequence.resolution, OVERSAMPLING_RESOLUTION,
                 "sequence.resolution should be set to OVERSAMPLING_RESOLUTION");
   zassert_false(sequence.calibrate,

@@ -12,11 +12,10 @@
  * @{
  */
 
-#include <zephyr/shell/shell.h>
-#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <zephyr/shell/shell.h>
 
 #include "datastore.h"
 #include "datastoreCmdUtil.h"
@@ -42,22 +41,22 @@ static int execList(const struct shell *shell, size_t argc, char **argv)
   int err;
   Data_t value;
   const DatapointEntry_t *registry = getDatapointRegistry();
-  size_t registrySize = getDatapointRegistrySize();
+  size_t registrySize              = getDatapointRegistrySize();
 
   printTableHeader(shell);
 
-  for (size_t i = 0; i < registrySize; i++)
+  for(size_t i = 0; i < registrySize; i++)
   {
     const DatapointEntry_t *entry = &registry[i];
 
     err = datastoreRead(entry->type, entry->id, 1, &datastoreCmdResQueue, &value);
-    if (err < 0)
+    if(err < 0)
     {
       shell_print(shell, "%-3u %-40s %-15s %s", entry->id, entry->name, getTypeName(entry->type), "ERROR");
       continue;
     }
 
-    switch (entry->type)
+    switch(entry->type)
     {
       case DATAPOINT_BINARY:
         printBinaryLine(shell, entry->id, entry->name, ((uint8_t *)&value)[0]);
@@ -111,7 +110,7 @@ static int execRead(const struct shell *shell, size_t argc, char **argv)
   /* Find datapoint by name (argv[0] is the subcommand name) */
   toUpper(argv[0]);
   err = findDatapointByName(argv[0], &entry);
-  if (err < 0)
+  if(err < 0)
   {
     shell_error(shell, "FAIL: datapoint '%s' not found", argv[0]);
     return -ESRCH;
@@ -119,7 +118,7 @@ static int execRead(const struct shell *shell, size_t argc, char **argv)
 
   /* Parse value count (default to 1 if not provided) */
   valCount = (argc >= 2) ? shell_strtoul(argv[1], 10, &err) : 1;
-  if (err < 0)
+  if(err < 0)
   {
     shell_error(shell, "FAIL %d: invalid value count '%s'", err, argv[1]);
     return err;
@@ -127,7 +126,7 @@ static int execRead(const struct shell *shell, size_t argc, char **argv)
 
   /* Read values based on datapoint type */
   err = datastoreRead(entry->type, entry->id, valCount, &datastoreCmdResQueue, valueStorage);
-  if (err < 0)
+  if(err < 0)
   {
     shell_error(shell, "FAIL %d: read operation failed", err);
     return err;
@@ -136,7 +135,7 @@ static int execRead(const struct shell *shell, size_t argc, char **argv)
   shell_info(shell, "SUCCESS: read %zu value(s) from %s", valCount, entry->name);
 
   /* Print values in format: DATAPOINT_NAME = value */
-  switch (entry->type)
+  switch(entry->type)
   {
     case DATAPOINT_BINARY:
       printBinaryValues(shell, entry, valueStorage, valCount);
@@ -189,7 +188,7 @@ static int execWrite(const struct shell *shell, size_t argc, char **argv)
   /* Find datapoint by name */
   toUpper(argv[0]);
   err = findDatapointByName(argv[0], &entry);
-  if (err < 0)
+  if(err < 0)
   {
     shell_error(shell, "FAIL: datapoint '%s' not found", argv[0]);
     return -ESRCH;
@@ -197,18 +196,18 @@ static int execWrite(const struct shell *shell, size_t argc, char **argv)
 
   /* Calculate value count */
   valCount = argc - 1;
-  if (valCount == 0)
+  if(valCount == 0)
   {
     shell_error(shell, "FAIL: no values provided");
     return -EINVAL;
   }
 
   /* Parse and write values based on datapoint type */
-  switch (entry->type)
+  switch(entry->type)
   {
     case DATAPOINT_BINARY:
       err = parseBinaryValues(argv + 1, valCount, valueStorage);
-      if (err < 0)
+      if(err < 0)
       {
         shell_error(shell, "FAIL: invalid binary value");
         return err;
@@ -217,7 +216,7 @@ static int execWrite(const struct shell *shell, size_t argc, char **argv)
 
     case DATAPOINT_BUTTON:
       err = parseButtonValues(argv + 1, valCount, valueStorage);
-      if (err < 0)
+      if(err < 0)
       {
         shell_error(shell, "FAIL: invalid button value");
         return err;
@@ -226,7 +225,7 @@ static int execWrite(const struct shell *shell, size_t argc, char **argv)
 
     case DATAPOINT_FLOAT:
       err = parseFloatValues(argv + 1, valCount, valueStorage);
-      if (err < 0)
+      if(err < 0)
       {
         shell_error(shell, "FAIL: invalid float value");
         return err;
@@ -235,7 +234,7 @@ static int execWrite(const struct shell *shell, size_t argc, char **argv)
 
     case DATAPOINT_INT:
       err = parseIntValues(argv + 1, valCount, valueStorage);
-      if (err < 0)
+      if(err < 0)
       {
         shell_error(shell, "FAIL: invalid int value");
         return err;
@@ -244,7 +243,7 @@ static int execWrite(const struct shell *shell, size_t argc, char **argv)
 
     case DATAPOINT_MULTI_STATE:
       err = parseMultiStateValues(argv + 1, valCount, valueStorage);
-      if (err < 0)
+      if(err < 0)
       {
         shell_error(shell, "FAIL: invalid multi-state value");
         return err;
@@ -253,7 +252,7 @@ static int execWrite(const struct shell *shell, size_t argc, char **argv)
 
     case DATAPOINT_UINT:
       err = parseUintValues(argv + 1, valCount, valueStorage);
-      if (err < 0)
+      if(err < 0)
       {
         shell_error(shell, "FAIL: invalid uint value");
         return err;
@@ -267,7 +266,7 @@ static int execWrite(const struct shell *shell, size_t argc, char **argv)
 
   /* Write to datastore */
   err = datastoreWrite(entry->type, entry->id, valueStorage, valCount, &datastoreCmdResQueue);
-  if (err < 0)
+  if(err < 0)
   {
     shell_error(shell, "FAIL %d: write operation failed", err);
     return err;
@@ -278,41 +277,28 @@ static int execWrite(const struct shell *shell, size_t argc, char **argv)
 }
 
 /* Generate read subcommands using X-macros */
-#define X(name, flags, defaultVal) \
-  SHELL_CMD_ARG(name, NULL, "Read " STRINGIFY(name) " [count]", execRead, 1, 1),
+#define X(name, flags, defaultVal) SHELL_CMD_ARG(name, NULL, "Read " STRINGIFY(name) " [count]", execRead, 1, 1),
 
-SHELL_STATIC_SUBCMD_SET_CREATE(read_sub,
-  DATASTORE_BINARY_DATAPOINTS
-  DATASTORE_BUTTON_DATAPOINTS
-  DATASTORE_FLOAT_DATAPOINTS
-  DATASTORE_INT_DATAPOINTS
-  DATASTORE_MULTI_STATE_DATAPOINTS
-  DATASTORE_UINT_DATAPOINTS
-  SHELL_SUBCMD_SET_END);
+SHELL_STATIC_SUBCMD_SET_CREATE(read_sub, DATASTORE_BINARY_DATAPOINTS DATASTORE_BUTTON_DATAPOINTS DATASTORE_FLOAT_DATAPOINTS
+                                           DATASTORE_INT_DATAPOINTS DATASTORE_MULTI_STATE_DATAPOINTS DATASTORE_UINT_DATAPOINTS
+                                             SHELL_SUBCMD_SET_END);
 
 #undef X
 
 /* Generate write subcommands using X-macros */
-#define X(name, flags, defaultVal) \
+#define X(name, flags, defaultVal)                                                                                                 \
   SHELL_CMD_ARG(name, NULL, "Write " STRINGIFY(name) " <value> [value...]", execWrite, 2, SHELL_OPT_ARG_CHECK_SKIP),
 
-SHELL_STATIC_SUBCMD_SET_CREATE(write_sub,
-  DATASTORE_BINARY_DATAPOINTS
-  DATASTORE_BUTTON_DATAPOINTS
-  DATASTORE_FLOAT_DATAPOINTS
-  DATASTORE_INT_DATAPOINTS
-  DATASTORE_MULTI_STATE_DATAPOINTS
-  DATASTORE_UINT_DATAPOINTS
-  SHELL_SUBCMD_SET_END);
+SHELL_STATIC_SUBCMD_SET_CREATE(write_sub, DATASTORE_BINARY_DATAPOINTS DATASTORE_BUTTON_DATAPOINTS DATASTORE_FLOAT_DATAPOINTS
+                                            DATASTORE_INT_DATAPOINTS DATASTORE_MULTI_STATE_DATAPOINTS DATASTORE_UINT_DATAPOINTS
+                                              SHELL_SUBCMD_SET_END);
 
 #undef X
 
 /* Main datastore command */
-SHELL_STATIC_SUBCMD_SET_CREATE(datastore_sub,
-  SHELL_CMD(ls, NULL, "List all datapoints", execList),
-  SHELL_CMD(read, &read_sub, "Read datapoint value(s)", NULL),
-  SHELL_CMD(write, &write_sub, "Write datapoint value(s)", NULL),
-  SHELL_SUBCMD_SET_END);
+SHELL_STATIC_SUBCMD_SET_CREATE(datastore_sub, SHELL_CMD(ls, NULL, "List all datapoints", execList),
+                               SHELL_CMD(read, &read_sub, "Read datapoint value(s)", NULL),
+                               SHELL_CMD(write, &write_sub, "Write datapoint value(s)", NULL), SHELL_SUBCMD_SET_END);
 
 SHELL_CMD_REGISTER(ds, &datastore_sub, "Datastore commands.", NULL);
 
