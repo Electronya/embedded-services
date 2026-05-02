@@ -63,6 +63,23 @@ publish-subscribe pattern and optional NVM persistence.
 
 See :doc:`services/datastore` for the full API reference.
 
+LED Strip Service
+~~~~~~~~~~~~~~~~~
+
+Transport-layer service that drives a single RGB LED strip at a constant refresh rate via
+the Zephyr LED strip driver API. Producer-agnostic — handles double-buffering, global
+brightness scaling, and hardware push; color logic lives in the producer.
+
+**Key Features:**
+
+- Constant-rate refresh independent of producer frame rate
+- Standard Zephyr ``struct led_rgb`` pixel type
+- Two-block CMSIS memory pool for tear-free double buffering
+- Global brightness scaling applied in-place at frame activation
+- Shell commands for brightness control and direct frame submission
+
+See :doc:`services/led-strip` for the full API reference.
+
 West Module Usage
 -----------------
 
@@ -106,4 +123,5 @@ Tests run on the Zephyr native simulator — no hardware required.
 
    services/adc-acquisition
    services/datastore
+   services/led-strip
    services/service-manager

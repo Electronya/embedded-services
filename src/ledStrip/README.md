@@ -3,92 +3,69 @@
 ## Overview
 
 The LED Strip service is a transport-layer service responsible for writing pixel data to a
-single LED strip at a constant refresh rate via the Zephyr LED strip driver API. It is
-driver-agnostic — any strip supported by `led_strip_update_channels()` (WS2812, APA102, etc.)
+single RGB LED strip at a constant refresh rate via the Zephyr LED strip driver API. It is
+driver-agnostic — any strip supported by `led_strip_update_rgb()` (WS2812, APA102, etc.)
 is supported through DTS configuration.
 
-The service owns no color logic. All color mapping, animation, and channel ordering are the
-responsibility of the producer (e.g. an animation service). The LED strip service only applies
-global brightness scaling and pushes the current frame to hardware on every timer tick.
+The service owns no color logic. All color computation and animation are the responsibility
+of the producer (e.g. an animation service). The LED strip service only applies global
+brightness scaling and pushes the current frame to hardware on every timer tick.
 
 ## Features
 
 - **Constant-rate refresh**: Drives the strip at a fixed rate set by Kconfig, independent of
   producer frame rate
-- **Driver-agnostic**: Uses `led_strip_update_channels()` — works with any Zephyr LED strip driver
-- **RGBW support**: Configurable 3 or 4 channels per pixel via Kconfig; channel order is
-  DTS-defined and handled by the producer
+- **Driver-agnostic**: Uses `led_strip_update_rgb()` — works with any Zephyr LED strip driver
+- **RGB support**: Uses Zephyr's standard `struct led_rgb` pixel type (`.r`, `.g`, `.b` fields)
 - **Double-buffered**: Two-block CMSIS pool eliminates tearing between producer and renderer
-- **Global brightness**: Applied at render time; does not modify the pool block
+- **Global brightness**: Applied in-place when a new frame is activated; no extra copy buffer
 - **Service Manager integration**: Heartbeat, priority-ordered startup, stop/suspend lifecycle
-- **Shell commands**: Runtime brightness control and fill via Zephyr shell
+- **Shell commands**: Runtime brightness control and frame submission via Zephyr shell
 
 ## Architecture
 
 ### Pixel Type
 
-The service uses a generic pixel type with no color semantics. Channel order is determined by
-the DTS `color-mapping` property of the LED strip device and is the producer's responsibility
-to apply:
+The service uses Zephyr's standard `struct led_rgb` type from `<zephyr/drivers/led_strip.h>`:
 
 ```c
-#if CONFIG_ENYA_LED_STRIP_NUM_CHANNELS == 4
-typedef union
-{
-  uint8_t ch[4];
-  struct
-  {
-    uint8_t ch0;
-    uint8_t ch1;
-    uint8_t ch2;
-    uint8_t ch3;
-  };
-} LedPixel_t;
-#else
-typedef union
-{
-  uint8_t ch[3];
-  struct
-  {
-    uint8_t ch0;
-    uint8_t ch1;
-    uint8_t ch2;
-  };
-} LedPixel_t;
-#endif
+struct led_rgb {
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+};
 ```
 
-`ch[N]` provides indexed access for loops and direct casting to `uint8_t *` for
-`led_strip_update_channels()`. Named fields (`ch0`, `ch1`, ...) provide explicit per-channel
-access for producers. Referencing `ch3` in a 3-channel build is a compile-time error.
+Channel order in the wire protocol is defined by the DTS `color-mapping` property of the
+LED strip device and is handled transparently by the Zephyr LED strip driver.
 
 ### Double Buffer
 
 The service owns a CMSIS memory pool with exactly **2 blocks**, each of size
-`DT_PROP(DT_ALIAS(led_strip), chain_length) * CONFIG_ENYA_LED_STRIP_NUM_CHANNELS` bytes.
-The pixel count is read directly from the DTS `chain-length` property — no Kconfig symbol
-is needed, eliminating any risk of mismatch between software and hardware configuration.
+`DT_PROP(DT_ALIAS(led_strip), chain_length) * sizeof(struct led_rgb)` bytes. The pixel
+count is read directly from the DTS `chain-length` property, eliminating any risk of
+mismatch between software and hardware configuration.
 
 ```
-Pool (2 blocks of chain_length × NUM_CHANNELS bytes)
-  Block A → held by LED strip service  (current frame, rendered every tick)
+Pool (2 blocks of chain_length × sizeof(struct led_rgb) bytes)
+  Block A → held by LED strip service  (current frame, pushed every tick)
   Block B → held by producer           (being written)
 
 On submit: service frees A, holds B → producer can allocate A again
 ```
 
 The service holds a pointer to the current block and renders directly from it on every timer
-tick — no copy is made. When a new frame arrives via the message queue, the old block is freed
-and the new pointer is stored.
+tick — no copy is made. When a new frame arrives via the message queue, global brightness is
+applied in-place to the new block, the old block is freed, and the new pointer is stored.
 
 ### Thread Model
 
 The service runs a dedicated thread that:
 
-1. Drains pending messages from its control queue (brightness updates, fill commands,
-   new frame submissions)
-2. Applies global brightness scaling to the current frame into a temporary render pass
-3. Calls `led_strip_update_channels()` directly with the current pool block
+1. Waits for the next timer tick (`k_timer_status_sync`)
+2. Drains pending messages from its control queue (brightness updates, new frame submissions,
+   stop/suspend commands)
+3. Calls `led_strip_update_rgb()` with the current pool block
 4. Updates its heartbeat
 
 Refresh timing is driven by `k_timer` at `CONFIG_ENYA_LED_STRIP_REFRESH_RATE_HZ`.
@@ -96,12 +73,11 @@ Refresh timing is driven by `k_timer` at `CONFIG_ENYA_LED_STRIP_REFRESH_RATE_HZ`
 ```mermaid
 flowchart TD
     A[Timer tick] --> B{Message in queue?}
-    B -- Yes --> C[Process: SET_BRIGHTNESS / FILL / UPDATE frame]
+    B -- Yes --> C[Process: BRIGHTNESS / NEW_FRAME / STOP / SUSPEND]
     C --> B
-    B -- No --> D[Apply brightness to current block]
-    D --> E[led_strip_update_channels]
-    E --> F[serviceManagerUpdateHeartbeat]
-    F --> A
+    B -- No --> D[led_strip_update_rgb with active block]
+    D --> E[serviceManagerUpdateHeartbeat]
+    E --> A
 ```
 
 ### Startup Sequence
@@ -120,36 +96,21 @@ sequenceDiagram
     LedStrip-->>SvcMgr: serviceManagerUpdateHeartbeat() [every tick]
 ```
 
-### Channel Ordering
-
-Channel order is **not** managed by this service. The producer must consult the DTS
-`color-mapping` property of the LED strip device and fill `ch0`, `ch1`, `ch2` (and `ch3` for
-RGBW) accordingly.
-
-Example: for a GRB strip with DTS `color-mapping = <LED_COLOR_ID_GREEN LED_COLOR_ID_RED
-LED_COLOR_ID_BLUE>`, the producer sets `ch0 = green`, `ch1 = red`, `ch2 = blue`.
-
-The `color-mapping` array is readable at compile time via:
-
-```c
-static const uint8_t colorMapping[] = DT_PROP(LED_STRIP_NODE, color_mapping);
-```
-
 ### Global Brightness
 
-Brightness is a value from `0` (off) to `255` (full). It is applied at render time by scaling
-each channel: `out = (ch * brightness) / 255`. The pool block is never modified — scaling is
-done into the driver's own internal buffer during the `led_strip_update_channels()` call.
+Brightness is a value from `0` (off) to `255` (full). When a new frame is activated, each
+channel is scaled in-place: `ch = (ch * brightness) / 255`. The pool block is modified
+directly — no scratch buffer is used.
 
-> **Note**: `led_strip_update_channels()` takes a `uint8_t *` flat array. Brightness scaling
-> requires a temporary render buffer of `PIXEL_COUNT × NUM_CHANNELS` bytes inside the service.
-> This is the only extra buffer beyond the two pool blocks.
+> **Note**: Because brightness is applied in-place when `ledStripUpdateFrame()` is called,
+> the producer must not read back channel values from a submitted frame.
 
 ## Configuration
 
 ### DTS
 
-Bind the service to a LED strip device via alias in your board overlay:
+Bind the service to a LED strip device via alias in your board overlay. Example for a
+WS2812 strip on UART (STM32F3 Discovery, USART3 / PB10, GRB color-mapping):
 
 ```dts
 / {
@@ -158,17 +119,20 @@ Bind the service to a LED strip device via alias in your board overlay:
     };
 };
 
-&spi1 {
-    ws2812: ws2812@0 {
-        compatible = "worldsemi,ws2812-spi";
-        reg = <0>;
-        spi-max-frequency = <4000000>;
-        chain-length = <144>;
+&usart3 {
+    pinctrl-0 = <&usart3_tx_pb10>;
+    pinctrl-names = "default";
+    current-speed = <115200>;
+    status = "okay";
+
+    ws2812: ws2812 {
+        compatible = "worldsemi,ws2812-uart";
+        chain-length = <5>;
         color-mapping = <LED_COLOR_ID_GREEN
                          LED_COLOR_ID_RED
-                         LED_COLOR_ID_BLUE
-                         LED_COLOR_ID_WHITE>;
+                         LED_COLOR_ID_BLUE>;
         reset-delay = <280>;
+        baud-rate = <4000000>;
     };
 };
 ```
@@ -185,44 +149,43 @@ CONFIG_ENYA_LED_STRIP_LOG_LEVEL=3
 Tuning options:
 
 ```kconfig
-# Channels per pixel — must match the DTS color-mapping length (3=RGB, 4=RGBW)
-CONFIG_ENYA_LED_STRIP_NUM_CHANNELS=4
-
-# Refresh rate in Hz
+# Refresh rate in Hz (default 60, range 1–120)
 CONFIG_ENYA_LED_STRIP_REFRESH_RATE_HZ=60
 
-# Message queue depth
+# Message queue depth (default 4)
 CONFIG_ENYA_LED_STRIP_MSG_COUNT=4
 
 # Thread settings
 CONFIG_ENYA_LED_STRIP_STACK_SIZE=1024
 CONFIG_ENYA_LED_STRIP_THREAD_PRIORITY=5
 
-# Shell commands
+# Shell commands (default y)
 CONFIG_ENYA_LED_STRIP_SHELL=y
 ```
 
 | Symbol | Default | Description |
 |--------|---------|-------------|
-| `CONFIG_ENYA_LED_STRIP_NUM_CHANNELS` | 4 | Channels per pixel (3=RGB, 4=RGBW) — must match DTS `color-mapping` length |
-| `CONFIG_ENYA_LED_STRIP_REFRESH_RATE_HZ` | 60 | Refresh rate (Hz) |
+| `CONFIG_ENYA_LED_STRIP_REFRESH_RATE_HZ` | 60 | Refresh rate (Hz), range 1–120 |
 | `CONFIG_ENYA_LED_STRIP_MSG_COUNT` | 4 | Control message queue depth |
 | `CONFIG_ENYA_LED_STRIP_STACK_SIZE` | 1024 | Thread stack size (bytes) |
-| `CONFIG_ENYA_LED_STRIP_LOG_LEVEL` | 3 | 0=OFF 1=ERR 2=WRN 3=INF 4=DBG |
 | `CONFIG_ENYA_LED_STRIP_THREAD_PRIORITY` | 5 | Preemptible thread priority |
+| `CONFIG_ENYA_LED_STRIP_SERVICE_PRIORITY` | 2 | Service Manager priority (0=CRITICAL, 1=CORE, 2=APPLICATION) |
+| `CONFIG_ENYA_LED_STRIP_HEARTBEAT_INTERVAL_MS` | 1000 | Heartbeat interval (ms) |
+| `CONFIG_ENYA_LED_STRIP_LOG_LEVEL` | 3 | 0=OFF 1=ERR 2=WRN 3=INF 4=DBG |
 | `CONFIG_ENYA_LED_STRIP_SHELL` | y | Enable shell commands |
 
 ### RAM Budget
 
-For a 144-pixel GRB strip (3 channels):
+For a 5-pixel GRB strip:
 
 | Buffer | Size |
 |--------|------|
-| Pool block A (current frame) | 432 B |
-| Pool block B (producer frame) | 432 B |
-| Render scratch buffer | 432 B |
-| Driver SPI encode buffer (internal) | ~1728 B |
-| **Total service-side** | **~3024 B** |
+| Pool block A (current frame) | 15 B |
+| Pool block B (producer frame) | 15 B |
+| Thread stack | 1024 B |
+| **Total service-side** | **~1054 B** |
+
+For a 144-pixel strip, each pool block is 432 B (total ~1888 B with default stack).
 
 ## API Usage
 
@@ -240,77 +203,99 @@ if (err < 0) {
 
 ### Submitting a Frame
 
-The producer allocates a block from the service pool, fills it with channel data in DTS
-wire order, then submits it:
+The producer allocates a block from the service pool, fills it with RGB data, then submits
+it. After `ledStripUpdateFrame()` returns, the frame is owned by the service — do not
+modify it.
 
 ```c
-LedPixel_t *frame = ledStripAllocFrame();
+struct led_rgb *frame = ledStripGetNextFramebuffer();
 if (frame == NULL) {
   LOG_WRN("no frame buffer available");
   return -ENOMEM;
 }
 
 for (size_t i = 0; i < DT_PROP(DT_ALIAS(led_strip), chain_length); i++) {
-  frame[i].ch0 = green[i];   /* GRB strip example */
-  frame[i].ch1 = red[i];
-  frame[i].ch2 = blue[i];
-  frame[i].ch3 = white[i];
+  frame[i].r = red[i];
+  frame[i].g = green[i];
+  frame[i].b = blue[i];
 }
 
-ledStripSubmitFrame(frame);
+int err = ledStripUpdateFrame(frame);
+if (err < 0) {
+  LOG_ERR("frame submit failed: %d", err);
+}
 ```
 
-The service frees the previous frame block on receipt. The producer must not modify the
-frame after calling `ledStripSubmitFrame()`.
+`ledStripUpdateFrame()` enqueues a message to the service thread and returns immediately.
 
 ### Setting Brightness
 
 ```c
-ledStripSetBrightness(128);   /* 50% brightness */
+ledStripSetBrightness(128);   /* ~50% brightness */
 ```
 
-Non-blocking — enqueues a control message.
+Non-blocking — enqueues a control message. Brightness takes effect when the service thread
+processes the next frame.
 
 ## Shell Commands
 
-Shell commands are registered under `led_strip`. Enable with
-`CONFIG_ENYA_LED_STRIP_SHELL=y`.
+Shell commands are registered under `led`. Enable with `CONFIG_ENYA_LED_STRIP_SHELL=y`.
 
 ```console
+# Get pixel count from DTS
+uart:~$ led pc
+SUCCESS: Pixel count: 5
+
 # Set global brightness (0–255)
-uart:~$ led_strip brightness 128
+uart:~$ led br 128
+SUCCESS: brightness set to 128
 
-# Fill all pixels with channel values
-uart:~$ led_strip fill <ch0> <ch1> <ch2>           # RGB
-uart:~$ led_strip fill <ch0> <ch1> <ch2> <ch3>     # RGBW
-
-# Turn off all pixels
-uart:~$ led_strip off
+# Set a full frame — supply r g b per pixel in order
+# (3 values × chain_length arguments)
+uart:~$ led sf 255 0 0  0 255 0  0 0 255  255 255 0  0 255 255
+SUCCESS: frame submitted
 ```
+
+| Command | Arguments | Description |
+|---------|-----------|-------------|
+| `led pc` | — | Print pixel count (from DTS `chain-length`) |
+| `led br <val>` | `val`: 0–255 | Set global brightness |
+| `led sf <r0> <g0> <b0> ...` | `chain_length × 3` values | Submit a full frame |
 
 ## Implementing a Producer
 
 A producer that drives the LED strip must:
 
-1. **Read the DTS color mapping** at init time to know channel order:
+1. **Allocate a framebuffer** from the service pool:
 
    ```c
-   static const uint8_t colorMapping[] = DT_PROP(DT_ALIAS(led_strip), color_mapping);
+   struct led_rgb *frame = ledStripGetNextFramebuffer();
+   if (frame == NULL) {
+     /* pool exhausted — both blocks in use, retry next tick */
+     return -ENOMEM;
+   }
    ```
 
-2. **Allocate a frame buffer** from the service pool, fill channels in wire order, and
-   submit:
+2. **Fill the frame** with RGB values:
 
    ```c
-   LedPixel_t *frame = ledStripAllocFrame();
-   /* fill frame[i].ch0 .. ch[N-1] per colorMapping */
-   ledStripSubmitFrame(frame);
+   for (size_t i = 0; i < PIXEL_COUNT; i++) {
+     frame[i].r = ...;
+     frame[i].g = ...;
+     frame[i].b = ...;
+   }
    ```
 
-3. **Do not free the frame** — `ledStripSubmitFrame()` transfers ownership to the service.
+3. **Submit the frame**:
 
-4. **Handle allocation failure** — if the pool has no free block (both held by service and
-   a previous unprocessed submission), back off and retry on the next animation tick.
+   ```c
+   ledStripUpdateFrame(frame);
+   ```
+
+4. **Do not free or modify the frame** after submitting — ownership transfers to the service.
+
+5. **Handle allocation failure** by backing off: if the pool has no free block (both held by
+   service and a previous unprocessed submission), retry on the next animation tick.
 
 ## Troubleshooting
 
@@ -320,22 +305,22 @@ A producer that drives the LED strip must:
 
 **Solutions**:
 - Verify the DTS alias `led-strip` is correctly bound to the strip device
-- Check `CONFIG_ENYA_LED_STRIP_NUM_CHANNELS` matches the `color-mapping` length in DTS (3 for RGB, 4 for RGBW)
-- Run `led_strip fill 0 255 0 0` from the shell to isolate whether the service is running
+- Confirm the DTS `chain-length` matches the physical strip length
+- Use `led sf` from the shell to verify the service is running (e.g. `led sf 0 255 0` repeated for each pixel)
 
 ### Wrong Colors
 
-**Symptom**: Colors are correct but in the wrong positions (e.g. red appears green).
+**Symptom**: Colors appear correct but in the wrong channel order (e.g. red appears as green).
 
-**Cause**: Producer is not applying the DTS `color-mapping` correctly.
-
-**Solution**: Read `DT_PROP(DT_ALIAS(led_strip), color_mapping)` and map channels accordingly.
+**Cause**: WS2812 strips typically use GRB wire order. The Zephyr `ws2812-uart` driver maps
+`struct led_rgb` fields to wire bytes using the DTS `color-mapping` property automatically.
+Verify your overlay has the correct `color-mapping` for your strip.
 
 ### Frame Allocation Failure
 
-**Symptom**: `ledStripAllocFrame()` returns `NULL`.
+**Symptom**: `ledStripGetNextFramebuffer()` returns `NULL`.
 
-**Cause**: Both pool blocks are in use — one held by the service as the current frame,
-one pending in the message queue (previous submission not yet consumed).
+**Cause**: Both pool blocks are in use — one held by the service as the current frame, one
+pending in the message queue (previous submission not yet consumed).
 
 **Solution**: Reduce producer frame rate or increase `CONFIG_ENYA_LED_STRIP_MSG_COUNT`.
