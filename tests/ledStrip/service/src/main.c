@@ -19,8 +19,11 @@ DEFINE_FFF_GLOBALS;
 /* Prevent CMSIS OS2 header - we'll define types manually */
 #define CMSIS_OS2_H_
 
-/* Prevent LED strip driver header */
+/* Prevent LED strip driver header - we'll define types manually */
 #define ZEPHYR_INCLUDE_DRIVERS_LED_STRIP_H_
+
+/* Mock led_rgb type */
+struct led_rgb { uint8_t r; uint8_t g; uint8_t b; };
 
 /* Prevent ledStripUtil header - replaced by mocks */
 #define LEDSTRIPUTIL_H
@@ -93,14 +96,13 @@ typedef struct
 #define CONFIG_ENYA_LED_STRIP_THREAD_PRIORITY        5
 #define CONFIG_ENYA_LED_STRIP_SERVICE_PRIORITY       2
 #define CONFIG_ENYA_LED_STRIP_HEARTBEAT_INTERVAL_MS  1000
-#define CONFIG_ENYA_LED_STRIP_NUM_CHANNELS           3
 #define CONFIG_ENYA_LED_STRIP_REFRESH_RATE_HZ        60
 #define CONFIG_ENYA_LED_STRIP_MSG_COUNT              4
 
 /* Define test mode iteration count */
 #define LED_STRIP_RUN_ITERATIONS 2
 
-/* Include ledStrip.h to get LedPixel_t before mock declarations */
+/* Include ledStrip.h to get struct led_rgb before mock declarations */
 #include "ledStrip.h"
 
 /* Mock kernel functions */
@@ -125,9 +127,9 @@ FAKE_VALUE_FUNC(int, serviceManagerRegisterSrv, const ServiceDescriptor_t *);
 /* Mock ledStripUtil functions */
 FAKE_VALUE_FUNC(int, ledStripUtilInitStrip);
 FAKE_VALUE_FUNC(int, ledStripUtilInitFramebuffers);
-FAKE_VALUE_FUNC(LedPixel_t *, ledStripUtilGetNextFramebuffer);
+FAKE_VALUE_FUNC(struct led_rgb *, ledStripUtilGetNextFramebuffer);
 FAKE_VOID_FUNC(ledStripUtilSetBrightness, uint8_t);
-FAKE_VOID_FUNC(ledStripUtilActivateFrame, LedPixel_t *);
+FAKE_VOID_FUNC(ledStripUtilActivateFrame, struct led_rgb *);
 FAKE_VALUE_FUNC(int, ledStripUtilPushFrame);
 
 #define FFF_FAKES_LIST(FAKE) \
@@ -399,7 +401,7 @@ ZTEST_F(ledStrip, test_run_successNoMessage)
  */
 ZTEST_F(ledStrip, test_run_successNewFrame)
 {
-  LedPixel_t mockFrame;
+  struct led_rgb mockFrame;
   k_tid_t mockTid = (k_tid_t)0x1234;
 
   fixture->test_queue_messages[0].type = LED_STRIP_NEW_FRAME_MSG;
@@ -716,6 +718,8 @@ ZTEST_F(ledStrip, test_ledStripInit_success)
                 "k_thread_create should be called once");
   zassert_equal(k_thread_create_mock_fake.arg0_val, &thread,
                 "k_thread_create should be called with the service thread");
+  zassert_equal(k_thread_create_mock_fake.arg9_val.ticks, K_TICKS_FOREVER,
+                "k_thread_create should be called with K_FOREVER so the thread starts suspended");
   zassert_equal(k_thread_name_set_mock_fake.call_count, 1,
                 "k_thread_name_set should be called once");
   zassert_equal(k_thread_name_set_mock_fake.arg0_val, mockTid,
@@ -744,7 +748,7 @@ ZTEST_F(ledStrip, test_ledStripInit_success)
  */
 ZTEST_F(ledStrip, test_ledStripGetNextFramebuffer_allocFails)
 {
-  LedPixel_t *result;
+  struct led_rgb *result;
 
   ledStripUtilGetNextFramebuffer_fake.return_val = NULL;
 
@@ -760,8 +764,8 @@ ZTEST_F(ledStrip, test_ledStripGetNextFramebuffer_allocFails)
  */
 ZTEST_F(ledStrip, test_ledStripGetNextFramebuffer_success)
 {
-  LedPixel_t mockBlock;
-  LedPixel_t *result;
+  struct led_rgb mockBlock;
+  struct led_rgb *result;
 
   ledStripUtilGetNextFramebuffer_fake.return_val = &mockBlock;
 
@@ -778,7 +782,7 @@ ZTEST_F(ledStrip, test_ledStripGetNextFramebuffer_success)
  */
 ZTEST_F(ledStrip, test_ledStripUpdateFrame_msgqPutFails)
 {
-  LedPixel_t mockFrame;
+  struct led_rgb mockFrame;
   int result;
 
   k_msgq_put_mock_fake.return_val = -EAGAIN;
@@ -796,7 +800,7 @@ ZTEST_F(ledStrip, test_ledStripUpdateFrame_msgqPutFails)
  */
 ZTEST_F(ledStrip, test_ledStripUpdateFrame_success)
 {
-  LedPixel_t mockFrame;
+  struct led_rgb mockFrame;
   int result;
 
   result = ledStripUpdateFrame(&mockFrame);

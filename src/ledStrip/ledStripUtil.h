@@ -42,14 +42,14 @@ int ledStripUtilInitFramebuffers(void);
  *
  * @retunr  The framebuffer handle if successful, NULL otherwise.
  */
-LedPixel_t *ledStripUtilGetNextFramebuffer(void);
+struct led_rgb *ledStripUtilGetNextFramebuffer(void);
 
 /**
  * @brief   Activate a new frame.
  *
  * @param[in]   newFrame: The new frame to activate.
  */
-void ledStripUtilActivateFrame(LedPixel_t *frame);
+void ledStripUtilActivateFrame(struct led_rgb *frame);
 
 /**
  * @brief   Push the active frame.

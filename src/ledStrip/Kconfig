@@ -50,18 +50,6 @@ config ENYA_LED_STRIP_HEARTBEAT_INTERVAL_MS
     The interval in milliseconds at which the LED strip service updates
     its heartbeat with the service manager.
 
-config ENYA_LED_STRIP_NUM_CHANNELS
-  int "Electronya LED Strip Channels Per Pixel"
-  default 4
-  range 3 4
-  help
-    The number of channels per pixel. Must match the length of the DTS
-    color-mapping property of the LED strip device.
-    3 = RGB, 4 = RGBW.
-
-    This value also controls the LedPixel_t type: a value of 4 adds
-    the ch3 field and array entry; a value of 3 omits them. Referencing
-    ch3 in a 3-channel build is a compile-time error.
 
 config ENYA_LED_STRIP_REFRESH_RATE_HZ
   int "Electronya LED Strip Refresh Rate (Hz)"

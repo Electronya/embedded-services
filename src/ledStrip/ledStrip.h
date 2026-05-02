@@ -17,21 +17,7 @@
 #define LEDSTRIP_H
 
 #include <zephyr/kernel.h>
-#include <zephyr/portability/cmsis_os2.h>
-
-typedef union
-{
-  uint8_t ch[CONFIG_ENYA_LED_STRIP_NUM_CHANNELS];
-  struct
-  {
-    uint8_t ch0;
-    uint8_t ch1;
-    uint8_t ch2;
-#if CONFIG_ENYA_LED_STRIP_NUM_CHANNELS == 4
-    uint8_t ch3;
-#endif
-  };
-} LedPixel_t;
+#include <zephyr/drivers/led_strip.h>
 
 /**
  * @brief   Initalize the service.
@@ -45,7 +31,7 @@ int ledStripInit(void);
  *
  * @return  The next framebuffer if successful, NULL otherwise.
  */
-LedPixel_t *ledStripGetNextFramebuffer(void);
+struct led_rgb *ledStripGetNextFramebuffer(void);
 
 /**
  * @brief   Update frame.
@@ -54,7 +40,7 @@ LedPixel_t *ledStripGetNextFramebuffer(void);
  *
  * @return  0 if successfulm the error code otherwise.
  */
-int ledStripUpdateFrame(LedPixel_t *frame);
+int ledStripUpdateFrame(struct led_rgb *frame);
 
 /**
  * @brief   Set the brightness.

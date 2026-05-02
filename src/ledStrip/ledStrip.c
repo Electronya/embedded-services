@@ -55,7 +55,7 @@ typedef struct
 {
   LedStipMsgType_t type;
   uint8_t brightness;
-  LedPixel_t *framebuffer;
+  struct led_rgb *framebuffer;
 } LedStripMessage_t;
 
 /**
@@ -99,7 +99,7 @@ static void run(void *p1, void *p2, void *p3)
   if(err < 0)
     LOG_ERR("ERROR %d: unable to confirm service state", err);
 
-  k_timer_start(&frameTimer, K_USEC(LED_STRIP_FRAME_RATE), K_USEC(LED_STRIP_FRAME_RATE));
+  k_timer_start(&frameTimer, K_MSEC(LED_STRIP_FRAME_RATE), K_MSEC(LED_STRIP_FRAME_RATE));
 
 #ifdef LED_STRIP_RUN_ITERATIONS
   for(size_t i = 0; i < LED_STRIP_RUN_ITERATIONS; ++i)
@@ -204,7 +204,7 @@ static int onSuspend(void)
  */
 static int onResume(void)
 {
-  k_timer_start(&frameTimer, K_USEC(LED_STRIP_FRAME_RATE), K_USEC(LED_STRIP_FRAME_RATE));
+  k_timer_start(&frameTimer, K_MSEC(LED_STRIP_FRAME_RATE), K_MSEC(LED_STRIP_FRAME_RATE));
   k_thread_resume(&thread);
 
   return 0;
@@ -230,7 +230,7 @@ int ledStripInit(void)
     return err;
 
   threadId = k_thread_create(&thread, ledStripStack, CONFIG_ENYA_LED_STRIP_STACK_SIZE, run, NULL, NULL, NULL,
-                             CONFIG_ENYA_LED_STRIP_THREAD_PRIORITY, 0, K_NO_WAIT);
+                             CONFIG_ENYA_LED_STRIP_THREAD_PRIORITY, 0, K_FOREVER);
 
   err = k_thread_name_set(threadId, STRINGIFY(LED_STRIP_LOGGER_NAME));
   if(err < 0)
@@ -248,12 +248,12 @@ int ledStripInit(void)
   return err;
 }
 
-LedPixel_t *ledStripGetNextFramebuffer(void)
+struct led_rgb *ledStripGetNextFramebuffer(void)
 {
   return ledStripUtilGetNextFramebuffer();
 }
 
-int ledStripUpdateFrame(LedPixel_t *frame)
+int ledStripUpdateFrame(struct led_rgb *frame)
 {
   int err;
   LedStripMessage_t msg = {.type = LED_STRIP_NEW_FRAME_MSG, .framebuffer = frame};
