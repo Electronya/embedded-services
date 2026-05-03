@@ -1,0 +1,64 @@
+# Electronya SimHub Device Service
+# Copyright (C) 2026 by Electronya
+# SPDX-License-Identifier: Apache-2.0
+
+config ENYA_SIMHUB_DEVICE
+  bool "Electronya SimHub Device Service"
+  default n
+  depends on UART_ASYNC_API && ENYA_LED_STRIP
+  help
+    The Electronya SimHub Device service. Implements the SimHub Standard
+    Arduino/Dash serial protocol over CDC ACM USB, receiving RGB frame data
+    from SimHub and forwarding it to the LED strip service.
+
+    Requires the simhub-uart DTS alias pointing to a zephyr,cdc-acm-uart node.
+
+if ENYA_SIMHUB_DEVICE
+
+config ENYA_SIMHUB_DEVICE_LOG_LEVEL
+  int "Electronya SimHub Device Log Level"
+  default 3
+  help
+    The Electronya SimHub device service log level.
+    0=OFF, 1=ERR, 2=WRN, 3=INF, 4=DBG
+
+config ENYA_SIMHUB_DEVICE_STACK_SIZE
+  int "Electronya SimHub Device Stack Size"
+  default 1024
+  help
+    The Electronya SimHub device service thread stack size in bytes.
+
+config ENYA_SIMHUB_DEVICE_THREAD_PRIORITY
+  int "Electronya SimHub Device Thread Priority"
+  default 6
+  help
+    The SimHub device service thread scheduling priority (preemptive).
+
+config ENYA_SIMHUB_DEVICE_SERVICE_PRIORITY
+  int "Electronya SimHub Device Service Priority"
+  default 2
+  range 0 2
+  help
+    The SimHub device service priority level for the service manager.
+    0 = CRITICAL, 1 = CORE, 2 = APPLICATION.
+
+config ENYA_SIMHUB_DEVICE_HEARTBEAT_INTERVAL_MS
+  int "Electronya SimHub Device Heartbeat Interval"
+  default 1000
+  help
+    The interval in milliseconds at which the SimHub device service updates
+    its heartbeat with the service manager.
+
+config ENYA_SIMHUB_DEVICE_SHELL
+  bool "Electronya SimHub Device Shell Commands"
+  default y
+  depends on SHELL
+  help
+    Enable shell commands for the SimHub device service.
+
+    Commands:
+      simhub status - Connection state, frames received, current frame rate
+      simhub reset  - Force parser back to initial state
+      simhub info   - Protocol version string and pixel count
+
+endif

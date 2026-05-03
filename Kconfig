@@ -18,5 +18,6 @@ rsource "src/serviceManager/Kconfig"
 rsource "src/adcAcquisition/Kconfig"
 rsource "src/datastore/Kconfig"
 rsource "src/ledStrip/Kconfig"
+rsource "src/simhubDevice/Kconfig"
 
 endif
