@@ -27,13 +27,13 @@ if ENYA_USB_DEVICE
 
 config ENYA_USB_DEVICE_VID
   hex "USB Vendor ID"
-  default 0x2FE3
+  default 0x1209
   help
     USB Vendor ID reported in the device descriptor.
 
 config ENYA_USB_DEVICE_PID
   hex "USB Product ID"
-  default 0x0001
+  default 0xE582
   help
     USB Product ID reported in the device descriptor.
 
