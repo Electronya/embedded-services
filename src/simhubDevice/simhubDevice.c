@@ -163,6 +163,13 @@ static void run(void *p1, void *p2, void *p3)
     return;
   }
 
+  uint32_t dtr = 0;
+  while(!dtr)
+  {
+    uart_line_ctrl_get(ctx.uart, UART_LINE_CTRL_DTR, &dtr);
+    k_sleep(K_MSEC(SIMHUB_DEV_CTRL_POLL_MS));
+  }
+
   err = rxEnable();
   if(err < 0)
   {

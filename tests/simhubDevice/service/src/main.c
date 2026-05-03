@@ -97,14 +97,16 @@ typedef enum
 #define k_msgq_get        k_msgq_get_mock
 #define k_sem_take        k_sem_take_mock
 #define k_sem_give        k_sem_give_mock
+#define k_sleep           k_sleep_mock
 #define device_is_ready   device_is_ready_mock
 
 /* Wrap UART functions. */
-#define uart_callback_set uart_callback_set_mock
-#define uart_rx_enable    uart_rx_enable_mock
-#define uart_rx_disable   uart_rx_disable_mock
-#define uart_rx_buf_rsp   uart_rx_buf_rsp_mock
-#define uart_tx           uart_tx_mock
+#define uart_callback_set  uart_callback_set_mock
+#define uart_line_ctrl_get uart_line_ctrl_get_mock
+#define uart_rx_enable     uart_rx_enable_mock
+#define uart_rx_disable    uart_rx_disable_mock
+#define uart_rx_buf_rsp    uart_rx_buf_rsp_mock
+#define uart_tx            uart_tx_mock
 
 /* Wrap ring buffer functions. */
 #define ring_buf_put   ring_buf_put_mock
@@ -139,10 +141,12 @@ FAKE_VALUE_FUNC(int, k_msgq_put_mock, struct k_msgq *, const void *, k_timeout_t
 FAKE_VALUE_FUNC(int, k_msgq_get_mock, struct k_msgq *, void *, k_timeout_t);
 FAKE_VALUE_FUNC(int, k_sem_take_mock, struct k_sem *, k_timeout_t);
 FAKE_VOID_FUNC(k_sem_give_mock, struct k_sem *);
+FAKE_VOID_FUNC(k_sleep_mock, k_timeout_t);
 FAKE_VALUE_FUNC(bool, device_is_ready_mock, const struct device *);
 
 /* UART mock fakes. */
 FAKE_VALUE_FUNC(int, uart_callback_set_mock, const struct device *, uart_callback_t, void *);
+FAKE_VALUE_FUNC(int, uart_line_ctrl_get_mock, const struct device *, enum uart_line_ctrl, uint32_t *);
 FAKE_VALUE_FUNC(int, uart_rx_enable_mock, const struct device *, uint8_t *, size_t, int32_t);
 FAKE_VALUE_FUNC(int, uart_rx_disable_mock, const struct device *);
 FAKE_VALUE_FUNC(int, uart_rx_buf_rsp_mock, const struct device *, uint8_t *, size_t);
@@ -183,8 +187,10 @@ FAKE_VALUE_FUNC(int, ledStripUpdateFrame, struct led_rgb *);
   FAKE(k_msgq_get_mock)                                                                                                            \
   FAKE(k_sem_take_mock)                                                                                                            \
   FAKE(k_sem_give_mock)                                                                                                            \
+  FAKE(k_sleep_mock)                                                                                                               \
   FAKE(device_is_ready_mock)                                                                                                       \
   FAKE(uart_callback_set_mock)                                                                                                     \
+  FAKE(uart_line_ctrl_get_mock)                                                                                                    \
   FAKE(uart_rx_enable_mock)                                                                                                        \
   FAKE(uart_rx_disable_mock)                                                                                                       \
   FAKE(uart_rx_buf_rsp_mock)                                                                                                       \
@@ -255,6 +261,26 @@ static int k_msgq_get_from_ctrl_queue(struct k_msgq *q, void *data, k_timeout_t 
   return -EAGAIN;
 }
 
+/* DTR fake — returns DTR asserted immediately by default. */
+static int uart_line_ctrl_get_dtr_ready(const struct device *dev, enum uart_line_ctrl ctrl, uint32_t *val)
+{
+  ARG_UNUSED(dev);
+  ARG_UNUSED(ctrl);
+  *val = 1;
+  return 0;
+}
+
+/* DTR fake — returns DTR not asserted on first call, then asserted. */
+static size_t dtrCallCount = 0;
+
+static int uart_line_ctrl_get_dtr_after_delay(const struct device *dev, enum uart_line_ctrl ctrl, uint32_t *val)
+{
+  ARG_UNUSED(dev);
+  ARG_UNUSED(ctrl);
+  *val = (dtrCallCount++ > 0) ? 1 : 0;
+  return 0;
+}
+
 /* Ring buffer byte feeder for k_msgq_get drain loop tests. */
 static uint8_t testRingBufBytes[8];
 static size_t testRingBufByteCount = 0;
@@ -282,6 +308,8 @@ static void service_tests_before(void *fixture)
   capturedCtrlMsg = (ServiceCtrlMsg_t)0xFF;
   k_msgq_put_mock_fake.custom_fake = k_msgq_put_capture;
   k_msgq_get_mock_fake.custom_fake = k_msgq_get_no_message;
+  uart_line_ctrl_get_mock_fake.custom_fake = uart_line_ctrl_get_dtr_ready;
+  dtrCallCount = 0;
   memset(&capturedDescriptor, 0, sizeof(capturedDescriptor));
   serviceManagerRegisterSrv_fake.custom_fake = serviceManagerRegisterSrv_capture;
   rxNextBuf = rxBuf1;
@@ -578,6 +606,23 @@ ZTEST(simhubDevice_tests, test_run_returns_early_when_uart_callback_set_fails)
 }
 
 /**
+ * @test run must poll uart_line_ctrl_get until DTR is asserted before enabling
+ *       RX
+ */
+ZTEST(simhubDevice_tests, test_run_waits_for_dtr_before_enabling_rx)
+{
+  uart_line_ctrl_get_mock_fake.custom_fake = uart_line_ctrl_get_dtr_after_delay;
+
+  run(NULL, NULL, NULL);
+
+  zassert_true(uart_line_ctrl_get_mock_fake.call_count >= 2, "expected uart_line_ctrl_get polled at least twice");
+  zassert_equal(uart_line_ctrl_get_mock_fake.arg1_history[0], UART_LINE_CTRL_DTR,
+                "expected uart_line_ctrl_get called with UART_LINE_CTRL_DTR");
+  zassert_true(k_sleep_mock_fake.call_count >= 1, "expected k_sleep called while polling DTR");
+  zassert_equal(uart_rx_enable_mock_fake.call_count, 1, "expected uart_rx_enable called after DTR asserted");
+}
+
+/**
  * @test run must return early without entering the loop when rxEnable fails
  */
 ZTEST(simhubDevice_tests, test_run_returns_early_when_rx_enable_fails)
@@ -657,18 +702,15 @@ ZTEST(simhubDevice_tests, test_run_logs_error_and_continues_when_rx_enable_fails
   /* First uart_rx_enable (initial rxEnable) succeeds; second (post-resume) fails. */
   int rxEnableReturnSeq[] = {0, -EIO};
   SET_RETURN_SEQ(uart_rx_enable_mock, rxEnableReturnSeq, 2);
-  testCtrlQueueMessages[0]         = SVC_CTRL_SUSPEND;
-  testCtrlQueueMsgCount            = 1;
+  testCtrlQueueMessages[0] = SVC_CTRL_SUSPEND;
+  testCtrlQueueMsgCount = 1;
   k_msgq_get_mock_fake.custom_fake = k_msgq_get_from_ctrl_queue;
 
   run(NULL, NULL, NULL);
 
-  zassert_equal(uart_rx_enable_mock_fake.call_count, 2,
-                "expected uart_rx_enable called twice");
-  zassert_equal(k_thread_suspend_mock_fake.call_count, 1,
-                "expected k_thread_suspend called once");
-  zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 1,
-                "expected heartbeat updated after resume");
+  zassert_equal(uart_rx_enable_mock_fake.call_count, 2, "expected uart_rx_enable called twice");
+  zassert_equal(k_thread_suspend_mock_fake.call_count, 1, "expected k_thread_suspend called once");
+  zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 1, "expected heartbeat updated after resume");
 }
 
 /**
