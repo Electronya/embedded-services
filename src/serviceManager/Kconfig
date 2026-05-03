@@ -15,7 +15,7 @@ if ENYA_SERVICE_MANAGER
 
 config ENYA_SERVICE_MANAGER_STACK_SIZE
 	int "Service manager thread stack size"
-	default 2048
+	default 512
 	help
 	  Stack size for the service manager thread in bytes.
 
