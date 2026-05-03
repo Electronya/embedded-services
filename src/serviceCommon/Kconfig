@@ -9,3 +9,60 @@ config ENYA_SERVICE_COMMON
     for inter-service communication. This module provides the
     SrvMsgPayload_t structure for passing data between services
     via message queues.
+
+if ENYA_SERVICE_COMMON
+
+config ENYA_USB_DEVICE
+  bool "Electronya USB Device"
+  depends on USB_DEVICE_STACK_NEXT
+  select HWINFO
+  help
+    Shared USB device stack utility. Owns the USBD context, string
+    descriptors, and FS configuration. All USB-capable services
+    (e.g. simhubDevice, hidController) rely on this utility for
+    USB initialization. Call usbDeviceInit() before any USB service
+    init, and usbDeviceEnable() after all USB services are registered.
+
+if ENYA_USB_DEVICE
+
+config ENYA_USB_DEVICE_VID
+  hex "USB Vendor ID"
+  default 0x2FE3
+  help
+    USB Vendor ID reported in the device descriptor.
+
+config ENYA_USB_DEVICE_PID
+  hex "USB Product ID"
+  default 0x0001
+  help
+    USB Product ID reported in the device descriptor.
+
+config ENYA_USB_DEVICE_MANUFACTURER
+  string "USB Manufacturer String"
+  default "Electronya"
+  help
+    Manufacturer string descriptor.
+
+config ENYA_USB_DEVICE_PRODUCT
+  string "USB Product String"
+  default "Electronya Device"
+  help
+    Product string descriptor.
+
+config ENYA_USB_DEVICE_MAX_POWER
+  int "USB Max Power (mA)"
+  default 250
+  range 0 500
+  help
+    Maximum current draw reported in the configuration descriptor (mA).
+
+config ENYA_USB_DEVICE_LOG_LEVEL
+  int "Electronya USB Device Log Level"
+  default 3
+  help
+    Log level for the USB device utility.
+    0=OFF, 1=ERR, 2=WRN, 3=INF, 4=DBG
+
+endif # ENYA_USB_DEVICE
+
+endif # ENYA_SERVICE_COMMON
