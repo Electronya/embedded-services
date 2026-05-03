@@ -83,8 +83,14 @@ int usbDeviceInit(usbd_msg_cb_t msgCb)
     return err;
   }
 
+#if defined(CONFIG_USBD_CDC_ACM_CLASS) || defined(CONFIG_USBD_CDC_ECM_CLASS) || \
+    defined(CONFIG_USBD_CDC_NCM_CLASS) || defined(CONFIG_USBD_MIDI2_CLASS)   || \
+    defined(CONFIG_USBD_AUDIO2_CLASS)  || defined(CONFIG_USBD_VIDEO_CLASS)
   usbd_device_set_code_triple(&usbCtx, USBD_SPEED_FS,
                               USB_BCC_MISCELLANEOUS, 0x02, 0x01);
+#else
+  usbd_device_set_code_triple(&usbCtx, USBD_SPEED_FS, 0, 0, 0);
+#endif
 
   if(msgCb)
   {

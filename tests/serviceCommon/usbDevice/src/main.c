@@ -44,6 +44,9 @@ enum usbd_speed
 #define USB_BCC_MISCELLANEOUS 0xEF
 #define USB_SCD_SELF_POWERED  0x40
 
+/* Mock USB class Kconfig — define one IAD class to test the IAD code triple path */
+#define CONFIG_USBD_CDC_ACM_CLASS 1
+
 /* Mock USBD definition macros */
 #define USBD_DEVICE_DEFINE(name, dev, vid, pid) \
   static struct usbd_context name
@@ -341,7 +344,7 @@ ZTEST(usbDevice, test_init_usbdInitFails)
 
 /**
  * @test usbDeviceInit must succeed without calling usbd_msg_register_cb when
- *       msgCb is NULL.
+ *       msgCb is NULL, and must set the IAD code triple when an IAD class is enabled.
  */
 ZTEST(usbDevice, test_init_nullCb_success)
 {
@@ -371,11 +374,11 @@ ZTEST(usbDevice, test_init_nullCb_success)
   zassert_equal(usbd_device_set_code_triple_mock_fake.arg1_val, USBD_SPEED_FS,
                 "usbd_device_set_code_triple should be called with FS speed");
   zassert_equal(usbd_device_set_code_triple_mock_fake.arg2_val, USB_BCC_MISCELLANEOUS,
-                "usbd_device_set_code_triple should use USB_BCC_MISCELLANEOUS");
+                "IAD class enabled: code triple class should be USB_BCC_MISCELLANEOUS");
   zassert_equal(usbd_device_set_code_triple_mock_fake.arg3_val, 0x02,
-                "usbd_device_set_code_triple subclass should be 0x02");
+                "IAD class enabled: code triple subclass should be 0x02");
   zassert_equal(usbd_device_set_code_triple_mock_fake.arg4_val, 0x01,
-                "usbd_device_set_code_triple protocol should be 0x01");
+                "IAD class enabled: code triple protocol should be 0x01");
   zassert_equal(usbd_msg_register_cb_mock_fake.call_count, 0,
                 "usbd_msg_register_cb should not be called with NULL callback");
   zassert_equal(usbd_init_mock_fake.call_count, 1,

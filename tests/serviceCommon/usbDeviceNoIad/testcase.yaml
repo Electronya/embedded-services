@@ -1,0 +1,8 @@
+tests:
+  electronya.embedded_services.service_common.usb_device_no_iad:
+    tags:
+      - unit_test
+      - service_common
+    platform_allow:
+      - native_sim
+      - native_sim/native/64
