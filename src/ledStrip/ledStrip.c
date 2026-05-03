@@ -8,7 +8,7 @@
  *
  *            LED strip updater service.
  *
- * @ingroup ledStrip LED Strip Updater
+ * @ingroup ledStrip
  *
  * @{
  */
@@ -41,11 +41,11 @@ K_THREAD_STACK_DEFINE(ledStripStack, CONFIG_ENYA_LED_STRIP_STACK_SIZE);
  */
 typedef enum
 {
-  LED_STRIP_STOP_MSG = 0,
-  LED_STRIP_SUSPEND_MSG,
-  LED_STRIP_NEW_FRAME_MSG,
-  LED_STRIP_BRIGHTNESS_MSG,
-  LED_STIP_MGS_TYPE_COUNT
+  LED_STRIP_STOP_MSG = 0,       /**< Stop the service. */
+  LED_STRIP_SUSPEND_MSG,        /**< Suspend the service. */
+  LED_STRIP_NEW_FRAME_MSG,      /**< Activate a new frame. */
+  LED_STRIP_BRIGHTNESS_MSG,     /**< Update global brightness. */
+  LED_STIP_MGS_TYPE_COUNT       /**< Number of message types. */
 } LedStipMsgType_t;
 
 /**
@@ -53,9 +53,9 @@ typedef enum
  */
 typedef struct
 {
-  LedStipMsgType_t type;
-  uint8_t brightness;
-  struct led_rgb *framebuffer;
+  LedStipMsgType_t type;        /**< Message type. */
+  uint8_t brightness;           /**< Brightness value (LED_STRIP_BRIGHTNESS_MSG). */
+  struct led_rgb *framebuffer;  /**< Frame pointer (LED_STRIP_NEW_FRAME_MSG). */
 } LedStripMessage_t;
 
 /**

@@ -20,6 +20,15 @@
 
 #include "ledStrip.h"
 
+/**
+ * @brief   Shell command: print the pixel count from DTS.
+ *
+ * @param[in]   sh:   Shell instance.
+ * @param[in]   argc: Argument count.
+ * @param[in]   argv: Argument vector.
+ *
+ * @return  0 always.
+ */
 static int execGetPixelCount(const struct shell *sh, size_t argc, char **argv)
 {
   size_t pixelCount = DT_PROP(DT_ALIAS(led_strip), chain_length);
@@ -29,6 +38,18 @@ static int execGetPixelCount(const struct shell *sh, size_t argc, char **argv)
   return 0;
 }
 
+/**
+ * @brief   Shell command: fill and submit a full frame.
+ *
+ *          Expects chain_length × 3 channel values as arguments (r g b per pixel).
+ *
+ * @param[in]   sh:   Shell instance.
+ * @param[in]   argc: Argument count.
+ * @param[in]   argv: Argument vector; argv[1..N] are the channel values.
+ *
+ * @return  0 if successful, -ENOMEM if no buffer available, -EINVAL on bad
+ *          channel value, or the error code from ledStripUpdateFrame().
+ */
 static int execSetFrame(const struct shell *sh, size_t argc, char **argv)
 {
   size_t pixelCount = DT_PROP(DT_ALIAS(led_strip), chain_length);
@@ -68,6 +89,16 @@ static int execSetFrame(const struct shell *sh, size_t argc, char **argv)
   return 0;
 }
 
+/**
+ * @brief   Shell command: set the global brightness.
+ *
+ * @param[in]   sh:   Shell instance.
+ * @param[in]   argc: Argument count.
+ * @param[in]   argv: Argument vector; argv[1] is the brightness value (0–255).
+ *
+ * @return  0 if successful, -EINVAL on bad value, or the error code from
+ *          ledStripSetBrightness().
+ */
 static int execSetBrightness(const struct shell *sh, size_t argc, char **argv)
 {
   int err;

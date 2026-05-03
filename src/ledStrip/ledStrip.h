@@ -20,7 +20,7 @@
 #include <zephyr/drivers/led_strip.h>
 
 /**
- * @brief   Initalize the service.
+ * @brief   Initialize the service.
  *
  * @return  0 if successful, the error code otherwise.
  */
@@ -38,14 +38,14 @@ struct led_rgb *ledStripGetNextFramebuffer(void);
  *
  * @param[in]   frame: The frame.
  *
- * @return  0 if successfulm the error code otherwise.
+ * @return  0 if successful, the error code otherwise.
  */
 int ledStripUpdateFrame(struct led_rgb *frame);
 
 /**
  * @brief   Set the brightness.
  *
- * @param[in]   brightness: The brighness.
+ * @param[in]   brightness: The brightness.
  *
  * @return  0 if successful, the error code otherwise.
  */
