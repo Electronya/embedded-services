@@ -6,8 +6,8 @@
  * @date      2026-05-03
  * @brief     SimHub Device Service
  *
- *            Service thread, CDC UART async RX loop, packet dispatch, and
- *            service manager lifecycle callbacks.
+ *            Service thread, CDC UART IRQ-driven RX/TX loop, packet dispatch,
+ *            and service manager lifecycle callbacks.
  *
  * @ingroup   simhubDevice
  *
@@ -29,7 +29,6 @@ LOG_MODULE_REGISTER(simhubDevice, CONFIG_ENYA_SIMHUB_DEVICE_LOG_LEVEL);
 #define SIMHUB_DEV_RX_BUF_SIZE   64
 #define SIMHUB_DEV_RING_BUF_SIZE 256
 #define SIMHUB_DEV_TX_BUF_SIZE   (SIMHUB_PROTO_RES_MAX_SIZE + 4)
-#define SIMHUB_DEV_RX_TIMEOUT_US 1000
 #define SIMHUB_DEV_CTRL_POLL_MS  100
 
 typedef struct
@@ -40,70 +39,85 @@ typedef struct
 
 static SimhubDeviceCtx_t ctx;
 
-static uint8_t rxBuf0[SIMHUB_DEV_RX_BUF_SIZE];
-static uint8_t rxBuf1[SIMHUB_DEV_RX_BUF_SIZE];
-static uint8_t *rxNextBuf = rxBuf1;
-
 RING_BUF_DECLARE(rxRingBuf, SIMHUB_DEV_RING_BUF_SIZE);
 
 static K_SEM_DEFINE(rxSem, 0, 1);
 static K_SEM_DEFINE(txSem, 1, 1);
+
+static uint8_t txBuf[SIMHUB_DEV_TX_BUF_SIZE];
+static const uint8_t *txPtr      = NULL;
+static size_t         txRemaining = 0;
 
 K_MSGQ_DEFINE(simhubDevCtrlQueue, sizeof(ServiceCtrlMsg_t), 4, 4);
 
 K_THREAD_STACK_DEFINE(simhubDevStack, CONFIG_ENYA_SIMHUB_DEVICE_STACK_SIZE);
 static struct k_thread thread;
 
-static void uartCallback(const struct device *dev, struct uart_event *evt, void *userData)
+static void uartCallback(const struct device *dev, void *userData)
 {
-  switch(evt->type)
+  ARG_UNUSED(userData);
+  uint8_t buf[SIMHUB_DEV_RX_BUF_SIZE];
+  int n;
+
+  uart_irq_update(dev);
+
+  if(uart_irq_rx_ready(dev))
   {
-    case UART_TX_DONE:
-      k_sem_give(&txSem);
-      break;
-
-    case UART_RX_RDY:
-      ring_buf_put(&rxRingBuf, evt->data.rx.buf + evt->data.rx.offset, evt->data.rx.len);
+    n = uart_fifo_read(dev, buf, sizeof(buf));
+    if(n > 0)
+    {
+      ring_buf_put(&rxRingBuf, buf, (uint32_t)n);
       k_sem_give(&rxSem);
-      break;
+    }
+  }
 
-    case UART_RX_BUF_REQUEST:
-      uart_rx_buf_rsp(dev, rxNextBuf, SIMHUB_DEV_RX_BUF_SIZE);
-      break;
-
-    case UART_RX_BUF_RELEASED:
-      rxNextBuf = evt->data.rx_buf.buf;
-      break;
-
-    default:
-      break;
+  if(uart_irq_tx_ready(dev))
+  {
+    if(txRemaining > 0)
+    {
+      n = uart_fifo_fill(dev, txPtr, txRemaining);
+      txPtr      += n;
+      txRemaining -= (size_t)n;
+    }
+    if(txRemaining == 0)
+    {
+      uart_irq_tx_disable(dev);
+      k_sem_give(&txSem);
+    }
   }
 }
 
 static void dispatchPkt(void)
 {
-  static uint8_t txBuf[SIMHUB_DEV_TX_BUF_SIZE];
   int len;
   struct led_rgb *frame;
 
   switch(simhubDevUtilGetPktType())
   {
     case SIMHUB_PKT_PROTO:
+      k_sem_take(&txSem, K_MSEC(SIMHUB_DEV_CTRL_POLL_MS));
       len = simhubDevUtilProcessProto(txBuf, sizeof(txBuf));
       if(len > 0)
       {
-        k_sem_take(&txSem, K_MSEC(SIMHUB_DEV_CTRL_POLL_MS));
-        uart_tx(ctx.uart, txBuf, len, SYS_FOREVER_US);
+        txPtr       = txBuf;
+        txRemaining = (size_t)len;
+        uart_irq_tx_enable(ctx.uart);
       }
+      else
+        k_sem_give(&txSem);
       break;
 
     case SIMHUB_PKT_LED_COUNT:
+      k_sem_take(&txSem, K_MSEC(SIMHUB_DEV_CTRL_POLL_MS));
       len = simhubDevUtilProcessLedCount(txBuf, sizeof(txBuf));
       if(len > 0)
       {
-        k_sem_take(&txSem, K_MSEC(SIMHUB_DEV_CTRL_POLL_MS));
-        uart_tx(ctx.uart, txBuf, len, SYS_FOREVER_US);
+        txPtr       = txBuf;
+        txRemaining = (size_t)len;
+        uart_irq_tx_enable(ctx.uart);
       }
+      else
+        k_sem_give(&txSem);
       break;
 
     case SIMHUB_PKT_UNLOCK:
@@ -130,11 +144,15 @@ static void dispatchPkt(void)
   }
 }
 
-static int rxEnable(void)
+static void rxEnable(void)
 {
-  rxNextBuf = rxBuf1;
   ring_buf_reset(&rxRingBuf);
-  return uart_rx_enable(ctx.uart, rxBuf0, sizeof(rxBuf0), SIMHUB_DEV_RX_TIMEOUT_US);
+  uart_irq_rx_enable(ctx.uart);
+}
+
+static void rxDisable(void)
+{
+  uart_irq_rx_disable(ctx.uart);
 }
 
 #ifdef CONFIG_ZTEST
@@ -156,26 +174,23 @@ static void run(void *p1, void *p2, void *p3)
     return;
   }
 
-  err = uart_callback_set(ctx.uart, uartCallback, NULL);
-  if(err < 0)
-  {
-    LOG_ERR("ERROR %d: unable to set UART callback", err);
-    return;
-  }
+  uart_irq_callback_user_data_set(ctx.uart, uartCallback, NULL);
 
   uint32_t dtr = 0;
   while(!dtr)
   {
+    if(k_msgq_get(&simhubDevCtrlQueue, &ctrlMsg, K_NO_WAIT) == 0 &&
+       ctrlMsg == SVC_CTRL_STOP)
+    {
+      serviceManagerConfirmState(k_current_get(), SVC_STATE_STOPPED);
+      return;
+    }
     uart_line_ctrl_get(ctx.uart, UART_LINE_CTRL_DTR, &dtr);
     k_sleep(K_MSEC(SIMHUB_DEV_CTRL_POLL_MS));
+    serviceManagerUpdateHeartbeat(k_current_get());
   }
 
-  err = rxEnable();
-  if(err < 0)
-  {
-    LOG_ERR("ERROR %d: unable to enable UART RX", err);
-    return;
-  }
+  rxEnable();
 
   LOG_INF("SimHub device thread started");
 
@@ -190,19 +205,17 @@ static void run(void *p1, void *p2, void *p3)
       switch(ctrlMsg)
       {
         case SVC_CTRL_STOP:
-          uart_rx_disable(ctx.uart);
+          rxDisable();
           simhubDevUtilReset();
           serviceManagerConfirmState(k_current_get(), SVC_STATE_STOPPED);
           return;
 
         case SVC_CTRL_SUSPEND:
-          uart_rx_disable(ctx.uart);
+          rxDisable();
           simhubDevUtilReset();
           serviceManagerConfirmState(k_current_get(), SVC_STATE_SUSPENDED);
           k_thread_suspend(k_current_get());
-          err = rxEnable();
-          if(err < 0)
-            LOG_ERR("ERROR %d: unable to re-enable UART RX after resume", err);
+          rxEnable();
           break;
 
         default:

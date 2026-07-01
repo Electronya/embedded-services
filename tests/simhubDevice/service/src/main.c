@@ -100,13 +100,18 @@ typedef enum
 #define k_sleep           k_sleep_mock
 #define device_is_ready   device_is_ready_mock
 
-/* Wrap UART functions. */
-#define uart_callback_set  uart_callback_set_mock
-#define uart_line_ctrl_get uart_line_ctrl_get_mock
-#define uart_rx_enable     uart_rx_enable_mock
-#define uart_rx_disable    uart_rx_disable_mock
-#define uart_rx_buf_rsp    uart_rx_buf_rsp_mock
-#define uart_tx            uart_tx_mock
+/* Wrap UART IRQ functions. */
+#define uart_irq_callback_user_data_set uart_irq_callback_user_data_set_mock
+#define uart_irq_rx_enable              uart_irq_rx_enable_mock
+#define uart_irq_rx_disable             uart_irq_rx_disable_mock
+#define uart_irq_tx_enable              uart_irq_tx_enable_mock
+#define uart_irq_tx_disable             uart_irq_tx_disable_mock
+#define uart_irq_update                 uart_irq_update_mock
+#define uart_irq_rx_ready               uart_irq_rx_ready_mock
+#define uart_irq_tx_ready               uart_irq_tx_ready_mock
+#define uart_fifo_read                  uart_fifo_read_mock
+#define uart_fifo_fill                  uart_fifo_fill_mock
+#define uart_line_ctrl_get              uart_line_ctrl_get_mock
 
 /* Wrap ring buffer functions. */
 #define ring_buf_put   ring_buf_put_mock
@@ -144,13 +149,18 @@ FAKE_VOID_FUNC(k_sem_give_mock, struct k_sem *);
 FAKE_VOID_FUNC(k_sleep_mock, k_timeout_t);
 FAKE_VALUE_FUNC(bool, device_is_ready_mock, const struct device *);
 
-/* UART mock fakes. */
-FAKE_VALUE_FUNC(int, uart_callback_set_mock, const struct device *, uart_callback_t, void *);
+/* UART IRQ mock fakes. */
+FAKE_VOID_FUNC(uart_irq_callback_user_data_set_mock, const struct device *, uart_irq_callback_user_data_t, void *);
+FAKE_VOID_FUNC(uart_irq_rx_enable_mock, const struct device *);
+FAKE_VOID_FUNC(uart_irq_rx_disable_mock, const struct device *);
+FAKE_VOID_FUNC(uart_irq_tx_enable_mock, const struct device *);
+FAKE_VOID_FUNC(uart_irq_tx_disable_mock, const struct device *);
+FAKE_VALUE_FUNC(int, uart_irq_update_mock, const struct device *);
+FAKE_VALUE_FUNC(int, uart_irq_rx_ready_mock, const struct device *);
+FAKE_VALUE_FUNC(int, uart_irq_tx_ready_mock, const struct device *);
+FAKE_VALUE_FUNC(int, uart_fifo_read_mock, const struct device *, uint8_t *, int);
+FAKE_VALUE_FUNC(int, uart_fifo_fill_mock, const struct device *, const uint8_t *, int);
 FAKE_VALUE_FUNC(int, uart_line_ctrl_get_mock, const struct device *, enum uart_line_ctrl, uint32_t *);
-FAKE_VALUE_FUNC(int, uart_rx_enable_mock, const struct device *, uint8_t *, size_t, int32_t);
-FAKE_VALUE_FUNC(int, uart_rx_disable_mock, const struct device *);
-FAKE_VALUE_FUNC(int, uart_rx_buf_rsp_mock, const struct device *, uint8_t *, size_t);
-FAKE_VALUE_FUNC(int, uart_tx_mock, const struct device *, const uint8_t *, size_t, int32_t);
 
 /* Ring buffer mock fakes. */
 FAKE_VALUE_FUNC(uint32_t, ring_buf_put_mock, struct ring_buf *, const uint8_t *, uint32_t);
@@ -189,12 +199,17 @@ FAKE_VALUE_FUNC(int, ledStripUpdateFrame, struct led_rgb *);
   FAKE(k_sem_give_mock)                                                                                                            \
   FAKE(k_sleep_mock)                                                                                                               \
   FAKE(device_is_ready_mock)                                                                                                       \
-  FAKE(uart_callback_set_mock)                                                                                                     \
+  FAKE(uart_irq_callback_user_data_set_mock)                                                                                       \
+  FAKE(uart_irq_rx_enable_mock)                                                                                                    \
+  FAKE(uart_irq_rx_disable_mock)                                                                                                   \
+  FAKE(uart_irq_tx_enable_mock)                                                                                                    \
+  FAKE(uart_irq_tx_disable_mock)                                                                                                   \
+  FAKE(uart_irq_update_mock)                                                                                                       \
+  FAKE(uart_irq_rx_ready_mock)                                                                                                     \
+  FAKE(uart_irq_tx_ready_mock)                                                                                                     \
+  FAKE(uart_fifo_read_mock)                                                                                                        \
+  FAKE(uart_fifo_fill_mock)                                                                                                        \
   FAKE(uart_line_ctrl_get_mock)                                                                                                    \
-  FAKE(uart_rx_enable_mock)                                                                                                        \
-  FAKE(uart_rx_disable_mock)                                                                                                       \
-  FAKE(uart_rx_buf_rsp_mock)                                                                                                       \
-  FAKE(uart_tx_mock)                                                                                                               \
   FAKE(ring_buf_put_mock)                                                                                                          \
   FAKE(ring_buf_get_mock)                                                                                                          \
   FAKE(ring_buf_reset_mock)                                                                                                        \
@@ -239,7 +254,8 @@ static int serviceManagerRegisterSrv_capture(const ServiceDescriptor_t *descript
 /* Control queue helpers for k_msgq_get. */
 static ServiceCtrlMsg_t testCtrlQueueMessages[4];
 static size_t testCtrlQueueMsgCount = 0;
-static size_t testCtrlQueueMsgRead = 0;
+static size_t testCtrlQueueMsgRead  = 0;
+static size_t testCtrlQueueSkipCount = 0;
 
 static int k_msgq_get_no_message(struct k_msgq *q, void *data, k_timeout_t timeout)
 {
@@ -253,6 +269,11 @@ static int k_msgq_get_from_ctrl_queue(struct k_msgq *q, void *data, k_timeout_t 
 {
   ARG_UNUSED(q);
   ARG_UNUSED(timeout);
+  if(testCtrlQueueSkipCount > 0)
+  {
+    testCtrlQueueSkipCount--;
+    return -EAGAIN;
+  }
   if(testCtrlQueueMsgRead < testCtrlQueueMsgCount)
   {
     memcpy(data, &testCtrlQueueMessages[testCtrlQueueMsgRead++], sizeof(ServiceCtrlMsg_t));
@@ -281,10 +302,10 @@ static int uart_line_ctrl_get_dtr_after_delay(const struct device *dev, enum uar
   return 0;
 }
 
-/* Ring buffer byte feeder for k_msgq_get drain loop tests. */
+/* Ring buffer byte feeder for drain loop tests. */
 static uint8_t testRingBufBytes[8];
 static size_t testRingBufByteCount = 0;
-static size_t testRingBufByteRead = 0;
+static size_t testRingBufByteRead  = 0;
 
 static uint32_t ring_buf_get_from_test_buf(struct ring_buf *buf, uint8_t *data, uint32_t size)
 {
@@ -303,215 +324,218 @@ static void service_tests_before(void *fixture)
   ARG_UNUSED(fixture);
   FFF_FAKES_LIST(RESET_FAKE);
   FFF_RESET_HISTORY();
-  testCtrlQueueMsgCount = 0;
-  testCtrlQueueMsgRead = 0;
-  capturedCtrlMsg = (ServiceCtrlMsg_t)0xFF;
-  k_msgq_put_mock_fake.custom_fake = k_msgq_put_capture;
-  k_msgq_get_mock_fake.custom_fake = k_msgq_get_no_message;
-  uart_line_ctrl_get_mock_fake.custom_fake = uart_line_ctrl_get_dtr_ready;
-  dtrCallCount = 0;
+  testCtrlQueueMsgCount  = 0;
+  testCtrlQueueMsgRead   = 0;
+  testCtrlQueueSkipCount = 0;
+  capturedCtrlMsg        = (ServiceCtrlMsg_t)0xFF;
+  k_msgq_put_mock_fake.custom_fake               = k_msgq_put_capture;
+  k_msgq_get_mock_fake.custom_fake               = k_msgq_get_no_message;
+  uart_line_ctrl_get_mock_fake.custom_fake       = uart_line_ctrl_get_dtr_ready;
+  serviceManagerRegisterSrv_fake.custom_fake     = serviceManagerRegisterSrv_capture;
+  dtrCallCount           = 0;
+  txRemaining            = 0;
+  txPtr                  = NULL;
   memset(&capturedDescriptor, 0, sizeof(capturedDescriptor));
-  serviceManagerRegisterSrv_fake.custom_fake = serviceManagerRegisterSrv_capture;
-  rxNextBuf = rxBuf1;
-  ctx.uart = &testUartDevice;
-  testRingBufByteCount = 0;
-  testRingBufByteRead = 0;
+  ctx.uart               = &testUartDevice;
+  testRingBufByteCount   = 0;
+  testRingBufByteRead    = 0;
 }
 
 /**
- * @test uartCallback must release the TX semaphore when UART_TX_DONE
+ * @test uartCallback must always call uart_irq_update
  */
-ZTEST(simhubDevice_tests, test_uart_callback_gives_tx_sem_on_tx_done)
+ZTEST(simhubDevice_tests, test_uart_callback_calls_irq_update)
 {
-  struct uart_event evt = {.type = UART_TX_DONE};
+  uartCallback(&testUartDevice, NULL);
 
-  uartCallback(NULL, &evt, NULL);
-
-  zassert_equal(k_sem_give_mock_fake.call_count, 1, "expected k_sem_give called once");
-  zassert_equal_ptr(k_sem_give_mock_fake.arg0_val, &txSem, "expected k_sem_give called with &txSem");
+  zassert_equal(uart_irq_update_mock_fake.call_count, 1, "expected uart_irq_update called once");
+  zassert_equal_ptr(uart_irq_update_mock_fake.arg0_val, &testUartDevice, "expected uart_irq_update called with dev");
 }
 
 /**
- * @test uartCallback must put data into the ring buffer and release the RX
- *       semaphore when UART_RX_RDY
+ * @test uartCallback must do nothing beyond uart_irq_update when neither RX
+ *       nor TX IRQ is ready
  */
-ZTEST(simhubDevice_tests, test_uart_callback_puts_ring_buf_and_gives_rx_sem_on_rx_rdy)
+ZTEST(simhubDevice_tests, test_uart_callback_does_nothing_when_rx_not_ready_and_tx_not_ready)
 {
-  static uint8_t rxData[8] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
-  struct uart_event evt = {
-    .type = UART_RX_RDY,
-    .data.rx =
-      {
-        .buf = rxData,
-        .offset = 2,
-        .len = 4,
-      },
-  };
+  uartCallback(&testUartDevice, NULL);
 
-  uartCallback(NULL, &evt, NULL);
+  zassert_equal(ring_buf_put_mock_fake.call_count, 0, "expected ring_buf_put not called");
+  zassert_equal(k_sem_give_mock_fake.call_count, 0, "expected k_sem_give not called");
+  zassert_equal(uart_irq_tx_disable_mock_fake.call_count, 0, "expected uart_irq_tx_disable not called");
+}
 
+/**
+ * @test uartCallback must put data into the ring buffer and give the RX
+ *       semaphore when RX is ready and the FIFO contains bytes
+ */
+ZTEST(simhubDevice_tests, test_uart_callback_puts_ring_buf_and_gives_rx_sem_when_rx_ready_with_data)
+{
+  uart_irq_rx_ready_mock_fake.return_val = 1;
+  uart_fifo_read_mock_fake.return_val    = 6;
+
+  uartCallback(&testUartDevice, NULL);
+
+  zassert_equal(uart_fifo_read_mock_fake.call_count, 1, "expected uart_fifo_read called once");
+  zassert_equal_ptr(uart_fifo_read_mock_fake.arg0_val, &testUartDevice, "expected uart_fifo_read called with dev");
   zassert_equal(ring_buf_put_mock_fake.call_count, 1, "expected ring_buf_put called once");
-  zassert_equal_ptr(ring_buf_put_mock_fake.arg1_val, rxData + 2, "expected ring_buf_put called with buf + offset");
-  zassert_equal(ring_buf_put_mock_fake.arg2_val, 4u, "expected ring_buf_put called with len");
+  zassert_equal(ring_buf_put_mock_fake.arg2_val, 6u, "expected ring_buf_put called with fifo_read return value");
   zassert_equal(k_sem_give_mock_fake.call_count, 1, "expected k_sem_give called once");
   zassert_equal_ptr(k_sem_give_mock_fake.arg0_val, &rxSem, "expected k_sem_give called with &rxSem");
 }
 
 /**
- * @test uartCallback must call uart_rx_buf_rsp with the next buffer when
- *       UART_RX_BUF_REQUEST
+ * @test uartCallback must not put data into the ring buffer when RX is ready
+ *       but the FIFO is empty
  */
-ZTEST(simhubDevice_tests, test_uart_callback_provides_next_buf_on_buf_request)
+ZTEST(simhubDevice_tests, test_uart_callback_does_not_put_ring_buf_when_rx_ready_with_no_data)
 {
-  const struct device *dev = &testUartDevice;
-  struct uart_event evt = {.type = UART_RX_BUF_REQUEST};
-  uint8_t *expectedBuf = rxNextBuf;
+  uart_irq_rx_ready_mock_fake.return_val = 1;
 
-  uartCallback(dev, &evt, NULL);
+  uartCallback(&testUartDevice, NULL);
 
-  zassert_equal(uart_rx_buf_rsp_mock_fake.call_count, 1, "expected uart_rx_buf_rsp called once");
-  zassert_equal_ptr(uart_rx_buf_rsp_mock_fake.arg0_val, dev, "expected uart_rx_buf_rsp called with dev");
-  zassert_equal_ptr(uart_rx_buf_rsp_mock_fake.arg1_val, expectedBuf, "expected uart_rx_buf_rsp called with rxNextBuf");
-  zassert_equal(uart_rx_buf_rsp_mock_fake.arg2_val, (size_t)SIMHUB_DEV_RX_BUF_SIZE,
-                "expected uart_rx_buf_rsp called with SIMHUB_DEV_RX_BUF_SIZE");
-}
-
-/**
- * @test uartCallback must update rxNextBuf to the released buffer when
- *       UART_RX_BUF_RELEASED
- */
-ZTEST(simhubDevice_tests, test_uart_callback_updates_next_buf_on_buf_released)
-{
-  static uint8_t releasedBuf[SIMHUB_DEV_RX_BUF_SIZE];
-  struct uart_event evt = {
-    .type = UART_RX_BUF_RELEASED,
-    .data.rx_buf.buf = releasedBuf,
-  };
-
-  uartCallback(NULL, &evt, NULL);
-
-  zassert_equal_ptr(rxNextBuf, releasedBuf, "expected rxNextBuf updated to released buffer");
-}
-
-/**
- * @test uartCallback must not call any function for an unknown event type
- */
-ZTEST(simhubDevice_tests, test_uart_callback_does_nothing_on_unknown_event)
-{
-  struct uart_event evt = {.type = (enum uart_event_type)0xFF};
-
-  uartCallback(NULL, &evt, NULL);
-
-  zassert_equal(k_sem_give_mock_fake.call_count, 0, "expected k_sem_give not called");
   zassert_equal(ring_buf_put_mock_fake.call_count, 0, "expected ring_buf_put not called");
-  zassert_equal(uart_rx_buf_rsp_mock_fake.call_count, 0, "expected uart_rx_buf_rsp not called");
+  zassert_equal(k_sem_give_mock_fake.call_count, 0, "expected k_sem_give not called");
 }
 
 /**
- * @test rxEnable must reset rxNextBuf and the ring buffer then propagate the
- *       error when uart_rx_enable fails
+ * @test uartCallback must fill the FIFO and advance txPtr when TX is ready
+ *       and bytes remain after a partial fill
  */
-ZTEST(simhubDevice_tests, test_rx_enable_resets_state_and_returns_error_when_uart_rx_enable_fails)
+ZTEST(simhubDevice_tests, test_uart_callback_fills_fifo_and_advances_tx_ptr_on_partial_fill)
 {
-  uart_rx_enable_mock_fake.return_val = -EIO;
-  rxNextBuf = rxBuf0;
+  static uint8_t testTxData[10];
+  uart_irq_tx_ready_mock_fake.return_val = 1;
+  uart_fifo_fill_mock_fake.return_val    = 6;
+  txPtr       = testTxData;
+  txRemaining = 10;
 
-  int ret = rxEnable();
+  uartCallback(&testUartDevice, NULL);
 
-  zassert_equal(ret, -EIO, "expected rxEnable to return -EIO");
-  zassert_equal_ptr(rxNextBuf, rxBuf1, "expected rxNextBuf reset to rxBuf1");
-  zassert_equal(ring_buf_reset_mock_fake.call_count, 1, "expected ring_buf_reset called once");
-  zassert_equal_ptr(ring_buf_reset_mock_fake.arg0_val, &rxRingBuf, "expected ring_buf_reset called with &rxRingBuf");
+  zassert_equal(uart_fifo_fill_mock_fake.call_count, 1, "expected uart_fifo_fill called once");
+  zassert_equal_ptr(uart_fifo_fill_mock_fake.arg0_val, &testUartDevice, "expected uart_fifo_fill called with dev");
+  zassert_equal(txRemaining, 4u, "expected txRemaining decremented by fill count");
+  zassert_equal_ptr(txPtr, testTxData + 6, "expected txPtr advanced by fill count");
+  zassert_equal(uart_irq_tx_disable_mock_fake.call_count, 0, "expected uart_irq_tx_disable not called");
+  zassert_equal(k_sem_give_mock_fake.call_count, 0, "expected k_sem_give not called");
 }
 
 /**
- * @test rxEnable must reset rxNextBuf, reset the ring buffer, enable UART RX
- *       with the primary buffer and return success
+ * @test uartCallback must disable TX IRQ and give the TX semaphore when the
+ *       fill completes the remaining bytes
  */
-ZTEST(simhubDevice_tests, test_rx_enable_resets_state_enables_uart_rx_and_returns_success)
+ZTEST(simhubDevice_tests, test_uart_callback_disables_tx_and_gives_tx_sem_when_fill_completes)
 {
-  uart_rx_enable_mock_fake.return_val = 0;
-  rxNextBuf = rxBuf0;
+  static uint8_t testTxData[10];
+  uart_irq_tx_ready_mock_fake.return_val = 1;
+  uart_fifo_fill_mock_fake.return_val    = 10;
+  txPtr       = testTxData;
+  txRemaining = 10;
 
-  int ret = rxEnable();
+  uartCallback(&testUartDevice, NULL);
 
-  zassert_equal(ret, 0, "expected rxEnable to return 0");
-  zassert_equal_ptr(rxNextBuf, rxBuf1, "expected rxNextBuf reset to rxBuf1");
-  zassert_equal(ring_buf_reset_mock_fake.call_count, 1, "expected ring_buf_reset called once");
-  zassert_equal(uart_rx_enable_mock_fake.call_count, 1, "expected uart_rx_enable called once");
-  zassert_equal_ptr(uart_rx_enable_mock_fake.arg0_val, &testUartDevice, "expected uart_rx_enable called with ctx.uart");
-  zassert_equal_ptr(uart_rx_enable_mock_fake.arg1_val, rxBuf0, "expected uart_rx_enable called with rxBuf0");
-  zassert_equal(uart_rx_enable_mock_fake.arg2_val, (size_t)SIMHUB_DEV_RX_BUF_SIZE,
-                "expected uart_rx_enable called with SIMHUB_DEV_RX_BUF_SIZE");
-  zassert_equal(uart_rx_enable_mock_fake.arg3_val, (int32_t)SIMHUB_DEV_RX_TIMEOUT_US,
-                "expected uart_rx_enable called with SIMHUB_DEV_RX_TIMEOUT_US");
+  zassert_equal(txRemaining, 0u, "expected txRemaining zero after full fill");
+  zassert_equal(uart_irq_tx_disable_mock_fake.call_count, 1, "expected uart_irq_tx_disable called once");
+  zassert_equal_ptr(uart_irq_tx_disable_mock_fake.arg0_val, &testUartDevice,
+                    "expected uart_irq_tx_disable called with dev");
+  zassert_equal(k_sem_give_mock_fake.call_count, 1, "expected k_sem_give called once");
+  zassert_equal_ptr(k_sem_give_mock_fake.arg0_val, &txSem, "expected k_sem_give called with &txSem");
 }
 
 /**
- * @test dispatchPkt must not send a UART TX when proto processing returns no data
+ * @test uartCallback must disable TX IRQ and give the TX semaphore when TX is
+ *       ready but txRemaining is already zero
  */
-ZTEST(simhubDevice_tests, test_dispatch_pkt_proto_does_not_tx_when_process_returns_no_data)
+ZTEST(simhubDevice_tests, test_uart_callback_disables_tx_and_gives_tx_sem_when_tx_already_done)
 {
-  simhubDevUtilGetPktType_fake.return_val = SIMHUB_PKT_PROTO;
-  simhubDevUtilProcessProto_fake.return_val = 0;
+  uart_irq_tx_ready_mock_fake.return_val = 1;
 
-  dispatchPkt();
+  uartCallback(&testUartDevice, NULL);
 
-  zassert_equal(uart_tx_mock_fake.call_count, 0, "expected uart_tx not called");
-  zassert_equal(k_sem_take_mock_fake.call_count, 0, "expected k_sem_take not called");
+  zassert_equal(uart_fifo_fill_mock_fake.call_count, 0, "expected uart_fifo_fill not called");
+  zassert_equal(uart_irq_tx_disable_mock_fake.call_count, 1, "expected uart_irq_tx_disable called once");
+  zassert_equal(k_sem_give_mock_fake.call_count, 1, "expected k_sem_give called once");
+  zassert_equal_ptr(k_sem_give_mock_fake.arg0_val, &txSem, "expected k_sem_give called with &txSem");
 }
 
 /**
- * @test dispatchPkt must acquire the TX semaphore and send the response when
- *       proto processing returns data
+ * @test dispatchPkt must acquire the TX semaphore, call process, then release
+ *       the semaphore when proto processing returns no data
  */
-ZTEST(simhubDevice_tests, test_dispatch_pkt_proto_takes_tx_sem_and_sends_response)
+ZTEST(simhubDevice_tests, test_dispatch_pkt_proto_takes_tx_sem_and_gives_it_back_when_no_data)
 {
-  simhubDevUtilGetPktType_fake.return_val = SIMHUB_PKT_PROTO;
-  simhubDevUtilProcessProto_fake.return_val = 5;
-
-  dispatchPkt();
-
-  zassert_equal(k_sem_take_mock_fake.call_count, 1, "expected k_sem_take called once");
-  zassert_equal_ptr(k_sem_take_mock_fake.arg0_val, &txSem, "expected k_sem_take called with &txSem");
-  zassert_equal(uart_tx_mock_fake.call_count, 1, "expected uart_tx called once");
-  zassert_equal_ptr(uart_tx_mock_fake.arg0_val, &testUartDevice, "expected uart_tx called with ctx.uart");
-  zassert_not_null(uart_tx_mock_fake.arg1_val, "expected uart_tx called with non-NULL buffer");
-  zassert_equal(uart_tx_mock_fake.arg2_val, 5u, "expected uart_tx called with the returned length");
-}
-
-/**
- * @test dispatchPkt must not send a UART TX when LED count processing returns
- *       no data
- */
-ZTEST(simhubDevice_tests, test_dispatch_pkt_led_count_does_not_tx_when_process_returns_no_data)
-{
-  simhubDevUtilGetPktType_fake.return_val = SIMHUB_PKT_LED_COUNT;
-  simhubDevUtilProcessLedCount_fake.return_val = 0;
-
-  dispatchPkt();
-
-  zassert_equal(uart_tx_mock_fake.call_count, 0, "expected uart_tx not called");
-  zassert_equal(k_sem_take_mock_fake.call_count, 0, "expected k_sem_take not called");
-}
-
-/**
- * @test dispatchPkt must acquire the TX semaphore and send the response when
- *       LED count processing returns data
- */
-ZTEST(simhubDevice_tests, test_dispatch_pkt_led_count_takes_tx_sem_and_sends_response)
-{
-  simhubDevUtilGetPktType_fake.return_val = SIMHUB_PKT_LED_COUNT;
-  simhubDevUtilProcessLedCount_fake.return_val = 3;
+  simhubDevUtilGetPktType_fake.return_val    = SIMHUB_PKT_PROTO;
+  simhubDevUtilProcessProto_fake.return_val  = 0;
 
   dispatchPkt();
 
   zassert_equal(k_sem_take_mock_fake.call_count, 1, "expected k_sem_take called once");
   zassert_equal_ptr(k_sem_take_mock_fake.arg0_val, &txSem, "expected k_sem_take called with &txSem");
-  zassert_equal(uart_tx_mock_fake.call_count, 1, "expected uart_tx called once");
-  zassert_equal_ptr(uart_tx_mock_fake.arg0_val, &testUartDevice, "expected uart_tx called with ctx.uart");
-  zassert_not_null(uart_tx_mock_fake.arg1_val, "expected uart_tx called with non-NULL buffer");
-  zassert_equal(uart_tx_mock_fake.arg2_val, 3u, "expected uart_tx called with the returned length");
+  zassert_equal(simhubDevUtilProcessProto_fake.call_count, 1, "expected simhubDevUtilProcessProto called once");
+  zassert_equal(k_sem_give_mock_fake.call_count, 1, "expected k_sem_give called once");
+  zassert_equal_ptr(k_sem_give_mock_fake.arg0_val, &txSem, "expected k_sem_give called with &txSem");
+  zassert_equal(uart_irq_tx_enable_mock_fake.call_count, 0, "expected uart_irq_tx_enable not called");
+}
+
+/**
+ * @test dispatchPkt must acquire the TX semaphore, set txPtr and txRemaining,
+ *       and enable TX IRQ when proto processing returns data
+ */
+ZTEST(simhubDevice_tests, test_dispatch_pkt_proto_takes_tx_sem_sets_tx_state_and_enables_tx)
+{
+  simhubDevUtilGetPktType_fake.return_val    = SIMHUB_PKT_PROTO;
+  simhubDevUtilProcessProto_fake.return_val  = 5;
+
+  dispatchPkt();
+
+  zassert_equal(k_sem_take_mock_fake.call_count, 1, "expected k_sem_take called once");
+  zassert_equal_ptr(k_sem_take_mock_fake.arg0_val, &txSem, "expected k_sem_take called with &txSem");
+  zassert_equal(txRemaining, 5u, "expected txRemaining set to process return value");
+  zassert_equal_ptr(txPtr, txBuf, "expected txPtr set to txBuf");
+  zassert_equal(uart_irq_tx_enable_mock_fake.call_count, 1, "expected uart_irq_tx_enable called once");
+  zassert_equal_ptr(uart_irq_tx_enable_mock_fake.arg0_val, &testUartDevice,
+                    "expected uart_irq_tx_enable called with ctx.uart");
+  zassert_equal(k_sem_give_mock_fake.call_count, 0, "expected k_sem_give not called");
+}
+
+/**
+ * @test dispatchPkt must acquire the TX semaphore, call process, then release
+ *       the semaphore when LED count processing returns no data
+ */
+ZTEST(simhubDevice_tests, test_dispatch_pkt_led_count_takes_tx_sem_and_gives_it_back_when_no_data)
+{
+  simhubDevUtilGetPktType_fake.return_val       = SIMHUB_PKT_LED_COUNT;
+  simhubDevUtilProcessLedCount_fake.return_val  = 0;
+
+  dispatchPkt();
+
+  zassert_equal(k_sem_take_mock_fake.call_count, 1, "expected k_sem_take called once");
+  zassert_equal_ptr(k_sem_take_mock_fake.arg0_val, &txSem, "expected k_sem_take called with &txSem");
+  zassert_equal(simhubDevUtilProcessLedCount_fake.call_count, 1, "expected simhubDevUtilProcessLedCount called once");
+  zassert_equal(k_sem_give_mock_fake.call_count, 1, "expected k_sem_give called once");
+  zassert_equal_ptr(k_sem_give_mock_fake.arg0_val, &txSem, "expected k_sem_give called with &txSem");
+  zassert_equal(uart_irq_tx_enable_mock_fake.call_count, 0, "expected uart_irq_tx_enable not called");
+}
+
+/**
+ * @test dispatchPkt must acquire the TX semaphore, set txPtr and txRemaining,
+ *       and enable TX IRQ when LED count processing returns data
+ */
+ZTEST(simhubDevice_tests, test_dispatch_pkt_led_count_takes_tx_sem_sets_tx_state_and_enables_tx)
+{
+  simhubDevUtilGetPktType_fake.return_val       = SIMHUB_PKT_LED_COUNT;
+  simhubDevUtilProcessLedCount_fake.return_val  = 3;
+
+  dispatchPkt();
+
+  zassert_equal(k_sem_take_mock_fake.call_count, 1, "expected k_sem_take called once");
+  zassert_equal_ptr(k_sem_take_mock_fake.arg0_val, &txSem, "expected k_sem_take called with &txSem");
+  zassert_equal(txRemaining, 3u, "expected txRemaining set to process return value");
+  zassert_equal_ptr(txPtr, txBuf, "expected txPtr set to txBuf");
+  zassert_equal(uart_irq_tx_enable_mock_fake.call_count, 1, "expected uart_irq_tx_enable called once");
+  zassert_equal_ptr(uart_irq_tx_enable_mock_fake.arg0_val, &testUartDevice,
+                    "expected uart_irq_tx_enable called with ctx.uart");
+  zassert_equal(k_sem_give_mock_fake.call_count, 0, "expected k_sem_give not called");
 }
 
 /**
@@ -524,7 +548,7 @@ ZTEST(simhubDevice_tests, test_dispatch_pkt_calls_process_unlock_for_unlock_pkt)
   dispatchPkt();
 
   zassert_equal(simhubDevUtilProcessUnlock_fake.call_count, 1, "expected simhubDevUtilProcessUnlock called once");
-  zassert_equal(uart_tx_mock_fake.call_count, 0, "expected uart_tx not called");
+  zassert_equal(uart_irq_tx_enable_mock_fake.call_count, 0, "expected uart_irq_tx_enable not called");
 }
 
 /**
@@ -533,7 +557,7 @@ ZTEST(simhubDevice_tests, test_dispatch_pkt_calls_process_unlock_for_unlock_pkt)
  */
 ZTEST(simhubDevice_tests, test_dispatch_pkt_resets_parser_when_no_framebuffer_for_led_data)
 {
-  simhubDevUtilGetPktType_fake.return_val = SIMHUB_PKT_LED_DATA;
+  simhubDevUtilGetPktType_fake.return_val    = SIMHUB_PKT_LED_DATA;
   ledStripGetNextFramebuffer_fake.return_val = NULL;
 
   dispatchPkt();
@@ -551,7 +575,7 @@ ZTEST(simhubDevice_tests, test_dispatch_pkt_processes_led_data_and_updates_frame
 {
   static struct led_rgb testFrame[3];
 
-  simhubDevUtilGetPktType_fake.return_val = SIMHUB_PKT_LED_DATA;
+  simhubDevUtilGetPktType_fake.return_val    = SIMHUB_PKT_LED_DATA;
   ledStripGetNextFramebuffer_fake.return_val = testFrame;
 
   dispatchPkt();
@@ -574,12 +598,37 @@ ZTEST(simhubDevice_tests, test_dispatch_pkt_resets_parser_for_unknown_pkt_type)
   dispatchPkt();
 
   zassert_equal(simhubDevUtilReset_fake.call_count, 1, "expected simhubDevUtilReset called once");
-  zassert_equal(uart_tx_mock_fake.call_count, 0, "expected uart_tx not called");
+  zassert_equal(uart_irq_tx_enable_mock_fake.call_count, 0, "expected uart_irq_tx_enable not called");
 }
 
 /**
- * @test run must return early without entering the loop when simhubDevUtilInit
- *       fails
+ * @test rxEnable must reset the ring buffer and enable UART RX IRQ
+ */
+ZTEST(simhubDevice_tests, test_rx_enable_resets_ring_buf_and_enables_uart_irq_rx)
+{
+  rxEnable();
+
+  zassert_equal(ring_buf_reset_mock_fake.call_count, 1, "expected ring_buf_reset called once");
+  zassert_equal_ptr(ring_buf_reset_mock_fake.arg0_val, &rxRingBuf, "expected ring_buf_reset called with &rxRingBuf");
+  zassert_equal(uart_irq_rx_enable_mock_fake.call_count, 1, "expected uart_irq_rx_enable called once");
+  zassert_equal_ptr(uart_irq_rx_enable_mock_fake.arg0_val, &testUartDevice,
+                    "expected uart_irq_rx_enable called with ctx.uart");
+}
+
+/**
+ * @test rxDisable must disable UART RX IRQ
+ */
+ZTEST(simhubDevice_tests, test_rx_disable_disables_uart_irq_rx)
+{
+  rxDisable();
+
+  zassert_equal(uart_irq_rx_disable_mock_fake.call_count, 1, "expected uart_irq_rx_disable called once");
+  zassert_equal_ptr(uart_irq_rx_disable_mock_fake.arg0_val, &testUartDevice,
+                    "expected uart_irq_rx_disable called with ctx.uart");
+}
+
+/**
+ * @test run must return early when simhubDevUtilInit fails
  */
 ZTEST(simhubDevice_tests, test_run_returns_early_when_simhub_util_init_fails)
 {
@@ -587,21 +636,8 @@ ZTEST(simhubDevice_tests, test_run_returns_early_when_simhub_util_init_fails)
 
   run(NULL, NULL, NULL);
 
-  zassert_equal(uart_callback_set_mock_fake.call_count, 0, "expected uart_callback_set not called");
-  zassert_equal(k_msgq_get_mock_fake.call_count, 0, "expected loop not entered");
-}
-
-/**
- * @test run must return early without entering the loop when uart_callback_set
- *       fails
- */
-ZTEST(simhubDevice_tests, test_run_returns_early_when_uart_callback_set_fails)
-{
-  uart_callback_set_mock_fake.return_val = -EIO;
-
-  run(NULL, NULL, NULL);
-
-  zassert_equal(uart_rx_enable_mock_fake.call_count, 0, "expected uart_rx_enable not called");
+  zassert_equal(uart_irq_callback_user_data_set_mock_fake.call_count, 0,
+                "expected uart_irq_callback_user_data_set not called");
   zassert_equal(k_msgq_get_mock_fake.call_count, 0, "expected loop not entered");
 }
 
@@ -619,98 +655,96 @@ ZTEST(simhubDevice_tests, test_run_waits_for_dtr_before_enabling_rx)
   zassert_equal(uart_line_ctrl_get_mock_fake.arg1_history[0], UART_LINE_CTRL_DTR,
                 "expected uart_line_ctrl_get called with UART_LINE_CTRL_DTR");
   zassert_true(k_sleep_mock_fake.call_count >= 1, "expected k_sleep called while polling DTR");
-  zassert_equal(uart_rx_enable_mock_fake.call_count, 1, "expected uart_rx_enable called after DTR asserted");
+  zassert_equal(uart_irq_rx_enable_mock_fake.call_count, 1, "expected uart_irq_rx_enable called after DTR asserted");
 }
 
 /**
- * @test run must return early without entering the loop when rxEnable fails
+ * @test run must confirm STOPPED state and return without enabling RX when
+ *       SVC_CTRL_STOP is received during the DTR wait
  */
-ZTEST(simhubDevice_tests, test_run_returns_early_when_rx_enable_fails)
+ZTEST(simhubDevice_tests, test_run_stop_during_dtr_wait_confirms_stopped_and_returns)
 {
-  uart_rx_enable_mock_fake.return_val = -EIO;
+  testCtrlQueueMessages[0] = SVC_CTRL_STOP;
+  testCtrlQueueMsgCount    = 1;
+  k_msgq_get_mock_fake.custom_fake = k_msgq_get_from_ctrl_queue;
 
   run(NULL, NULL, NULL);
 
-  zassert_equal(k_msgq_get_mock_fake.call_count, 0, "expected loop not entered");
+  zassert_equal(serviceManagerConfirmState_fake.call_count, 1, "expected serviceManagerConfirmState called once");
+  zassert_equal(serviceManagerConfirmState_fake.arg1_val, SVC_STATE_STOPPED,
+                "expected serviceManagerConfirmState called with SVC_STATE_STOPPED");
+  zassert_equal(uart_irq_rx_enable_mock_fake.call_count, 0, "expected uart_irq_rx_enable not called");
+  zassert_equal(uart_irq_rx_disable_mock_fake.call_count, 0, "expected uart_irq_rx_disable not called");
   zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 0, "expected heartbeat not updated");
 }
 
 /**
- * @test run must initialise the UART callback with the internal callback and
- *       the device pointer
+ * @test run must set the IRQ callback with the correct device and function
  */
-ZTEST(simhubDevice_tests, test_run_sets_uart_callback_with_correct_args)
+ZTEST(simhubDevice_tests, test_run_sets_uart_irq_callback_with_correct_args)
 {
   run(NULL, NULL, NULL);
 
-  zassert_equal(uart_callback_set_mock_fake.call_count, 1, "expected uart_callback_set called once");
-  zassert_equal_ptr(uart_callback_set_mock_fake.arg0_val, &testUartDevice, "expected uart_callback_set called with ctx.uart");
-  zassert_not_null(uart_callback_set_mock_fake.arg1_val, "expected uart_callback_set called with a non-NULL callback");
+  zassert_equal(uart_irq_callback_user_data_set_mock_fake.call_count, 1,
+                "expected uart_irq_callback_user_data_set called once");
+  zassert_equal_ptr(uart_irq_callback_user_data_set_mock_fake.arg0_val, &testUartDevice,
+                    "expected uart_irq_callback_user_data_set called with ctx.uart");
+  zassert_not_null(uart_irq_callback_user_data_set_mock_fake.arg1_val,
+                   "expected uart_irq_callback_user_data_set called with a non-NULL callback");
+  zassert_is_null(uart_irq_callback_user_data_set_mock_fake.arg2_val,
+                  "expected uart_irq_callback_user_data_set called with NULL user_data");
 }
 
 /**
  * @test run must disable RX, reset the parser, confirm STOPPED state and
- *       return without updating the heartbeat on SVC_CTRL_STOP
+ *       return without updating the heartbeat a second time on SVC_CTRL_STOP
  */
 ZTEST(simhubDevice_tests, test_run_stops_service_on_stop_ctrl_message)
 {
+  /* Skip the DTR-wait k_msgq_get call so STOP is consumed in the main loop. */
+  testCtrlQueueSkipCount   = 1;
   testCtrlQueueMessages[0] = SVC_CTRL_STOP;
-  testCtrlQueueMsgCount = 1;
+  testCtrlQueueMsgCount    = 1;
   k_msgq_get_mock_fake.custom_fake = k_msgq_get_from_ctrl_queue;
 
   run(NULL, NULL, NULL);
 
-  zassert_equal(uart_rx_disable_mock_fake.call_count, 1, "expected uart_rx_disable called once");
-  zassert_equal_ptr(uart_rx_disable_mock_fake.arg0_val, &testUartDevice, "expected uart_rx_disable called with ctx.uart");
+  zassert_equal(uart_irq_rx_disable_mock_fake.call_count, 1, "expected uart_irq_rx_disable called once");
+  zassert_equal_ptr(uart_irq_rx_disable_mock_fake.arg0_val, &testUartDevice,
+                    "expected uart_irq_rx_disable called with ctx.uart");
   zassert_equal(simhubDevUtilReset_fake.call_count, 1, "expected simhubDevUtilReset called once");
   zassert_equal(serviceManagerConfirmState_fake.call_count, 1, "expected serviceManagerConfirmState called once");
   zassert_equal(serviceManagerConfirmState_fake.arg1_val, SVC_STATE_STOPPED,
                 "expected serviceManagerConfirmState called with SVC_STATE_STOPPED");
-  zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 0, "expected heartbeat not updated after STOP");
+  /* One heartbeat from DTR wait, none from main loop (returns on STOP). */
+  zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 1, "expected heartbeat updated once from DTR wait only");
 }
 
 /**
  * @test run must disable RX, reset the parser, confirm SUSPENDED state,
- *       suspend the thread, re-enable RX and update the heartbeat on
- *       SVC_CTRL_SUSPEND
+ *       suspend the thread and re-enable RX on SVC_CTRL_SUSPEND
  */
 ZTEST(simhubDevice_tests, test_run_suspends_service_on_suspend_ctrl_message)
 {
+  /* Skip the DTR-wait k_msgq_get call so SUSPEND is consumed in the main loop. */
+  testCtrlQueueSkipCount   = 1;
   testCtrlQueueMessages[0] = SVC_CTRL_SUSPEND;
-  testCtrlQueueMsgCount = 1;
+  testCtrlQueueMsgCount    = 1;
   k_msgq_get_mock_fake.custom_fake = k_msgq_get_from_ctrl_queue;
 
   run(NULL, NULL, NULL);
 
-  zassert_equal(uart_rx_disable_mock_fake.call_count, 1, "expected uart_rx_disable called once");
+  zassert_equal(uart_irq_rx_disable_mock_fake.call_count, 1, "expected uart_irq_rx_disable called once");
   zassert_equal(simhubDevUtilReset_fake.call_count, 1, "expected simhubDevUtilReset called once");
   zassert_equal(serviceManagerConfirmState_fake.call_count, 1, "expected serviceManagerConfirmState called once");
   zassert_equal(serviceManagerConfirmState_fake.arg1_val, SVC_STATE_SUSPENDED,
                 "expected serviceManagerConfirmState called with SVC_STATE_SUSPENDED");
   zassert_equal(k_thread_suspend_mock_fake.call_count, 1, "expected k_thread_suspend called once");
-  /* uart_rx_enable called twice: once in initial rxEnable, once after resume */
-  zassert_equal(uart_rx_enable_mock_fake.call_count, 2, "expected uart_rx_enable called twice (init + after resume)");
-  zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 1, "expected heartbeat updated after resume");
-}
-
-/**
- * @test run must log an error and continue when rxEnable fails after resuming
- *       from suspend
- */
-ZTEST(simhubDevice_tests, test_run_logs_error_and_continues_when_rx_enable_fails_after_resume)
-{
-  /* First uart_rx_enable (initial rxEnable) succeeds; second (post-resume) fails. */
-  int rxEnableReturnSeq[] = {0, -EIO};
-  SET_RETURN_SEQ(uart_rx_enable_mock, rxEnableReturnSeq, 2);
-  testCtrlQueueMessages[0] = SVC_CTRL_SUSPEND;
-  testCtrlQueueMsgCount = 1;
-  k_msgq_get_mock_fake.custom_fake = k_msgq_get_from_ctrl_queue;
-
-  run(NULL, NULL, NULL);
-
-  zassert_equal(uart_rx_enable_mock_fake.call_count, 2, "expected uart_rx_enable called twice");
-  zassert_equal(k_thread_suspend_mock_fake.call_count, 1, "expected k_thread_suspend called once");
-  zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 1, "expected heartbeat updated after resume");
+  /* uart_irq_rx_enable called twice: initial rxEnable and post-resume rxEnable. */
+  zassert_equal(uart_irq_rx_enable_mock_fake.call_count, 2,
+                "expected uart_irq_rx_enable called twice (init + after resume)");
+  /* One heartbeat from DTR wait, one from the main loop body after handling SUSPEND. */
+  zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 2, "expected heartbeat updated twice");
 }
 
 /**
@@ -719,14 +753,16 @@ ZTEST(simhubDevice_tests, test_run_logs_error_and_continues_when_rx_enable_fails
  */
 ZTEST(simhubDevice_tests, test_run_continues_on_unknown_ctrl_message)
 {
+  testCtrlQueueSkipCount   = 1;
   testCtrlQueueMessages[0] = (ServiceCtrlMsg_t)0xFF;
-  testCtrlQueueMsgCount = 1;
+  testCtrlQueueMsgCount    = 1;
   k_msgq_get_mock_fake.custom_fake = k_msgq_get_from_ctrl_queue;
 
   run(NULL, NULL, NULL);
 
-  zassert_equal(uart_rx_disable_mock_fake.call_count, 0, "expected uart_rx_disable not called");
-  zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 1, "expected heartbeat updated after unknown message");
+  zassert_equal(uart_irq_rx_disable_mock_fake.call_count, 0, "expected uart_irq_rx_disable not called");
+  /* One heartbeat from DTR wait, one from the main loop body. */
+  zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 2, "expected heartbeat updated twice");
 }
 
 /**
@@ -740,7 +776,8 @@ ZTEST(simhubDevice_tests, test_run_polls_rx_sem_and_updates_heartbeat_when_no_da
   zassert_equal(k_sem_take_mock_fake.call_count, 1, "expected k_sem_take called once");
   zassert_equal_ptr(k_sem_take_mock_fake.arg0_val, &rxSem, "expected k_sem_take called with &rxSem");
   zassert_equal(simhubDevUtilReceivedPkt_fake.call_count, 0, "expected simhubDevUtilReceivedPkt not called");
-  zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 1, "expected heartbeat updated");
+  /* One heartbeat from DTR wait, one from the main loop body. */
+  zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 2, "expected heartbeat updated twice");
 }
 
 /**
@@ -749,17 +786,17 @@ ZTEST(simhubDevice_tests, test_run_polls_rx_sem_and_updates_heartbeat_when_no_da
  */
 ZTEST(simhubDevice_tests, test_run_does_not_dispatch_pkt_when_received_pkt_incomplete)
 {
-  testRingBufBytes[0] = 0xAA;
+  testRingBufBytes[0]  = 0xAA;
   testRingBufByteCount = 1;
-  ring_buf_get_mock_fake.custom_fake = ring_buf_get_from_test_buf;
-  simhubDevUtilReceivedPkt_fake.return_val = false;
+  ring_buf_get_mock_fake.custom_fake        = ring_buf_get_from_test_buf;
+  simhubDevUtilReceivedPkt_fake.return_val  = false;
 
   run(NULL, NULL, NULL);
 
   zassert_equal(simhubDevUtilReceivedPkt_fake.call_count, 1, "expected simhubDevUtilReceivedPkt called once");
   zassert_equal(simhubDevUtilReceivedPkt_fake.arg0_val, 0xAAu, "expected simhubDevUtilReceivedPkt called with the byte");
   zassert_equal(simhubDevUtilGetPktType_fake.call_count, 0, "expected simhubDevUtilGetPktType not called");
-  zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 1, "expected heartbeat updated");
+  zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 2, "expected heartbeat updated twice");
 }
 
 /**
@@ -768,18 +805,18 @@ ZTEST(simhubDevice_tests, test_run_does_not_dispatch_pkt_when_received_pkt_incom
  */
 ZTEST(simhubDevice_tests, test_run_dispatches_pkt_when_received_pkt_completes)
 {
-  testRingBufBytes[0] = 0x55;
+  testRingBufBytes[0]  = 0x55;
   testRingBufByteCount = 1;
-  ring_buf_get_mock_fake.custom_fake = ring_buf_get_from_test_buf;
-  simhubDevUtilReceivedPkt_fake.return_val = true;
-  simhubDevUtilGetPktType_fake.return_val = SIMHUB_PKT_UNLOCK;
+  ring_buf_get_mock_fake.custom_fake        = ring_buf_get_from_test_buf;
+  simhubDevUtilReceivedPkt_fake.return_val  = true;
+  simhubDevUtilGetPktType_fake.return_val   = SIMHUB_PKT_UNLOCK;
 
   run(NULL, NULL, NULL);
 
   zassert_equal(simhubDevUtilReceivedPkt_fake.call_count, 1, "expected simhubDevUtilReceivedPkt called once");
   zassert_equal(simhubDevUtilGetPktType_fake.call_count, 1, "expected simhubDevUtilGetPktType called once");
   zassert_equal(simhubDevUtilProcessUnlock_fake.call_count, 1, "expected simhubDevUtilProcessUnlock called once");
-  zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 1, "expected heartbeat updated");
+  zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 2, "expected heartbeat updated twice");
 }
 
 /**
@@ -879,7 +916,7 @@ ZTEST(simhubDevice_tests, test_simhub_device_init_returns_enodev_when_uart_not_r
  */
 ZTEST(simhubDevice_tests, test_simhub_device_init_returns_error_when_thread_name_set_fails)
 {
-  device_is_ready_mock_fake.return_val = true;
+  device_is_ready_mock_fake.return_val    = true;
   k_thread_name_set_mock_fake.return_val = -EINVAL;
 
   int ret = simhubDeviceInit();
@@ -894,9 +931,9 @@ ZTEST(simhubDevice_tests, test_simhub_device_init_returns_error_when_thread_name
  */
 ZTEST(simhubDevice_tests, test_simhub_device_init_returns_error_when_register_srv_fails)
 {
-  device_is_ready_mock_fake.return_val = true;
-  k_thread_name_set_mock_fake.return_val = 0;
-  serviceManagerRegisterSrv_fake.return_val = -ENOMEM;
+  device_is_ready_mock_fake.return_val        = true;
+  k_thread_name_set_mock_fake.return_val     = 0;
+  serviceManagerRegisterSrv_fake.return_val  = -ENOMEM;
 
   int ret = simhubDeviceInit();
 
@@ -912,10 +949,10 @@ ZTEST(simhubDevice_tests, test_simhub_device_init_registers_service_and_returns_
   static struct k_thread fakeThread;
   k_tid_t fakeThreadId = (k_tid_t)&fakeThread;
 
-  device_is_ready_mock_fake.return_val = true;
-  k_thread_create_mock_fake.return_val = fakeThreadId;
-  k_thread_name_set_mock_fake.return_val = 0;
-  serviceManagerRegisterSrv_fake.return_val = 0;
+  device_is_ready_mock_fake.return_val        = true;
+  k_thread_create_mock_fake.return_val        = fakeThreadId;
+  k_thread_name_set_mock_fake.return_val     = 0;
+  serviceManagerRegisterSrv_fake.return_val  = 0;
 
   int ret = simhubDeviceInit();
 
