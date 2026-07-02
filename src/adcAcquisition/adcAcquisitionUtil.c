@@ -46,7 +46,7 @@ LOG_MODULE_DECLARE(ADC_AQC_SERVICE_NAME);
 #define CHANNEL_INTERVAL (0)
 
 /**
- * @brief   Calibration done at 3000 mV.
+ * @brief   Fallback calibration voltage (mV) when VREFINT_CAL_VREF is not defined by the HAL.
  */
 #define VREFINT_CAL_VOLTAGE (3000)
 
@@ -337,8 +337,8 @@ static int configureTimer(void)
 static inline int32_t calculateVdd(int32_t vrefVal)
 {
   uint16_t vrefCal = getVrefintCal();
-#if defined(VREFINT_CAL_VREFANALOG)
-  return VREFINT_CAL_VREFANALOG * vrefCal / vrefVal;
+#if defined(VREFINT_CAL_VREF)
+  return VREFINT_CAL_VREF * vrefCal / vrefVal;
 #else
   return VREFINT_CAL_VOLTAGE * vrefCal / vrefVal;
 #endif
