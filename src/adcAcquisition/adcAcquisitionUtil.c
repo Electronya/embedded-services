@@ -12,15 +12,15 @@
  * @{
  */
 
+#include <soc.h>
+#include <string.h>
+#include <zephyr/devicetree.h>
 #include <zephyr/drivers/counter.h>
 #include <zephyr/logging/log.h>
-#include <zephyr/devicetree.h>
-#include <string.h>
-#include <soc.h>
 
+#include "adcAcquisitionFilter.h"
 #include "adcAcquisitionUtil.h"
 #include "adcAcquisitionVref.h"
-#include "adcAcquisitionFilter.h"
 
 /* Setting module logging */
 LOG_MODULE_DECLARE(ADC_AQC_SERVICE_NAME);
@@ -28,47 +28,47 @@ LOG_MODULE_DECLARE(ADC_AQC_SERVICE_NAME);
 /**
  * @brief   The oversampling setting value.
  */
-#define OVERSAMPLING_SETTING                                            (4)
+#define OVERSAMPLING_SETTING (4)
 
 /**
  * @brief   The oversampling effective resolution.
  */
-#define OVERSAMPLING_RESOLUTION                                         (12)
+#define OVERSAMPLING_RESOLUTION (12)
 
 /**
  * @brief   The extra sampling setting.
  */
-#define EXTRA_SAMPLINGS_SETTING                                         (0)
+#define EXTRA_SAMPLINGS_SETTING (0)
 
 /**
  * @brief   The in between channel interval.
  */
-#define CHANNEL_INTERVAL                                                (0)
+#define CHANNEL_INTERVAL (0)
 
 /**
- * @brief   Calibration done at 3.0V
+ * @brief   Calibration done at 3000 mV.
  */
-#define VREFINT_CAL_VOLTAGE                                             (3.0f)
+#define VREFINT_CAL_VOLTAGE (3000)
 
 /**
  * @brief   The ADC full range value.
  */
-#define ADC_FULL_RANGE_VALUE                                            (4095.0f)
+#define ADC_FULL_RANGE_VALUE (4095.0f)
 
 /**
  * @brief   The user node from devicetree.
  */
-#define USER_NODE                                                       DT_PATH(zephyr_user)
+#define USER_NODE DT_PATH(zephyr_user)
 
 /**
  * @brief   The Vref channel index from devicetree.
  */
-#define VREF_CHANNEL_INDEX                                              DT_PROP(USER_NODE, vref_channel_index)
+#define VREF_CHANNEL_INDEX DT_PROP(USER_NODE, vref_channel_index)
 
 /**
  * @brief   The ADC trigger timer from devicetree alias.
  */
-#define ADC_TRIGGER_TIMER                                               DEVICE_DT_GET(DT_ALIAS(adc_trigger))
+#define ADC_TRIGGER_TIMER DEVICE_DT_GET(DT_ALIAS(adc_trigger))
 
 /**
  * @brief  The ADC trigger configuration.
@@ -84,6 +84,12 @@ static const struct device *adc;
  * @brief   The ADC channel count.
  */
 static size_t chanCount;
+
+/**
+ * @brief   The volt buffer size.
+ *          The channel count + 1 to include the calibrated Vdd.
+ */
+static size_t voltBufSize;
 
 /**
  * @brief   The ADC acquisition configuration.
@@ -106,7 +112,7 @@ static osMemoryPoolId_t subDataPool = NULL;
 static uint16_t *buffer = NULL;
 
 /**
- * @brief   The average of the ADC value in volts.
+ * @brief   The ADC channel values in volts, with Vdd at index voltBufSize - 1.
  */
 static float *voltValues = NULL;
 
@@ -132,8 +138,7 @@ typedef struct
 {
   AdcSubCallback_t callback;
   bool isPaused;
-}
-AdcSubEntry_t;
+} AdcSubEntry_t;
 
 /**
  * @brief   The subscriptions.
@@ -143,15 +148,12 @@ static AdcSubEntry_t *subscriptions = NULL;
 /**
  * @brief   Helper macro for DT_FOREACH_PROP_ELEM to get ADC specs with commas.
  */
-#define ADC_DT_SPEC_AND_COMMA(node_id, prop, idx) \
-  ADC_DT_SPEC_GET_BY_IDX(node_id, idx),
+#define ADC_DT_SPEC_AND_COMMA(node_id, prop, idx) ADC_DT_SPEC_GET_BY_IDX(node_id, idx),
 
 /**
  * @brief   The ADC channels from devicetree io-channels property.
  */
-static const struct adc_dt_spec adcChannels[] = {
-  DT_FOREACH_PROP_ELEM(USER_NODE, io_channels, ADC_DT_SPEC_AND_COMMA)
-};
+static const struct adc_dt_spec adcChannels[] = {DT_FOREACH_PROP_ELEM(USER_NODE, io_channels, ADC_DT_SPEC_AND_COMMA)};
 
 /**
  * @brief   Enable the internal voltage reference (VREFINT).
@@ -186,7 +188,7 @@ static inline uint16_t getVrefintCal(void)
   /* Standard STM32 CMSIS define */
   return *VREFINT_CAL_ADDR;
 #else
-  #error "VREFINT_CAL_ADDR not defined for this SOC. Check STM32 CMSIS headers or disable VREFINT usage."
+#error "VREFINT_CAL_ADDR not defined for this SOC. Check STM32 CMSIS headers or disable VREFINT usage."
 #endif
 }
 
@@ -209,7 +211,7 @@ static inline int allocateBuffers(size_t chanCount)
     return err;
   }
 
-  voltValues = k_malloc(chanCount * sizeof(float));
+  voltValues = k_malloc((chanCount + 1) * sizeof(float));
   if(!voltValues)
   {
     err = -ENOSPC;
@@ -297,7 +299,7 @@ static void triggerConversion(const struct device *dev, void *user_data)
   if(err < 0)
   {
     LOG_ERR("ERROR %d: unable to start the ADC conversion", err);
-    adcBusy = false;  /* Clear flag on error */
+    adcBusy = false; /* Clear flag on error */
   }
 }
 
@@ -326,6 +328,23 @@ static int configureTimer(void)
 }
 
 /**
+ * @brief   Calculate the real VDD.
+ *
+ * @param[in]   vrefVal: The acquired internal Vref value.
+ *
+ * @return  The calculated real VDD.
+ */
+static inline int32_t calculateVdd(int32_t vrefVal)
+{
+  uint16_t vrefCal = getVrefintCal();
+#if defined(VREFINT_CAL_VREFANALOG)
+  return VREFINT_CAL_VREFANALOG * vrefCal / vrefVal;
+#else
+  return VREFINT_CAL_VOLTAGE * vrefCal / vrefVal;
+#endif
+}
+
+/**
  * @brief   The sequence callback.
  *
  * @param[in]   dev: The ADC device.
@@ -337,13 +356,25 @@ static int configureTimer(void)
 static enum adc_action adcSeqCallback(const struct device *dev, const struct adc_sequence *sequence, uint16_t samplingIndex)
 {
   int err;
+  size_t i;
+  int32_t chanValue;
+  int32_t ref = calculateVdd((int32_t)buffer[VREF_CHANNEL_INDEX]);
 
-  for(size_t i = 0; i < chanCount; ++i)
+  for(i = 0; i < chanCount; ++i)
   {
-    err = adcAcqFilterPushData(i, (int32_t)buffer[i], config.filterTau);
+    chanValue = (int32_t)buffer[i];
+
+    err = adc_raw_to_millivolts(ref, adcChannels[i].channel_cfg.gain, adcChannels[i].resolution, &chanValue);
+    __ASSERT(err == 0, "adc_raw_to_millivolts failed: gain not reversible for channel %d", i);
+
+    err = adcAcqFilterPushData(i, chanValue, config.filterTau);
     if(err < 0)
       LOG_ERR("ERROR %d: unable to push data to the filter", err);
   }
+
+  err = adcAcqFilterPushData(i, ref, config.filterTau);
+  if(err < 0)
+    LOG_ERR("ERROR %d: unable to push data to the filter", err);
 
   /* Clear busy flag - conversion complete */
   adcBusy = false;
@@ -368,26 +399,13 @@ static inline void setupSequence(void)
   seqOptions.callback = adcSeqCallback;
 }
 
-/**
- * @brief   Calculate the real VDD.
- *
- * @param[in]   vrefVal: The acquired internal Vref value.
- *
- * @return  The calculated real VDD.
- */
-static inline float calculateVdd(int32_t vrefVal)
-{
-  uint16_t vrefCal = getVrefintCal();
-
-  return VREFINT_CAL_VOLTAGE * (float)vrefCal / (float)vrefVal;
-}
-
 int adcAcqUtilInitAdc(AdcConfig_t *adcConfig)
 {
   int err;
 
   adc = adcChannels[0].dev;
   chanCount = ARRAY_SIZE(adcChannels);
+  voltBufSize = chanCount + 1;
   config.samplingRate = adcConfig->samplingRate;
   config.filterTau = adcConfig->filterTau;
 
@@ -434,11 +452,10 @@ int adcAcqUtilInitSubscriptions(AdcSubConfig_t *adcSubConfig)
   subConfig.activeSubCount = 0;
 
   /* Calculate memory pool parameters */
-  blockSize = sizeof(SrvMsgPayload_t) + (chanCount * sizeof(float));
+  blockSize = sizeof(SrvMsgPayload_t) + (voltBufSize * sizeof(float));
   blockCount = 2 * subConfig.maxSubCount;
 
-  LOG_INF("attempting to create pool: chanCount=%zu, blockSize=%zu, blockCount=%zu",
-          chanCount, blockSize, blockCount);
+  LOG_INF("attempting to create pool: chanCount=%zu, blockSize=%zu, blockCount=%zu", chanCount, blockSize, blockCount);
 
   /* Create memory pool for subscription data */
   subDataPool = osMemoryPoolNew(blockCount, blockSize, NULL);
@@ -487,28 +504,15 @@ int adcAcqUtilProcessData(void)
 {
   int err;
   int32_t rawData;
-  int32_t rawVref;
-  float vdd;
 
-  /* Read Vref from the configured vref channel index */
-  err = adcAcqFilterGetThirdOrderData(VREF_CHANNEL_INDEX, &rawVref);
-  if(err < 0)
-  {
-    LOG_ERR("ERROR %d: unable to get vref data from ADC", err);
-    return err;
-  }
-
-  /* Calculate real VDD from internal Vref reading */
-  vdd = calculateVdd(rawVref);
-
-  /* Convert all channels to voltage */
-  for(size_t i = 0; i < ARRAY_SIZE(adcChannels); ++i)
+  /* Convert all channels from mV to V */
+  for(size_t i = 0; i < voltBufSize; ++i)
   {
     err = adcAcqFilterGetThirdOrderData(i, &rawData);
     if(err < 0)
       return err;
 
-    voltValues[i] = ((float)rawData * vdd) / ADC_FULL_RANGE_VALUE;
+    voltValues[i] = (float)rawData / 1000.0f;
   }
 
   return 0;
@@ -534,8 +538,8 @@ int adcAcqUtilNotifySubscribers(void)
 
       /* Fill in data */
       payload->poolId = subDataPool;
-      payload->dataLen = chanCount * sizeof(float);
-      memcpy(payload->data, voltValues, chanCount * sizeof(float));
+      payload->dataLen = voltBufSize * sizeof(float);
+      memcpy(payload->data, voltValues, voltBufSize * sizeof(float));
 
       /* Call subscriber callback */
       err = subscriptions[i].callback(payload);
@@ -621,14 +625,14 @@ int adcAcqUtilSetSubPauseState(AdcSubCallback_t callback, bool isPaused)
 
 size_t adcAcqUtilGetChanCount(void)
 {
-  return chanCount;
+  return voltBufSize;
 }
 
 int adcAcqUtilGetRaw(size_t chanId, uint32_t *rawVal)
 {
   int err = 0;
 
-  if(chanId >= chanCount)
+  if(chanId >= voltBufSize)
   {
     err = -EINVAL;
     LOG_ERR("ERROR %d: invalid channel ID %d", err, chanId);
@@ -653,7 +657,7 @@ int adcAcqUtilGetVolt(size_t chanId, float *voltVal)
 {
   int err = 0;
 
-  if(chanId >= chanCount)
+  if(chanId >= voltBufSize)
   {
     err = -EINVAL;
     LOG_ERR("ERROR %d: invalid channel ID %d", err, chanId);
