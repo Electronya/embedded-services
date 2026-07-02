@@ -10,6 +10,7 @@
  */
 
 #include <zephyr/ztest.h>
+#include <zephyr/ztest_error_hook.h>
 #include <zephyr/fff.h>
 #include <zephyr/kernel.h>
 #include <string.h>
@@ -45,6 +46,7 @@ typedef void *osMemoryPoolId_t;
   FAKE(adc_is_ready_dt) \
   FAKE(adc_channel_setup_dt) \
   FAKE(adc_read_async) \
+  FAKE(adc_raw_to_millivolts) \
   FAKE(counter_us_to_ticks) \
   FAKE(counter_set_top_value) \
   FAKE(counter_start) \
@@ -94,8 +96,20 @@ static uint16_t mock_vrefint_cal __attribute__((unused)) = 1500;
 /* Mock soc.h */
 #define _SOC__H_
 
+/* ADC gain enum - minimal definition matching Zephyr's enum */
+enum adc_gain {
+  ADC_GAIN_1 = 0,
+};
+
+/* ADC channel config - minimal definition */
+struct adc_channel_cfg {
+  enum adc_gain gain;
+};
+
 /* Mock ADC devicetree macro */
-#define ADC_DT_SPEC_GET_BY_IDX(node, idx) {.dev = (const struct device *)0x1000, .channel_id = idx, .resolution = 12, .oversampling = 0}
+#define ADC_DT_SPEC_GET_BY_IDX(node, idx) \
+  {.dev = (const struct device *)0x1000, .channel_id = idx, \
+   .channel_cfg = {.gain = ADC_GAIN_1}, .resolution = 12, .oversampling = 0}
 
 /* Mock timer device and devicetree macros for adc-trigger alias */
 static const struct device mock_timer_device __attribute__((unused)) = {0};
@@ -152,6 +166,7 @@ struct adc_sequence {
 struct adc_dt_spec {
   const struct device *dev;
   uint8_t channel_id;
+  struct adc_channel_cfg channel_cfg;
   uint8_t resolution;
   uint8_t oversampling;
 };
@@ -167,6 +182,7 @@ struct counter_top_cfg {
 FAKE_VALUE_FUNC(bool, adc_is_ready_dt, const struct adc_dt_spec *);
 FAKE_VALUE_FUNC(int, adc_channel_setup_dt, const struct adc_dt_spec *);
 FAKE_VALUE_FUNC(int, adc_read_async, const struct device *, const struct adc_sequence *, struct k_poll_signal *);
+FAKE_VALUE_FUNC(int, adc_raw_to_millivolts, int32_t, enum adc_gain, uint8_t, int32_t *);
 
 /* Mock counter/timer functions */
 FAKE_VALUE_FUNC(uint32_t, counter_us_to_ticks, const struct device *, uint64_t);
@@ -212,8 +228,10 @@ static void *util_tests_setup(void)
 static void util_tests_before(void *fixture)
 {
   extern size_t chanCount;
+  extern size_t voltBufSize;
   extern volatile bool adcBusy;
   extern uint16_t *buffer;
+  extern float *voltValues;
   extern AdcConfig_t config;
 
   FFF_FAKES_LIST(RESET_FAKE);
@@ -223,14 +241,16 @@ static void util_tests_before(void *fixture)
   mock_adc1_common.CCR = 0;
   mock_vrefen_fails = false;
 
-  /* Reset chanCount - it's a static variable in adcAcquisitionUtil.c */
+  /* Reset chanCount and voltBufSize */
   chanCount = 0;
+  voltBufSize = 0;
 
   /* Reset adcBusy flag */
   adcBusy = false;
 
-  /* Reset buffer pointer */
+  /* Reset buffer and voltValues pointers */
   buffer = NULL;
+  voltValues = NULL;
 
   /* Reset config structure */
   memset(&config, 0, sizeof(config));
@@ -474,6 +494,84 @@ ZTEST(adc_util_tests, test_configure_timer_success)
 }
 
 /**
+ * @test The calculateVdd function must correctly calculate VDD
+ * when vrefVal equals the calibration value (VDD = 3000 mV).
+ */
+ZTEST(adc_util_tests, test_calculate_vdd_at_calibration_voltage)
+{
+  extern int32_t calculateVdd(int32_t vrefVal);
+  int32_t vdd;
+
+  /* VREFINT_CAL_VOLTAGE * vrefCal / vrefVal = 3000 * 1500 / 1500 = 3000 mV */
+  vdd = calculateVdd(1500);
+
+  zassert_equal(vdd, 3000,
+                "VDD should be 3000 mV when vrefVal equals calibration value");
+}
+
+/**
+ * @test The calculateVdd function must correctly calculate VDD
+ * when vrefVal is lower than calibration (indicating higher VDD).
+ */
+ZTEST(adc_util_tests, test_calculate_vdd_higher_voltage)
+{
+  extern int32_t calculateVdd(int32_t vrefVal);
+  int32_t vdd;
+
+  /* 3000 * 1500 / 1364 = 3299 mV */
+  vdd = calculateVdd(1364);
+
+  zassert_equal(vdd, 3299,
+                "VDD should be 3299 mV when vrefVal is 1364");
+}
+
+/**
+ * @test The calculateVdd function must correctly calculate VDD
+ * when vrefVal is higher than calibration (indicating lower VDD).
+ */
+ZTEST(adc_util_tests, test_calculate_vdd_lower_voltage)
+{
+  extern int32_t calculateVdd(int32_t vrefVal);
+  int32_t vdd;
+
+  /* 3000 * 1500 / 1667 = 2699 mV */
+  vdd = calculateVdd(1667);
+
+  zassert_equal(vdd, 2699,
+                "VDD should be 2699 mV when vrefVal is 1667");
+}
+
+/**
+ * @test The adcSeqCallback function must assert when adc_raw_to_millivolts
+ * returns an error (gain not reversible).
+ */
+ZTEST(adc_util_tests, test_adc_seq_callback_millivolts_conversion_failure)
+{
+  extern enum adc_action adcSeqCallback(const struct device *dev, const struct adc_sequence *sequence, uint16_t samplingIndex);
+  extern size_t chanCount;
+  extern uint16_t *buffer;
+  uint16_t test_buffer[2];
+
+  chanCount = 2;
+  test_buffer[0] = 1234;
+  test_buffer[1] = 5678;
+  buffer = test_buffer;
+
+  /* Configure adc_raw_to_millivolts to return error (gain not reversible) */
+  adc_raw_to_millivolts_fake.return_val = -EINVAL;
+
+  /* Tell ztest to expect the __ASSERT to fire */
+  ztest_set_assert_valid(true);
+  adcSeqCallback((const struct device *)0x1000, NULL, 0);
+
+  zassert_equal(adc_raw_to_millivolts_fake.call_count, 1,
+                "adc_raw_to_millivolts should be called once before assert fires");
+
+  /* Clean up */
+  buffer = NULL;
+}
+
+/**
  * @test The adcSeqCallback function must clear adcBusy flag and
  * return ADC_ACTION_FINISH even when filter push fails.
  */
@@ -490,20 +588,21 @@ ZTEST(adc_util_tests, test_adc_seq_callback_filter_push_failure)
   chanCount = 2;
   adcBusy = true;
 
-  /* Initialize buffer with test data */
+  /* Initialize buffer with test data (buffer[0] is VREF_CHANNEL_INDEX) */
   test_buffer[0] = 1234;
   test_buffer[1] = 5678;
   buffer = test_buffer;
 
-  /* Configure mock to return error from adcAcqFilterPushData */
+  /* adc_raw_to_millivolts succeeds, filter push fails */
+  adc_raw_to_millivolts_fake.return_val = 0;
   adcAcqFilterPushData_fake.return_val = -EIO;
 
   /* Call adcSeqCallback */
   result = adcSeqCallback((const struct device *)0x1000, NULL, 0);
 
-  /* Verify filter push was called for each channel */
-  zassert_equal(adcAcqFilterPushData_fake.call_count, 2,
-                "adcAcqFilterPushData should be called twice for 2 channels");
+  /* Verify filter push was called for each channel plus Vdd */
+  zassert_equal(adcAcqFilterPushData_fake.call_count, 3,
+                "adcAcqFilterPushData should be called 3 times (chanCount + Vdd)");
 
   /* Verify adcBusy is cleared even on error */
   zassert_false(adcBusy,
@@ -518,8 +617,8 @@ ZTEST(adc_util_tests, test_adc_seq_callback_filter_push_failure)
 }
 
 /**
- * @test The adcSeqCallback function must successfully push data to
- * filters and clear adcBusy flag.
+ * @test The adcSeqCallback function must convert samples to mV, push
+ * all channels and Vdd to the filter, and clear adcBusy.
  */
 ZTEST(adc_util_tests, test_adc_seq_callback_success)
 {
@@ -530,38 +629,59 @@ ZTEST(adc_util_tests, test_adc_seq_callback_success)
   extern AdcConfig_t config;
   uint16_t test_buffer[2];
   enum adc_action result;
+  /* ref = calculateVdd(buffer[VREF_CHANNEL_INDEX=0]) = 3000 * 1500 / 1234 = 3646 mV */
+  const int32_t expected_ref = 3646;
 
   /* Set up test state */
   chanCount = 2;
   adcBusy = true;
   config.filterTau = 100;
 
-  /* Initialize buffer with test data */
+  /* buffer[0] is VREF_CHANNEL_INDEX */
   test_buffer[0] = 1234;
   test_buffer[1] = 5678;
   buffer = test_buffer;
 
-  /* Configure mock to return success from adcAcqFilterPushData */
+  /* Configure mocks to succeed */
+  adc_raw_to_millivolts_fake.return_val = 0;
   adcAcqFilterPushData_fake.return_val = 0;
 
   /* Call adcSeqCallback */
   result = adcSeqCallback((const struct device *)0x1000, NULL, 0);
 
-  /* Verify filter push was called for each channel with correct parameters */
-  zassert_equal(adcAcqFilterPushData_fake.call_count, 2,
-                "adcAcqFilterPushData should be called twice for 2 channels");
+  /* Verify adc_raw_to_millivolts was called for each channel */
+  zassert_equal(adc_raw_to_millivolts_fake.call_count, 2,
+                "adc_raw_to_millivolts should be called twice for 2 channels");
+  zassert_equal(adc_raw_to_millivolts_fake.arg0_history[0], expected_ref,
+                "adc_raw_to_millivolts first call should use calculated ref");
+  zassert_equal(adc_raw_to_millivolts_fake.arg1_history[0], ADC_GAIN_1,
+                "adc_raw_to_millivolts should use channel gain");
+  zassert_equal(adc_raw_to_millivolts_fake.arg2_history[0], 12,
+                "adc_raw_to_millivolts should use channel resolution");
+  zassert_equal(adc_raw_to_millivolts_fake.arg0_history[1], expected_ref,
+                "adc_raw_to_millivolts second call should use same ref");
+
+  /* Verify filter push was called for each channel plus Vdd */
+  zassert_equal(adcAcqFilterPushData_fake.call_count, 3,
+                "adcAcqFilterPushData should be called 3 times (chanCount + Vdd)");
   zassert_equal(adcAcqFilterPushData_fake.arg0_history[0], 0,
-                "First call should be for channel 0");
+                "First push should be for channel 0");
   zassert_equal(adcAcqFilterPushData_fake.arg1_history[0], 1234,
-                "First call should use buffer[0] value");
+                "First push value should be buffer[0] (mock does not convert)");
   zassert_equal(adcAcqFilterPushData_fake.arg2_history[0], 100,
-                "First call should use config.filterTau");
+                "First push should use config.filterTau");
   zassert_equal(adcAcqFilterPushData_fake.arg0_history[1], 1,
-                "Second call should be for channel 1");
+                "Second push should be for channel 1");
   zassert_equal(adcAcqFilterPushData_fake.arg1_history[1], 5678,
-                "Second call should use buffer[1] value");
+                "Second push value should be buffer[1] (mock does not convert)");
   zassert_equal(adcAcqFilterPushData_fake.arg2_history[1], 100,
-                "Second call should use config.filterTau");
+                "Second push should use config.filterTau");
+  zassert_equal(adcAcqFilterPushData_fake.arg0_history[2], 2,
+                "Third push should be for Vdd slot (chanCount)");
+  zassert_equal(adcAcqFilterPushData_fake.arg1_history[2], expected_ref,
+                "Third push value should be the calculated Vdd");
+  zassert_equal(adcAcqFilterPushData_fake.arg2_history[2], 100,
+                "Third push should use config.filterTau");
 
   /* Verify adcBusy is cleared */
   zassert_false(adcBusy,
@@ -625,63 +745,6 @@ ZTEST(adc_util_tests, test_setup_sequence)
 }
 
 /**
- * @test The calculateVdd function must correctly calculate VDD
- * when vrefVal equals the calibration value (VDD = 3.0V).
- */
-ZTEST(adc_util_tests, test_calculate_vdd_at_calibration_voltage)
-{
-  extern float calculateVdd(int32_t vrefVal);
-  float vdd;
-
-  /* When vrefVal equals the calibration value (1500), VDD should be 3.0V
-   * Formula: VDD = VREFINT_CAL_VOLTAGE * vrefCal / vrefVal
-   *        = 3.0 * 1500 / 1500 = 3.0V
-   */
-  vdd = calculateVdd(1500);
-
-  zassert_within(vdd, 3.0f, 0.001f,
-                 "VDD should be 3.0V when vrefVal equals calibration value");
-}
-
-/**
- * @test The calculateVdd function must correctly calculate VDD
- * when vrefVal is lower than calibration (indicating higher VDD).
- */
-ZTEST(adc_util_tests, test_calculate_vdd_higher_voltage)
-{
-  extern float calculateVdd(int32_t vrefVal);
-  float vdd;
-
-  /* When vrefVal is lower than calibration, VDD is higher
-   * Formula: VDD = VREFINT_CAL_VOLTAGE * vrefCal / vrefVal
-   *        = 3.0 * 1500 / 1364 = 3.3V (approximately)
-   */
-  vdd = calculateVdd(1364);
-
-  zassert_within(vdd, 3.3f, 0.01f,
-                 "VDD should be approximately 3.3V when vrefVal is 1364");
-}
-
-/**
- * @test The calculateVdd function must correctly calculate VDD
- * when vrefVal is higher than calibration (indicating lower VDD).
- */
-ZTEST(adc_util_tests, test_calculate_vdd_lower_voltage)
-{
-  extern float calculateVdd(int32_t vrefVal);
-  float vdd;
-
-  /* When vrefVal is higher than calibration, VDD is lower
-   * Formula: VDD = VREFINT_CAL_VOLTAGE * vrefCal / vrefVal
-   *        = 3.0 * 1500 / 1667 = 2.7V (approximately)
-   */
-  vdd = calculateVdd(1667);
-
-  zassert_within(vdd, 2.7f, 0.01f,
-                 "VDD should be approximately 2.7V when vrefVal is 1667");
-}
-
-/**
  * @test The adcAcqUtilInitAdc function must return -ENOSPC when
  * buffer allocation fails.
  */
@@ -742,7 +805,7 @@ ZTEST(adc_util_tests, test_init_adc_configure_channels_failure)
     .filterTau = 100
   };
   static uint16_t fake_buffer[2];
-  static float fake_volt_values[2];
+  static float fake_volt_values[3];
   int result;
 
   /* Configure k_malloc to succeed (return valid pointers) */
@@ -774,7 +837,7 @@ ZTEST(adc_util_tests, test_init_adc_configure_timer_failure)
     .filterTau = 100
   };
   static uint16_t fake_buffer[2];
-  static float fake_volt_values[2];
+  static float fake_volt_values[3];
   int result;
 
   /* Configure k_malloc to succeed (return valid pointers) */
@@ -814,7 +877,7 @@ ZTEST(adc_util_tests, test_init_adc_enable_vrefint_failure)
     .filterTau = 100
   };
   static uint16_t fake_buffer[2];
-  static float fake_volt_values[2];
+  static float fake_volt_values[3];
   int result;
 
   /* Configure k_malloc to succeed (return valid pointers) */
@@ -849,7 +912,7 @@ ZTEST(adc_util_tests, test_init_adc_success)
     .filterTau = 100
   };
   static uint16_t fake_buffer[2];
-  static float fake_volt_values[2];
+  static float fake_volt_values[3];
   int result;
 
   /* Configure k_malloc to succeed (return valid pointers) */
@@ -942,6 +1005,7 @@ ZTEST(adc_util_tests, test_init_subscriptions_pool_creation_failure)
 ZTEST(adc_util_tests, test_init_subscriptions_success)
 {
   extern size_t chanCount;
+  extern size_t voltBufSize;
   AdcSubConfig_t subConfigInput = {
     .maxSubCount = 4,
     .activeSubCount = 0
@@ -952,12 +1016,13 @@ ZTEST(adc_util_tests, test_init_subscriptions_success)
   size_t expectedBlockCount;
   size_t expectedBlockSize;
 
-  /* Set chanCount for block size calculation */
+  /* Set chanCount and voltBufSize for block size calculation */
   chanCount = 2;
+  voltBufSize = chanCount + 1;
 
   /* Calculate expected parameters for osMemoryPoolNew */
-  expectedBlockCount = 2 * subConfigInput.maxSubCount;  /* 2 * 4 = 8 */
-  expectedBlockSize = sizeof(SrvMsgPayload_t) + (chanCount * sizeof(float));
+  expectedBlockCount = 2 * subConfigInput.maxSubCount;
+  expectedBlockSize = sizeof(SrvMsgPayload_t) + (voltBufSize * sizeof(float));
 
   /* Configure k_malloc to succeed (return valid pointer) */
   k_malloc_fake.return_val = fake_subscriptions;
@@ -1101,58 +1166,71 @@ ZTEST(adc_util_tests, test_stop_trigger_success)
 
 /**
  * @test The adcAcqUtilProcessData function must return an error when
- * reading the Vref channel data fails.
+ * the first filter read fails.
  */
-ZTEST(adc_util_tests, test_process_data_vref_read_failure)
+ZTEST(adc_util_tests, test_process_data_first_read_failure)
 {
+  extern size_t chanCount;
+  extern size_t voltBufSize;
   int result;
 
-  /* Configure adcAcqFilterGetThirdOrderData to return error for Vref channel */
+  chanCount = 2;
+  voltBufSize = 3;
+
+  /* Configure adcAcqFilterGetThirdOrderData to return error on first call */
   adcAcqFilterGetThirdOrderData_fake.return_val = -EIO;
 
-  /* Call adcAcqUtilProcessData - should fail */
+  /* Call adcAcqUtilProcessData - should fail on first read */
   result = adcAcqUtilProcessData();
 
   zassert_equal(result, -EIO,
-                "adcAcqUtilProcessData should return -EIO when Vref read fails");
+                "adcAcqUtilProcessData should return -EIO when first read fails");
   zassert_equal(adcAcqFilterGetThirdOrderData_fake.call_count, 1,
-                "adcAcqFilterGetThirdOrderData should be called once for Vref");
-  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_val, VREF_CHANNEL_INDEX,
-                "adcAcqFilterGetThirdOrderData should be called with VREF_CHANNEL_INDEX");
+                "adcAcqFilterGetThirdOrderData should be called once before failing");
+  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_val, 0,
+                "Failed read should be at index 0");
 }
 
 /**
  * @test The adcAcqUtilProcessData function must return an error when
- * reading channel data in the conversion loop fails.
+ * a mid-loop filter read fails.
  */
-ZTEST(adc_util_tests, test_process_data_channel_read_failure)
+ZTEST(adc_util_tests, test_process_data_mid_read_failure)
 {
+  extern size_t chanCount;
+  extern size_t voltBufSize;
+  extern float *voltValues;
+  float test_volt_values[3];
   int result;
-  int return_vals[] = {0, -EIO};  /* Vref succeeds, first channel fails */
+  int return_vals[] = {0, -EIO};
 
-  /* Configure adcAcqFilterGetThirdOrderData to succeed for Vref, then fail */
+  chanCount = 2;
+  voltBufSize = 3;
+  voltValues = test_volt_values;
+
+  /* First read succeeds, second fails */
   SET_RETURN_SEQ(adcAcqFilterGetThirdOrderData, return_vals, 2);
 
-  /* Call adcAcqUtilProcessData - should fail on channel read */
+  /* Call adcAcqUtilProcessData - should fail on second read */
   result = adcAcqUtilProcessData();
 
   zassert_equal(result, -EIO,
-                "adcAcqUtilProcessData should return -EIO when channel read fails");
+                "adcAcqUtilProcessData should return -EIO when second read fails");
   zassert_equal(adcAcqFilterGetThirdOrderData_fake.call_count, 2,
-                "adcAcqFilterGetThirdOrderData should be called twice (Vref + first channel)");
-  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_history[0], VREF_CHANNEL_INDEX,
-                "First call should be with VREF_CHANNEL_INDEX");
-  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_history[1], 0,
-                "Second call should be with channel 0");
+                "adcAcqFilterGetThirdOrderData should be called twice before failing");
+  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_history[0], 0,
+                "First read should be at index 0");
+  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_history[1], 1,
+                "Second read should be at index 1");
 }
 
 /**
- * Custom fake for adcAcqFilterGetThirdOrderData that provides test data.
- * Call 0 (Vref): returns 1500 -> VDD = 3.0V
- * Call 1 (channel 0): returns 2048 -> voltage = 2048 * 3.0 / 4095 ≈ 1.5V
- * Call 2 (channel 1): returns 4095 -> voltage = 4095 * 3.0 / 4095 = 3.0V
+ * Custom fake for adcAcqFilterGetThirdOrderData that provides mV test data.
+ * Call 0 (index 0 / VREF_CHANNEL_INDEX): 1210 mV
+ * Call 1 (index 1 / channel 1):          1500 mV
+ * Call 2 (index 2 / Vdd slot):           3300 mV
  */
-static int process_data_test_values[] = {1500, 2048, 4095};
+static int process_data_test_values[] = {1210, 1500, 3300};
 static size_t process_data_call_idx = 0;
 
 static int adcAcqFilterGetThirdOrderData_process_success(size_t chanId, int32_t *data)
@@ -1163,25 +1241,22 @@ static int adcAcqFilterGetThirdOrderData_process_success(size_t chanId, int32_t 
 }
 
 /**
- * @test The adcAcqUtilProcessData function must successfully process
- * all channel data and calculate voltages when all operations succeed.
+ * @test The adcAcqUtilProcessData function must successfully read all
+ * filter values and populate voltValues in volts.
  */
 ZTEST(adc_util_tests, test_process_data_success)
 {
   extern float *voltValues;
-  float test_volt_values[2];
+  extern size_t chanCount;
+  extern size_t voltBufSize;
+  float test_volt_values[3];
   int result;
-  const float expected_vdd = 3.0f;
-  const float expected_volt0 = (2048.0f * expected_vdd) / 4095.0f;   /* ≈ 1.5V */
-  const float expected_volt1 = (4095.0f * expected_vdd) / 4095.0f; /* = 3.0V */
 
-  /* Set up voltValues array */
+  chanCount = 2;
+  voltBufSize = 3;
   voltValues = test_volt_values;
-
-  /* Reset custom fake call index */
   process_data_call_idx = 0;
 
-  /* Configure adcAcqFilterGetThirdOrderData with custom fake */
   adcAcqFilterGetThirdOrderData_fake.custom_fake = adcAcqFilterGetThirdOrderData_process_success;
 
   /* Call adcAcqUtilProcessData - should succeed */
@@ -1190,17 +1265,19 @@ ZTEST(adc_util_tests, test_process_data_success)
   zassert_equal(result, 0,
                 "adcAcqUtilProcessData should return 0 on success");
   zassert_equal(adcAcqFilterGetThirdOrderData_fake.call_count, 3,
-                "adcAcqFilterGetThirdOrderData should be called 3 times (Vref + 2 channels)");
-  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_history[0], VREF_CHANNEL_INDEX,
-                "First call should be with VREF_CHANNEL_INDEX");
-  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_history[1], 0,
-                "Second call should be with channel 0");
-  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_history[2], 1,
-                "Third call should be with channel 1");
-  zassert_within(voltValues[0], expected_volt0, 0.01f,
-                 "voltValues[0] should be approximately 1.5V");
-  zassert_within(voltValues[1], expected_volt1, 0.01f,
-                 "voltValues[1] should be approximately 3.0V");
+                "adcAcqFilterGetThirdOrderData should be called voltBufSize (3) times");
+  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_history[0], 0,
+                "First read should be at index 0");
+  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_history[1], 1,
+                "Second read should be at index 1");
+  zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_history[2], 2,
+                "Third read should be at index 2 (Vdd slot)");
+  zassert_within(voltValues[0], 1.21f, 0.001f,
+                 "voltValues[0] should be 1210 mV / 1000 = 1.21 V");
+  zassert_within(voltValues[1], 1.5f, 0.001f,
+                 "voltValues[1] should be 1500 mV / 1000 = 1.5 V");
+  zassert_within(voltValues[2], 3.3f, 0.001f,
+                 "voltValues[2] should be 3300 mV / 1000 = 3.3 V");
 
   /* Clean up */
   voltValues = NULL;
@@ -1255,14 +1332,16 @@ ZTEST(adc_util_tests, test_notify_subscribers_callback_failure)
   extern AdcSubEntry_t *subscriptions;
   extern osMemoryPoolId_t subDataPool;
   extern size_t chanCount;
+  extern size_t voltBufSize;
   extern float *voltValues;
   AdcSubEntry_t test_subscriptions[1];
   static uint8_t fake_buffer[64];
-  float test_volt_values[2] = {1.5f, 3.0f};
+  float test_volt_values[3] = {1.21f, 1.5f, 3.3f};
   int result;
 
   /* Set up channel count and voltValues for memcpy */
   chanCount = 2;
+  voltBufSize = 3;
   voltValues = test_volt_values;
 
   /* Set up one active, non-paused subscription */
@@ -1310,14 +1389,16 @@ ZTEST(adc_util_tests, test_notify_subscribers_success)
   extern AdcSubEntry_t *subscriptions;
   extern osMemoryPoolId_t subDataPool;
   extern size_t chanCount;
+  extern size_t voltBufSize;
   extern float *voltValues;
   AdcSubEntry_t test_subscriptions[1];
   static uint8_t fake_buffer[64];
-  float test_volt_values[2] = {1.5f, 3.0f};
+  float test_volt_values[3] = {1.21f, 1.5f, 3.3f};
   int result;
 
   /* Set up channel count and voltValues for memcpy */
   chanCount = 2;
+  voltBufSize = 3;
   voltValues = test_volt_values;
 
   /* Set up one active, non-paused subscription */
@@ -1365,14 +1446,16 @@ ZTEST(adc_util_tests, test_notify_subscribers_skips_paused)
   extern AdcSubEntry_t *subscriptions;
   extern osMemoryPoolId_t subDataPool;
   extern size_t chanCount;
+  extern size_t voltBufSize;
   extern float *voltValues;
   AdcSubEntry_t test_subscriptions[2];
   static uint8_t fake_buffer[64];
-  float test_volt_values[2] = {1.5f, 3.0f};
+  float test_volt_values[3] = {1.21f, 1.5f, 3.3f};
   int result;
 
   /* Set up channel count and voltValues for memcpy */
   chanCount = 2;
+  voltBufSize = 3;
   voltValues = test_volt_values;
 
   /* Set up two subscriptions: one paused, one active */
@@ -1395,10 +1478,8 @@ ZTEST(adc_util_tests, test_notify_subscribers_skips_paused)
 
   zassert_equal(result, 0,
                 "adcAcqUtilNotifySubscribers should return 0 on success");
-  /* Only one allocation for the non-paused subscription */
   zassert_equal(osMemoryPoolAlloc_fake.call_count, 1,
                 "osMemoryPoolAlloc should be called once (paused subscription skipped)");
-  /* Only one callback for the non-paused subscription */
   zassert_equal(mock_subscription_callback_fake.call_count, 1,
                 "Callback should be called once (paused subscription skipped)");
 
@@ -1443,9 +1524,6 @@ ZTEST(adc_util_tests, test_add_subscription_max_reached)
 /**
  * @test The adcAcqUtilAddSubscription function must successfully add
  * a subscription when there is available space.
- *
- * Note: This function does not call any external functions in the success
- * path - it only manipulates internal state (subscriptions array and subConfig).
  */
 ZTEST(adc_util_tests, test_add_subscription_success)
 {
@@ -1483,9 +1561,6 @@ ZTEST(adc_util_tests, test_add_subscription_success)
 /**
  * @test The adcAcqUtilRemoveSubscription function must return -ESRCH
  * when the subscription callback is not found.
- *
- * Note: This function does not call any external functions - it only
- * manipulates internal state (subscriptions array and subConfig).
  */
 ZTEST(adc_util_tests, test_remove_subscription_not_found)
 {
@@ -1523,9 +1598,6 @@ ZTEST(adc_util_tests, test_remove_subscription_not_found)
 /**
  * @test The adcAcqUtilRemoveSubscription function must successfully
  * remove a subscription and shift remaining subscriptions down.
- *
- * Note: This function does not call any external functions - it only
- * manipulates internal state (subscriptions array and subConfig).
  */
 ZTEST(adc_util_tests, test_remove_subscription_success)
 {
@@ -1568,9 +1640,6 @@ ZTEST(adc_util_tests, test_remove_subscription_success)
 /**
  * @test The adcAcqUtilSetSubPauseState function must return -ESRCH
  * when the subscription callback is not found.
- *
- * Note: This function does not call any external functions - it only
- * manipulates internal state (subscriptions array and subConfig).
  */
 ZTEST(adc_util_tests, test_set_sub_pause_state_not_found)
 {
@@ -1606,9 +1675,6 @@ ZTEST(adc_util_tests, test_set_sub_pause_state_not_found)
 /**
  * @test The adcAcqUtilSetSubPauseState function must successfully
  * pause a subscription when setting isPaused to true.
- *
- * Note: This function does not call any external functions - it only
- * manipulates internal state (subscriptions array and subConfig).
  */
 ZTEST(adc_util_tests, test_set_sub_pause_state_pause_success)
 {
@@ -1617,16 +1683,13 @@ ZTEST(adc_util_tests, test_set_sub_pause_state_pause_success)
   AdcSubEntry_t test_subscriptions[4];
   int result;
 
-  /* Initialize subscriptions array with 2 subscriptions, target at position 0 */
-  /* This ensures the loop exits early when callback is found (covers err < 0 branch) */
   memset(test_subscriptions, 0, sizeof(test_subscriptions));
   test_subscriptions[0].callback = mock_subscription_callback;
   test_subscriptions[0].isPaused = false;
-  test_subscriptions[1].callback = (AdcSubCallback_t)0xDEADBEEF; /* Different callback */
+  test_subscriptions[1].callback = (AdcSubCallback_t)0xDEADBEEF;
   test_subscriptions[1].isPaused = false;
   subscriptions = test_subscriptions;
 
-  /* Set maxSubCount to 4 and activeSubCount to 2 */
   subConfig.maxSubCount = 4;
   subConfig.activeSubCount = 2;
 
@@ -1649,9 +1712,6 @@ ZTEST(adc_util_tests, test_set_sub_pause_state_pause_success)
 /**
  * @test The adcAcqUtilSetSubPauseState function must successfully
  * unpause a subscription when setting isPaused to false.
- *
- * Note: This function does not call any external functions - it only
- * manipulates internal state (subscriptions array and subConfig).
  */
 ZTEST(adc_util_tests, test_set_sub_pause_state_unpause_success)
 {
@@ -1660,13 +1720,11 @@ ZTEST(adc_util_tests, test_set_sub_pause_state_unpause_success)
   AdcSubEntry_t test_subscriptions[4];
   int result;
 
-  /* Initialize subscriptions array with our callback, initially paused */
   memset(test_subscriptions, 0, sizeof(test_subscriptions));
   test_subscriptions[0].callback = mock_subscription_callback;
   test_subscriptions[0].isPaused = true;
   subscriptions = test_subscriptions;
 
-  /* Set maxSubCount to 4 and activeSubCount to 1 */
   subConfig.maxSubCount = 4;
   subConfig.activeSubCount = 1;
 
@@ -1685,14 +1743,14 @@ ZTEST(adc_util_tests, test_set_sub_pause_state_unpause_success)
 }
 
 /**
- * @test The adcAcqUtilGetChanCount function must return the number
- * of configured ADC channels.
+ * @test The adcAcqUtilGetChanCount function must return the volt buffer
+ * size (channel count + 1 for Vdd).
  */
 ZTEST(adc_util_tests, test_get_chan_count_returns_channel_count)
 {
   size_t count;
 
-  /* Without initialization, chanCount should be 0 */
+  /* Without initialization, voltBufSize should be 0 */
   count = adcAcqUtilGetChanCount();
 
   zassert_equal(count, 0, "Channel count should be 0 before initialization");
@@ -1700,14 +1758,14 @@ ZTEST(adc_util_tests, test_get_chan_count_returns_channel_count)
 
 /**
  * @test The adcAcqUtilGetRaw function must return -EINVAL when
- * channel ID is greater than or equal to the channel count.
+ * channel ID is greater than or equal to voltBufSize.
  */
 ZTEST(adc_util_tests, test_get_raw_invalid_channel_id)
 {
   uint32_t rawVal;
   int result;
 
-  /* Try to get raw value from channel 0 (when chanCount is 0) */
+  /* voltBufSize is 0 (reset by before), so any chanId is invalid */
   result = adcAcqUtilGetRaw(0, &rawVal);
 
   zassert_equal(result, -EINVAL,
@@ -1720,11 +1778,11 @@ ZTEST(adc_util_tests, test_get_raw_invalid_channel_id)
  */
 ZTEST(adc_util_tests, test_get_raw_null_pointer)
 {
-  extern size_t chanCount;
+  extern size_t voltBufSize;
   int result;
 
-  /* Set chanCount to 1 so we can reach the NULL pointer check */
-  chanCount = 1;
+  /* Set voltBufSize to 1 so chanId 0 passes the bounds check */
+  voltBufSize = 1;
 
   /* Try to get raw value with NULL pointer */
   result = adcAcqUtilGetRaw(0, NULL);
@@ -1739,12 +1797,11 @@ ZTEST(adc_util_tests, test_get_raw_null_pointer)
  */
 ZTEST(adc_util_tests, test_get_raw_filter_error)
 {
-  extern size_t chanCount;
+  extern size_t voltBufSize;
   uint32_t rawVal;
   int result;
 
-  /* Set chanCount to 2 (simulating 2 configured channels) */
-  chanCount = 2;
+  voltBufSize = 3;
 
   /* Configure mock to return error from adcAcqFilterGetThirdOrderData */
   adcAcqFilterGetThirdOrderData_fake.return_val = -EIO;
@@ -1763,7 +1820,6 @@ ZTEST(adc_util_tests, test_get_raw_filter_error)
  */
 static int adcAcqFilterGetThirdOrderData_success(size_t chanId, int32_t *data)
 {
-  /* Set the output value to a known test value */
   *data = 1234;
   return 0;
 }
@@ -1774,14 +1830,12 @@ static int adcAcqFilterGetThirdOrderData_success(size_t chanId, int32_t *data)
  */
 ZTEST(adc_util_tests, test_get_raw_success)
 {
-  extern size_t chanCount;
+  extern size_t voltBufSize;
   uint32_t rawVal;
   int result;
 
-  /* Set chanCount to 2 (simulating 2 configured channels) */
-  chanCount = 2;
+  voltBufSize = 3;
 
-  /* Configure mock to succeed and set output value */
   adcAcqFilterGetThirdOrderData_fake.custom_fake = adcAcqFilterGetThirdOrderData_success;
 
   /* Get raw value - should succeed */
@@ -1799,18 +1853,14 @@ ZTEST(adc_util_tests, test_get_raw_success)
 
 /**
  * @test The adcAcqUtilGetVolt function must return -EINVAL when
- * channel ID is greater than or equal to the channel count.
+ * channel ID is greater than or equal to voltBufSize.
  */
 ZTEST(adc_util_tests, test_get_volt_invalid_channel_id)
 {
-  extern size_t chanCount;
   float voltVal;
   int result;
 
-  /* Set chanCount to 0 (no channels configured) */
-  chanCount = 0;
-
-  /* Try to get voltage value from channel 0 (out of bounds) */
+  /* voltBufSize is 0 (reset by before), so any chanId is invalid */
   result = adcAcqUtilGetVolt(0, &voltVal);
 
   zassert_equal(result, -EINVAL,
@@ -1823,11 +1873,11 @@ ZTEST(adc_util_tests, test_get_volt_invalid_channel_id)
  */
 ZTEST(adc_util_tests, test_get_volt_null_pointer)
 {
-  extern size_t chanCount;
+  extern size_t voltBufSize;
   int result;
 
-  /* Set chanCount to 1 so we can reach the NULL pointer check */
-  chanCount = 1;
+  /* Set voltBufSize to 1 so chanId 0 passes the bounds check */
+  voltBufSize = 1;
 
   /* Try to get voltage value with NULL pointer */
   result = adcAcqUtilGetVolt(0, NULL);
@@ -1842,18 +1892,17 @@ ZTEST(adc_util_tests, test_get_volt_null_pointer)
  */
 ZTEST(adc_util_tests, test_get_volt_success)
 {
-  extern size_t chanCount;
+  extern size_t voltBufSize;
   extern float *voltValues;
   float voltVal;
-  float testVoltages[2];
+  float testVoltages[3];
   int result;
 
-  /* Set chanCount to 2 (simulating 2 configured channels) */
-  chanCount = 2;
+  voltBufSize = 3;
 
-  /* Allocate and set voltValues array */
-  testVoltages[0] = 3.3f;
-  testVoltages[1] = 1.8f;
+  testVoltages[0] = 1.21f;
+  testVoltages[1] = 1.5f;
+  testVoltages[2] = 3.3f;
   voltValues = testVoltages;
 
   /* Get voltage value - should succeed */
@@ -1861,7 +1910,7 @@ ZTEST(adc_util_tests, test_get_volt_success)
 
   zassert_equal(result, 0,
                 "adcAcqUtilGetVolt should return 0 on success");
-  zassert_equal(voltVal, 3.3f,
+  zassert_equal(voltVal, 1.21f,
                 "voltVal should be set to the value from voltValues array");
 
   /* Clean up */
