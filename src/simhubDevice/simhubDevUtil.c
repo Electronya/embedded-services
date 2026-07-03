@@ -94,7 +94,7 @@ int simhubDevUtilProcessLedCount(uint8_t *txBuf, size_t size)
   int len;
 
   len = snprintf((char *)txBuf, size, "%d\r\n", SIMHUB_LED_COUNT);
-  if(len < 0 || (size_t)len >= size)
+  if((size_t)len >= size)
   {
     LOG_ERR("ERROR: TX buffer too small for LED count response");
     simhubDevProtoReset();

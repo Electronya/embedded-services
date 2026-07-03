@@ -302,6 +302,17 @@ static int uart_line_ctrl_get_dtr_after_delay(const struct device *dev, enum uar
   return 0;
 }
 
+/* DTR fake — returns an error on first call, then asserts DTR. */
+static int uart_line_ctrl_get_error_then_dtr(const struct device *dev, enum uart_line_ctrl ctrl, uint32_t *val)
+{
+  ARG_UNUSED(dev);
+  ARG_UNUSED(ctrl);
+  if(dtrCallCount++ == 0)
+    return -EIO;
+  *val = 1;
+  return 0;
+}
+
 /* Ring buffer byte feeder for drain loop tests. */
 static uint8_t testRingBufBytes[8];
 static size_t testRingBufByteCount = 0;
@@ -642,6 +653,22 @@ ZTEST(simhubDevice_tests, test_run_returns_early_when_simhub_util_init_fails)
 }
 
 /**
+ * @test run must log a warning and continue polling when uart_line_ctrl_get
+ *       returns an error during the DTR wait
+ */
+ZTEST(simhubDevice_tests, test_run_logs_warning_and_continues_when_dtr_get_fails)
+{
+  uart_line_ctrl_get_mock_fake.custom_fake = uart_line_ctrl_get_error_then_dtr;
+
+  run(NULL, NULL, NULL);
+
+  zassert_true(uart_line_ctrl_get_mock_fake.call_count >= 2,
+               "expected uart_line_ctrl_get polled at least twice");
+  zassert_equal(uart_irq_rx_enable_mock_fake.call_count, 1,
+                "expected uart_irq_rx_enable called after DTR eventually asserted");
+}
+
+/**
  * @test run must poll uart_line_ctrl_get until DTR is asserted before enabling
  *       RX
  */
@@ -656,6 +683,24 @@ ZTEST(simhubDevice_tests, test_run_waits_for_dtr_before_enabling_rx)
                 "expected uart_line_ctrl_get called with UART_LINE_CTRL_DTR");
   zassert_true(k_sleep_mock_fake.call_count >= 1, "expected k_sleep called while polling DTR");
   zassert_equal(uart_irq_rx_enable_mock_fake.call_count, 1, "expected uart_irq_rx_enable called after DTR asserted");
+}
+
+/**
+ * @test run must continue polling DTR when a non-STOP message is dequeued
+ *       during the DTR wait loop
+ */
+ZTEST(simhubDevice_tests, test_run_ignores_non_stop_message_during_dtr_wait)
+{
+  testCtrlQueueMessages[0] = SVC_CTRL_SUSPEND;
+  testCtrlQueueMsgCount    = 1;
+  k_msgq_get_mock_fake.custom_fake = k_msgq_get_from_ctrl_queue;
+
+  run(NULL, NULL, NULL);
+
+  zassert_equal(serviceManagerConfirmState_fake.call_count, 0,
+                "expected serviceManagerConfirmState not called");
+  zassert_equal(uart_irq_rx_enable_mock_fake.call_count, 1,
+                "expected uart_irq_rx_enable called after DTR asserted");
 }
 
 /**

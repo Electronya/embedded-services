@@ -45,8 +45,8 @@ static K_SEM_DEFINE(rxSem, 0, 1);
 static K_SEM_DEFINE(txSem, 1, 1);
 
 static uint8_t txBuf[SIMHUB_DEV_TX_BUF_SIZE];
-static const uint8_t *txPtr      = NULL;
-static size_t         txRemaining = 0;
+static const uint8_t *txPtr = NULL;
+static size_t txRemaining = 0;
 
 K_MSGQ_DEFINE(simhubDevCtrlQueue, sizeof(ServiceCtrlMsg_t), 4, 4);
 
@@ -76,7 +76,7 @@ static void uartCallback(const struct device *dev, void *userData)
     if(txRemaining > 0)
     {
       n = uart_fifo_fill(dev, txPtr, txRemaining);
-      txPtr      += n;
+      txPtr += n;
       txRemaining -= (size_t)n;
     }
     if(txRemaining == 0)
@@ -99,11 +99,10 @@ static void dispatchPkt(void)
       len = simhubDevUtilProcessProto(txBuf, sizeof(txBuf));
       if(len > 0)
       {
-        txPtr       = txBuf;
+        txPtr = txBuf;
         txRemaining = (size_t)len;
         uart_irq_tx_enable(ctx.uart);
-      }
-      else
+      } else
         k_sem_give(&txSem);
       break;
 
@@ -112,11 +111,10 @@ static void dispatchPkt(void)
       len = simhubDevUtilProcessLedCount(txBuf, sizeof(txBuf));
       if(len > 0)
       {
-        txPtr       = txBuf;
+        txPtr = txBuf;
         txRemaining = (size_t)len;
         uart_irq_tx_enable(ctx.uart);
-      }
-      else
+      } else
         k_sem_give(&txSem);
       break;
 
@@ -179,13 +177,14 @@ static void run(void *p1, void *p2, void *p3)
   uint32_t dtr = 0;
   while(!dtr)
   {
-    if(k_msgq_get(&simhubDevCtrlQueue, &ctrlMsg, K_NO_WAIT) == 0 &&
-       ctrlMsg == SVC_CTRL_STOP)
+    if(k_msgq_get(&simhubDevCtrlQueue, &ctrlMsg, K_NO_WAIT) == 0 && ctrlMsg == SVC_CTRL_STOP)
     {
       serviceManagerConfirmState(k_current_get(), SVC_STATE_STOPPED);
       return;
     }
-    uart_line_ctrl_get(ctx.uart, UART_LINE_CTRL_DTR, &dtr);
+    err = uart_line_ctrl_get(ctx.uart, UART_LINE_CTRL_DTR, &dtr);
+    if(err < 0)
+      LOG_WRN("DTR not asserted");
     k_sleep(K_MSEC(SIMHUB_DEV_CTRL_POLL_MS));
     serviceManagerUpdateHeartbeat(k_current_get());
   }
