@@ -3,765 +3,534 @@
  *
  * @file      main.c
  * @author    jbacon
- * @date      2026-05-03
- * @brief     SimHub Device Protocol Tests
+ * @date      2026-07-04
+ * @brief     SimHub ARQ Transport Protocol Tests
  *
- *            Unit tests for the SimHub protocol per-state byte handlers.
+ *            Unit tests for simhubArqProto: CRC-8 wrapper, frame parser, and
+ *            response builders.
  */
 
 #include <zephyr/ztest.h>
+#include <zephyr/fff.h>
 #include <zephyr/kernel.h>
 #include <string.h>
 
-/* Prevent led_strip driver header — define only the type we need. */
-#define ZEPHYR_INCLUDE_DRIVERS_LED_STRIP_H_
-struct led_rgb { uint8_t r; uint8_t g; uint8_t b; };
+DEFINE_FFF_GLOBALS;
 
-/* Setup logging before including the module under test. */
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(simhubDevice, LOG_LEVEL_DBG);
 
 #undef LOG_MODULE_DECLARE
 #define LOG_MODULE_DECLARE(...)
 
-/* Override DT macros so SIMHUB_LED_COUNT resolves to 3 without real DTS. */
-#undef DT_ALIAS
-#define DT_ALIAS(name) DT_N_NODELABEL_test_led_strip
+/* Mock Zephyr CRC-8 to remove the external dependency. */
+#include <zephyr/sys/crc.h>
+FAKE_VALUE_FUNC(uint8_t, crc8, const uint8_t *, size_t, uint8_t, uint8_t, bool);
 
-#define DT_N_NODELABEL_test_led_strip_P_chain_length 3
+#include "simhubArqProto.c"
 
-#include "simhubDevProto.c"
+/* ---- helpers ---- */
 
-static void *proto_tests_setup(void)
+static bool feedPacket(SimhubArqFrame_t *f, const uint8_t *pkt, size_t len)
+{
+  bool result = false;
+  for(size_t i = 0; i < len; i++)
+    result = simhubArqParseByte(f, pkt[i]);
+  return result;
+}
+
+/* Features-query frame: 01 01 00 02 03 30 38
+ * CRC covers [ID=00, LEN=02, DATA=03 30] → 0x38 */
+static const uint8_t kFeaturesFrame[] = {0x01, 0x01, 0x00, 0x02, 0x03, 0x30, 0x38};
+#define FEATURES_FRAME_CRC      0x38
+#define FEATURES_FRAME_CRC_LEN  4   /* 2 header bytes + LEN=2 */
+
+/* Hello frame: 01 01 FF 03 03 31 10 6A
+ * CRC covers [ID=FF, LEN=03, DATA=03 31 10] → 0x6A */
+static const uint8_t kHelloFrame[] = {0x01, 0x01, 0xFF, 0x03, 0x03, 0x31, 0x10, 0x6A};
+#define HELLO_FRAME_CRC      0x6A
+#define HELLO_FRAME_CRC_LEN  5   /* 2 header bytes + LEN=3 */
+
+static void *arq_proto_setup(void)
 {
   return NULL;
 }
 
-static void proto_tests_before(void *fixture)
+static void arq_proto_before(void *fixture)
 {
-  /* Corrupt the context so reset tests are not relying on zero-init. */
-  memset(&ctx, 0xFF, sizeof(ctx));
+  ARG_UNUSED(fixture);
+  RESET_FAKE(crc8);
+}
+
+/* ===========================================================================
+ * simhubArqCrc8
+ * =========================================================================*/
+
+/**
+ * @test simhubArqCrc8 must call Zephyr crc8 with the input buffer, the input
+ * length, polynomial 0xD5, seed 0, and reflected=false.
+ */
+ZTEST(simhubArqProto_tests, test_crc8_passes_correct_params_to_zephyr_crc8)
+{
+  const uint8_t input[] = {0xFF, 0x03, 0x03, 0x31, 0x10};
+  crc8_fake.return_val = HELLO_FRAME_CRC;
+
+  simhubArqCrc8(input, sizeof(input));
+
+  zassert_equal(crc8_fake.call_count, 1,
+                "crc8 must be called exactly once");
+  zassert_equal(crc8_fake.arg0_val, input,
+                "crc8 must receive the input pointer");
+  zassert_equal(crc8_fake.arg1_val, sizeof(input),
+                "crc8 must receive the correct length");
+  zassert_equal(crc8_fake.arg2_val, 0xD5,
+                "crc8 must use polynomial 0xD5");
+  zassert_equal(crc8_fake.arg3_val, 0,
+                "crc8 must use seed 0");
+  zassert_equal(crc8_fake.arg4_val, false,
+                "crc8 must not use reflection");
 }
 
 /**
- * @test simhubDevProtoReset must set the parser state to SIMHUB_PROTO_EMPTY_BUFF.
+ * @test simhubArqCrc8 must return the value produced by Zephyr crc8 unchanged.
  */
-ZTEST(simhubDevProto_tests, test_reset_sets_empty_buff_state)
+ZTEST(simhubArqProto_tests, test_crc8_returns_zephyr_crc8_result)
 {
-  simhubDevProtoReset();
+  const uint8_t input[] = {0x00, 0x02, 0x03, 0x30};
+  crc8_fake.return_val = FEATURES_FRAME_CRC;
 
-  zassert_equal(ctx.state, SIMHUB_PROTO_EMPTY_BUFF,
-                "state must be EMPTY_BUFF after reset");
+  uint8_t result = simhubArqCrc8(input, sizeof(input));
+
+  zassert_equal(crc8_fake.call_count, 1,
+                "crc8 must be called exactly once");
+  zassert_equal(crc8_fake.arg0_val, input,
+                "crc8 must receive the input pointer");
+  zassert_equal(crc8_fake.arg1_val, sizeof(input),
+                "crc8 must receive the correct length");
+  zassert_equal(crc8_fake.arg2_val, 0xD5,
+                "crc8 must use polynomial 0xD5");
+  zassert_equal(crc8_fake.arg3_val, 0,
+                "crc8 must use seed 0");
+  zassert_equal(crc8_fake.arg4_val, false,
+                "crc8 must not use reflection");
+  zassert_equal(result, FEATURES_FRAME_CRC,
+                "simhubArqCrc8 must return the crc8 result unchanged");
+}
+
+/* ===========================================================================
+ * simhubArqFrameReset
+ * =========================================================================*/
+
+/**
+ * @test simhubArqFrameReset must set the parser state to ARQ_SYNC0.
+ */
+ZTEST(simhubArqProto_tests, test_frameReset_sets_state_to_sync0)
+{
+  SimhubArqFrame_t frame;
+  memset(&frame, 0xFF, sizeof(frame));
+
+  simhubArqFrameReset(&frame);
+
+  zassert_equal(frame.state, ARQ_SYNC0,
+                "state must be ARQ_SYNC0 after reset");
 }
 
 /**
- * @test simhubDevProtoReset must set the synchronization counter to 0.
+ * @test simhubArqFrameReset must clear pktId, len, and dataIdx to 0.
  */
-ZTEST(simhubDevProto_tests, test_reset_clears_sync_count)
+ZTEST(simhubArqProto_tests, test_frameReset_clears_pktId_len_dataIdx)
 {
-  simhubDevProtoReset();
+  SimhubArqFrame_t frame;
+  memset(&frame, 0xFF, sizeof(frame));
 
-  zassert_equal(ctx.syncCount, 0,
-                "syncCount must be 0 after reset");
+  simhubArqFrameReset(&frame);
+
+  zassert_equal(frame.pktId,   0, "pktId must be 0 after reset");
+  zassert_equal(frame.len,     0, "len must be 0 after reset");
+  zassert_equal(frame.dataIdx, 0, "dataIdx must be 0 after reset");
+}
+
+/* ===========================================================================
+ * simhubArqParseByte
+ * =========================================================================*/
+
+/**
+ * @test simhubArqParseByte must return false and reset to ARQ_SYNC0 when the
+ * frame is in an unrecognized state.
+ */
+ZTEST(simhubArqProto_tests, test_parseByte_resets_on_unknown_state)
+{
+  SimhubArqFrame_t frame;
+  simhubArqFrameReset(&frame);
+  frame.state = (SimhubArqParseState_t)99;
+
+  bool result = simhubArqParseByte(&frame, 0x01);
+
+  zassert_equal(crc8_fake.call_count, 0,
+                "crc8 must not be called on an unknown state");
+  zassert_false(result,
+                "parseByte must return false on an unknown state");
+  zassert_equal(frame.state, ARQ_SYNC0,
+                "state must reset to ARQ_SYNC0 on an unknown state");
 }
 
 /**
- * @test simhubDevProtoReset must set the command length to 0.
+ * @test simhubArqParseByte must return false and stay in ARQ_SYNC0 when the
+ * first byte is not 0x01.
  */
-ZTEST(simhubDevProto_tests, test_reset_clears_cmd_len)
+ZTEST(simhubArqProto_tests, test_parseByte_ignores_non_01_first_byte)
 {
-  simhubDevProtoReset();
+  SimhubArqFrame_t frame;
+  simhubArqFrameReset(&frame);
 
-  zassert_equal(ctx.cmdLen, 0,
-                "cmdLen must be 0 after reset");
+  bool result = simhubArqParseByte(&frame, 0xAA);
+
+  zassert_equal(crc8_fake.call_count, 0,
+                "crc8 must not be called before the CRC state");
+  zassert_false(result,
+                "parseByte must return false on a non-header first byte");
+  zassert_equal(frame.state, ARQ_SYNC0,
+                "state must remain ARQ_SYNC0 on a non-header first byte");
 }
 
 /**
- * @test simhubDevProtoReset must set the packet type to SIMHUB_PKT_TYPE_COUNT.
+ * @test simhubArqParseByte must return false and reset to ARQ_SYNC0 when the
+ * second byte is not 0x01.
  */
-ZTEST(simhubDevProto_tests, test_reset_sets_pkt_type_to_sentinel)
+ZTEST(simhubArqProto_tests, test_parseByte_resets_on_bad_second_byte)
 {
-  simhubDevProtoReset();
+  SimhubArqFrame_t frame;
+  simhubArqFrameReset(&frame);
+  simhubArqParseByte(&frame, 0x01);
 
-  zassert_equal(ctx.pktType, SIMHUB_PKT_TYPE_COUNT,
-                "pktType must be SIMHUB_PKT_TYPE_COUNT after reset");
+  bool result = simhubArqParseByte(&frame, 0xAA);
+
+  zassert_equal(crc8_fake.call_count, 0,
+                "crc8 must not be called before the CRC state");
+  zassert_false(result,
+                "parseByte must return false on a bad second header byte");
+  zassert_equal(frame.state, ARQ_SYNC0,
+                "state must reset to ARQ_SYNC0 on a bad second header byte");
 }
 
 /**
- * @test simhubDevProtoReset must set the data index to 0.
+ * @test simhubArqParseByte must return false and reset to ARQ_SYNC0 when the
+ * length field is zero.
  */
-ZTEST(simhubDevProto_tests, test_reset_clears_data_idx)
+ZTEST(simhubArqProto_tests, test_parseByte_rejects_zero_length)
 {
-  simhubDevProtoReset();
+  SimhubArqFrame_t frame;
+  simhubArqFrameReset(&frame);
+  simhubArqParseByte(&frame, 0x01);
+  simhubArqParseByte(&frame, 0x01);
+  simhubArqParseByte(&frame, 0x05);
 
-  zassert_equal(ctx.dataIdx, 0,
-                "dataIdx must be 0 after reset");
+  bool result = simhubArqParseByte(&frame, 0x00);
+
+  zassert_equal(crc8_fake.call_count, 0,
+                "crc8 must not be called before the CRC state");
+  zassert_false(result,
+                "parseByte must return false on zero length");
+  zassert_equal(frame.state, ARQ_SYNC0,
+                "state must reset to ARQ_SYNC0 on zero length");
 }
 
 /**
- * @test simhubDevProtoReset must set the footer index to 0.
+ * @test simhubArqParseByte must return false and reset to ARQ_SYNC0 when the
+ * length field exceeds SIMHUB_ARQ_MAX_DATA.
  */
-ZTEST(simhubDevProto_tests, test_reset_clears_footer_idx)
+ZTEST(simhubArqProto_tests, test_parseByte_rejects_overlength)
 {
-  simhubDevProtoReset();
+  SimhubArqFrame_t frame;
+  simhubArqFrameReset(&frame);
+  simhubArqParseByte(&frame, 0x01);
+  simhubArqParseByte(&frame, 0x01);
+  simhubArqParseByte(&frame, 0x05);
 
-  zassert_equal(ctx.footerIdx, 0,
-                "footerIdx must be 0 after reset");
+  bool result = simhubArqParseByte(&frame, SIMHUB_ARQ_MAX_DATA + 1);
+
+  zassert_equal(crc8_fake.call_count, 0,
+                "crc8 must not be called before the CRC state");
+  zassert_false(result,
+                "parseByte must return false when length exceeds MAX_DATA");
+  zassert_equal(frame.state, ARQ_SYNC0,
+                "state must reset to ARQ_SYNC0 on overlength");
 }
 
 /**
- * @test simhubDevProtoGetState must return SIMHUB_PROTO_EMPTY_BUFF after reset.
+ * @test simhubArqParseByte must return false for every byte up to and
+ * including the last data byte of a valid frame.
  */
-ZTEST(simhubDevProto_tests, test_get_state_returns_empty_buff_after_reset)
+ZTEST(simhubArqProto_tests, test_parseByte_returns_false_while_accumulating)
 {
-  simhubDevProtoReset();
+  SimhubArqFrame_t frame;
+  simhubArqFrameReset(&frame);
 
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_EMPTY_BUFF,
-                "GetState must return EMPTY_BUFF after reset");
-}
-
-/**
- * @test simhubDevProtoGetState must return SIMHUB_PROTO_RECEIVING_PREAMBLE
- * after a 0xFF byte is processed in the EMPTY_BUFF state.
- */
-ZTEST(simhubDevProto_tests, test_get_state_returns_receiving_preamble)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_RECEIVING_PREAMBLE,
-                "GetState must return RECEIVING_PREAMBLE after first preamble byte");
-}
-
-/**
- * @test simhubDevProtoGetState must return SIMHUB_PROTO_RECEIVING_CMD after
- * a complete 6-byte preamble has been received.
- */
-ZTEST(simhubDevProto_tests, test_get_state_returns_receiving_cmd)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_RECEIVING_CMD,
-                "GetState must return RECEIVING_CMD after complete preamble");
-}
-
-/**
- * @test simhubDevProtoGetState must return SIMHUB_PROTO_RECEIVING_LED_DATA
- * after the "sleds" command has been received.
- */
-ZTEST(simhubDevProto_tests, test_get_state_returns_receiving_led_data)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-  const uint8_t cmd[] = {'s', 'l', 'e', 'd', 's'};
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    simhubDevProtoProcessCmd(cmd[i]);
-
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_RECEIVING_LED_DATA,
-                "GetState must return RECEIVING_LED_DATA after 'sleds' command");
-}
-
-/**
- * @test simhubDevProtoGetState must return SIMHUB_PROTO_RECEIVING_LED_FOOTER
- * after all pixel buffer bytes have been received.
- */
-ZTEST(simhubDevProto_tests, test_get_state_returns_receiving_led_footer)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-  const uint8_t cmd[] = {'s', 'l', 'e', 'd', 's'};
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    simhubDevProtoProcessCmd(cmd[i]);
-  for(int i = 0; i < SIMHUB_LED_COUNT * 3; i++)
-    simhubDevProtoProcessLedData((uint8_t)i);
-
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_RECEIVING_LED_FOOTER,
-                "GetState must return RECEIVING_LED_FOOTER after all pixel buffer bytes");
-}
-
-/**
- * @test simhubDevProtoGetState must return SIMHUB_PROTO_RECEIVED_PKT after
- * a complete packet has been parsed.
- */
-ZTEST(simhubDevProto_tests, test_get_state_returns_received_pkt)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-  const uint8_t cmd[] = {'p', 'r', 'o', 't', 'o'};
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    simhubDevProtoProcessCmd(cmd[i]);
-
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_RECEIVED_PKT,
-                "GetState must return RECEIVED_PKT after a complete packet");
-}
-
-/**
- * @test simhubDevProtoGetPktType must return SIMHUB_PKT_TYPE_COUNT after reset.
- */
-ZTEST(simhubDevProto_tests, test_get_pkt_type_returns_sentinel_after_reset)
-{
-  simhubDevProtoReset();
-
-  zassert_equal(simhubDevProtoGetPktType(), SIMHUB_PKT_TYPE_COUNT,
-                "GetPktType must return SIMHUB_PKT_TYPE_COUNT after reset");
-}
-
-/**
- * @test simhubDevProtoGetPktType must return SIMHUB_PKT_PROTO after the
- * "proto" command has been received.
- */
-ZTEST(simhubDevProto_tests, test_get_pkt_type_returns_proto)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-  const uint8_t cmd[] = {'p', 'r', 'o', 't', 'o'};
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    simhubDevProtoProcessCmd(cmd[i]);
-
-  zassert_equal(simhubDevProtoGetPktType(), SIMHUB_PKT_PROTO,
-                "GetPktType must return SIMHUB_PKT_PROTO after 'proto' command");
-}
-
-/**
- * @test simhubDevProtoGetPktType must return SIMHUB_PKT_LED_COUNT after the
- * "ledsc" command has been received.
- */
-ZTEST(simhubDevProto_tests, test_get_pkt_type_returns_led_count)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-  const uint8_t cmd[] = {'l', 'e', 'd', 's', 'c'};
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    simhubDevProtoProcessCmd(cmd[i]);
-
-  zassert_equal(simhubDevProtoGetPktType(), SIMHUB_PKT_LED_COUNT,
-                "GetPktType must return SIMHUB_PKT_LED_COUNT after 'ledsc' command");
-}
-
-/**
- * @test simhubDevProtoGetPktType must return SIMHUB_PKT_LED_DATA after the
- * "sleds" command has been received.
- */
-ZTEST(simhubDevProto_tests, test_get_pkt_type_returns_led_data)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-  const uint8_t cmd[] = {'s', 'l', 'e', 'd', 's'};
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    simhubDevProtoProcessCmd(cmd[i]);
-
-  zassert_equal(simhubDevProtoGetPktType(), SIMHUB_PKT_LED_DATA,
-                "GetPktType must return SIMHUB_PKT_LED_DATA after 'sleds' command");
-}
-
-/**
- * @test simhubDevProtoGetPktType must return SIMHUB_PKT_UNLOCK after the
- * "unlock" command has been received.
- */
-ZTEST(simhubDevProto_tests, test_get_pkt_type_returns_unlock)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-  const uint8_t cmd[] = {'u', 'n', 'l', 'o', 'c', 'k'};
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    simhubDevProtoProcessCmd(cmd[i]);
-
-  zassert_equal(simhubDevProtoGetPktType(), SIMHUB_PKT_UNLOCK,
-                "GetPktType must return SIMHUB_PKT_UNLOCK after 'unlock' command");
-}
-
-/**
- * @test simhubDevProtoGetPixelBuf must always return a pointer to the
- * internal pixel data buffer regardless of the current parser state.
- */
-ZTEST(simhubDevProto_tests, test_get_pixel_buf_returns_valid_pointer)
-{
-  simhubDevProtoReset();
-
-  zassert_not_null(simhubDevProtoGetPixelBuf(),
-                   "GetPixelBuf must return a non-NULL pointer");
-}
-
-/**
- * @test simhubDevProtoGetPixelBuf must return a pointer to the buffer
- * holding the bytes received via simhubDevProtoProcessLedData in order.
- */
-ZTEST(simhubDevProto_tests, test_get_pixel_buf_reflects_received_data)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-  const uint8_t cmd[] = {'s', 'l', 'e', 'd', 's'};
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    simhubDevProtoProcessCmd(cmd[i]);
-
-  uint8_t expected[SIMHUB_LED_COUNT * 3];
-  for(int i = 0; i < SIMHUB_LED_COUNT * 3; i++)
+  for(size_t i = 0; i < sizeof(kFeaturesFrame) - 1; i++)
   {
-    expected[i] = (uint8_t)(i + 10);
-    simhubDevProtoProcessLedData(expected[i]);
-  }
-
-  zassert_mem_equal(simhubDevProtoGetPixelBuf(), expected, SIMHUB_LED_COUNT * 3,
-                    "GetPixelBuf must return a pointer to the received pixel data");
-}
-
-/**
- * @test simhubDevProtoProcessEmptyBuff must return false and keep the state
- * SIMHUB_PROTO_EMPTY_BUFF when the received byte is not 0xFF.
- */
-ZTEST(simhubDevProto_tests, test_process_empty_buff_non_preamble_byte_ignored)
-{
-  simhubDevProtoReset();
-
-  bool result = simhubDevProtoProcessEmptyBuff(0x00);
-
-  zassert_false(result,
-                "ProcessEmptyBuff must return false for a non-preamble byte");
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_EMPTY_BUFF,
-                "state must remain EMPTY_BUFF on a non-preamble byte");
-}
-
-/**
- * @test simhubDevProtoProcessEmptyBuff must return false and advance the state
- * to SIMHUB_PROTO_RECEIVING_PREAMBLE when the received byte is 0xFF.
- */
-ZTEST(simhubDevProto_tests, test_process_empty_buff_preamble_byte_advances_state)
-{
-  simhubDevProtoReset();
-
-  bool result = simhubDevProtoProcessEmptyBuff(0xFF);
-
-  zassert_false(result,
-                "ProcessEmptyBuff must return false on the first preamble byte");
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_RECEIVING_PREAMBLE,
-                "state must advance to RECEIVING_PREAMBLE on first 0xFF byte");
-}
-
-/**
- * @test simhubDevProtoProcessEmptyBuff must set the synchronization counter
- * to 1 when the received byte is 0xFF.
- */
-ZTEST(simhubDevProto_tests, test_process_empty_buff_preamble_byte_sets_sync_count)
-{
-  simhubDevProtoReset();
-
-  simhubDevProtoProcessEmptyBuff(0xFF);
-
-  zassert_equal(ctx.syncCount, 1,
-                "syncCount must be set to 1 on first 0xFF byte");
-}
-
-/**
- * @test simhubDevProtoProcessPreamble must return false, reset the state to
- * SIMHUB_PROTO_EMPTY_BUFF, and clear the synchronization counter when the
- * received byte is not 0xFF.
- */
-ZTEST(simhubDevProto_tests, test_process_preamble_non_preamble_byte_resets_state)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-
-  bool result = simhubDevProtoProcessPreamble(0xAA);
-
-  zassert_false(result,
-                "ProcessPreamble must return false on a non-preamble byte");
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_EMPTY_BUFF,
-                "state must reset to EMPTY_BUFF on a non-preamble byte");
-  zassert_equal(ctx.syncCount, 0,
-                "syncCount must be cleared on a non-preamble byte");
-}
-
-/**
- * @test simhubDevProtoProcessPreamble must return false, keep the state
- * SIMHUB_PROTO_RECEIVING_PREAMBLE, and increment the synchronization counter
- * when a 0xFF byte is received and the preamble is not yet complete.
- */
-ZTEST(simhubDevProto_tests, test_process_preamble_increments_sync_count)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-
-  bool result = simhubDevProtoProcessPreamble(0xFF);
-
-  zassert_false(result,
-                "ProcessPreamble must return false while preamble is incomplete");
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_RECEIVING_PREAMBLE,
-                "state must remain RECEIVING_PREAMBLE while preamble is incomplete");
-  zassert_equal(ctx.syncCount, 2,
-                "syncCount must be incremented on each 0xFF byte");
-}
-
-/**
- * @test simhubDevProtoProcessPreamble must return false, advance the state to
- * SIMHUB_PROTO_RECEIVING_CMD, and clear the command length when exactly 6
- * consecutive 0xFF bytes have been received.
- */
-ZTEST(simhubDevProto_tests, test_process_preamble_complete_advances_state)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 4; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-
-  bool result = simhubDevProtoProcessPreamble(0xFF);
-
-  zassert_false(result,
-                "ProcessPreamble must return false even on preamble completion");
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_RECEIVING_CMD,
-                "state must advance to RECEIVING_CMD after 6 preamble bytes");
-  zassert_equal(ctx.cmdLen, 0,
-                "cmdLen must be cleared when advancing to RECEIVING_CMD");
-}
-
-/**
- * @test simhubDevProtoProcessCmd must return false, keep the state
- * SIMHUB_PROTO_RECEIVING_CMD, and accumulate the received bytes in the
- * command buffer while fewer than 5 bytes have been received.
- */
-ZTEST(simhubDevProto_tests, test_process_cmd_accumulates_bytes)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-
-  const uint8_t partial[] = {'p', 'r', 'o', 't'};
-  for(size_t i = 0; i < sizeof(partial); i++)
-  {
-    bool result = simhubDevProtoProcessCmd(partial[i]);
-
+    bool result = simhubArqParseByte(&frame, kFeaturesFrame[i]);
     zassert_false(result,
-                  "ProcessCmd must return false while command is incomplete");
-    zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_RECEIVING_CMD,
-                  "state must remain RECEIVING_CMD while command is incomplete");
-    zassert_equal(ctx.cmdBuf[i], partial[i],
-                  "cmdBuf must hold the accumulated command bytes");
+                  "parseByte must return false before the CRC byte");
   }
+
+  zassert_equal(crc8_fake.call_count, 0,
+                "crc8 must not be called before the CRC byte");
 }
 
 /**
- * @test simhubDevProtoProcessCmd must return true, set the packet type to
- * SIMHUB_PKT_PROTO, and advance the state to SIMHUB_PROTO_RECEIVED_PKT when
- * the command "proto" is received.
+ * @test simhubArqParseByte must return false and reset to ARQ_SYNC0 on a CRC
+ * mismatch.
  */
-ZTEST(simhubDevProto_tests, test_process_cmd_proto_completes_packet)
+ZTEST(simhubArqProto_tests, test_parseByte_rejects_mismatched_crc_and_resets)
 {
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
+  SimhubArqFrame_t frame;
+  simhubArqFrameReset(&frame);
+  for(size_t i = 0; i < sizeof(kFeaturesFrame) - 1; i++)
+    simhubArqParseByte(&frame, kFeaturesFrame[i]);
+  crc8_fake.return_val = FEATURES_FRAME_CRC;
 
-  const uint8_t cmd[] = {'p', 'r', 'o', 't', 'o'};
-  bool result = false;
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    result = simhubDevProtoProcessCmd(cmd[i]);
+  bool result = simhubArqParseByte(&frame, 0xFF);  /* wrong CRC byte */
 
+  zassert_equal(crc8_fake.call_count, 1,
+                "crc8 must be called once when the CRC byte is received");
+  zassert_not_null((void *)crc8_fake.arg0_val,
+                   "crc8 must receive a non-NULL buffer");
+  zassert_equal(crc8_fake.arg1_val, FEATURES_FRAME_CRC_LEN,
+                "crc8 must receive pktId + len + data length");
+  zassert_equal(crc8_fake.arg2_val, 0xD5,
+                "crc8 must use polynomial 0xD5");
+  zassert_equal(crc8_fake.arg3_val, 0,
+                "crc8 must use seed 0");
+  zassert_equal(crc8_fake.arg4_val, false,
+                "crc8 must not use reflection");
+  zassert_false(result,
+                "parseByte must return false on CRC mismatch");
+  zassert_equal(frame.state, ARQ_SYNC0,
+                "state must reset to ARQ_SYNC0 on CRC mismatch");
+}
+
+/**
+ * @test simhubArqParseByte must return false and reset when a byte is fed
+ * while already in ARQ_DONE.
+ */
+ZTEST(simhubArqProto_tests, test_parseByte_resets_on_byte_in_done_state)
+{
+  SimhubArqFrame_t frame;
+  simhubArqFrameReset(&frame);
+  crc8_fake.return_val = FEATURES_FRAME_CRC;
+  feedPacket(&frame, kFeaturesFrame, sizeof(kFeaturesFrame));
+  zassert_equal(frame.state, ARQ_DONE, "pre-condition: frame must be in ARQ_DONE");
+  RESET_FAKE(crc8);
+
+  bool result = simhubArqParseByte(&frame, 0x00);
+
+  zassert_equal(crc8_fake.call_count, 0,
+                "crc8 must not be called when resetting from ARQ_DONE");
+  zassert_false(result,
+                "parseByte must return false when a byte is fed in ARQ_DONE");
+  zassert_equal(frame.state, ARQ_SYNC0,
+                "state must reset to ARQ_SYNC0 on byte received in ARQ_DONE");
+}
+
+/**
+ * @test simhubArqParseByte must return true and populate the frame correctly
+ * when a complete, CRC-valid Features-query frame is received.
+ */
+ZTEST(simhubArqProto_tests, test_parseByte_returns_true_on_valid_features_frame)
+{
+  SimhubArqFrame_t frame;
+  simhubArqFrameReset(&frame);
+  crc8_fake.return_val = FEATURES_FRAME_CRC;
+
+  bool result = feedPacket(&frame, kFeaturesFrame, sizeof(kFeaturesFrame));
+
+  zassert_equal(crc8_fake.call_count, 1,
+                "crc8 must be called exactly once for the CRC check");
+  zassert_not_null((void *)crc8_fake.arg0_val,
+                   "crc8 must receive a non-NULL buffer");
+  zassert_equal(crc8_fake.arg1_val, FEATURES_FRAME_CRC_LEN,
+                "crc8 must receive pktId + len + data length");
+  zassert_equal(crc8_fake.arg2_val, 0xD5,
+                "crc8 must use polynomial 0xD5");
+  zassert_equal(crc8_fake.arg3_val, 0,
+                "crc8 must use seed 0");
+  zassert_equal(crc8_fake.arg4_val, false,
+                "crc8 must not use reflection");
   zassert_true(result,
-               "ProcessCmd must return true for 'proto'");
-  zassert_equal(simhubDevProtoGetPktType(), SIMHUB_PKT_PROTO,
-                "pkt type must be SIMHUB_PKT_PROTO for 'proto'");
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_RECEIVED_PKT,
-                "state must be RECEIVED_PKT after 'proto'");
+               "parseByte must return true on the CRC byte of a valid frame");
+  zassert_equal(frame.state,   ARQ_DONE, "state must be ARQ_DONE");
+  zassert_equal(frame.pktId,   0x00,     "pktId must be 0x00");
+  zassert_equal(frame.len,     0x02,     "len must be 2");
+  zassert_equal(frame.data[0], 0x03,     "data[0] must be MESSAGE_HEADER");
+  zassert_equal(frame.data[1], 0x30,     "data[1] must be '0' (features cmd)");
 }
 
 /**
- * @test simhubDevProtoProcessCmd must return true, set the packet type to
- * SIMHUB_PKT_LED_COUNT, and advance the state to SIMHUB_PROTO_RECEIVED_PKT
- * when the command "ledsc" is received.
+ * @test simhubArqParseByte must return true for the Hello broadcast frame
+ * (ID=0xFF).
  */
-ZTEST(simhubDevProto_tests, test_process_cmd_ledsc_completes_packet)
+ZTEST(simhubArqProto_tests, test_parseByte_returns_true_on_valid_hello_frame)
 {
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
+  SimhubArqFrame_t frame;
+  simhubArqFrameReset(&frame);
+  crc8_fake.return_val = HELLO_FRAME_CRC;
 
-  const uint8_t cmd[] = {'l', 'e', 'd', 's', 'c'};
-  bool result = false;
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    result = simhubDevProtoProcessCmd(cmd[i]);
+  bool result = feedPacket(&frame, kHelloFrame, sizeof(kHelloFrame));
 
+  zassert_equal(crc8_fake.call_count, 1,
+                "crc8 must be called exactly once for the CRC check");
+  zassert_not_null((void *)crc8_fake.arg0_val,
+                   "crc8 must receive a non-NULL buffer");
+  zassert_equal(crc8_fake.arg1_val, HELLO_FRAME_CRC_LEN,
+                "crc8 must receive pktId + len + data length");
+  zassert_equal(crc8_fake.arg2_val, 0xD5,
+                "crc8 must use polynomial 0xD5");
+  zassert_equal(crc8_fake.arg3_val, 0,
+                "crc8 must use seed 0");
+  zassert_equal(crc8_fake.arg4_val, false,
+                "crc8 must not use reflection");
   zassert_true(result,
-               "ProcessCmd must return true for 'ledsc'");
-  zassert_equal(simhubDevProtoGetPktType(), SIMHUB_PKT_LED_COUNT,
-                "pkt type must be SIMHUB_PKT_LED_COUNT for 'ledsc'");
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_RECEIVED_PKT,
-                "state must be RECEIVED_PKT after 'ledsc'");
+               "parseByte must return true for a valid Hello frame");
+  zassert_equal(frame.pktId,   0xFF, "pktId must be broadcast 0xFF");
+  zassert_equal(frame.len,     0x03, "len must be 3");
+  zassert_equal(frame.data[1], '1',  "data[1] must be '1' (Hello cmd)");
+}
+
+/* ===========================================================================
+ * simhubArqBuildAck
+ * =========================================================================*/
+
+/**
+ * @test simhubArqBuildAck must return -ENOMEM when the buffer is too small.
+ */
+ZTEST(simhubArqProto_tests, test_buildAck_returns_enomem_when_buffer_too_small)
+{
+  uint8_t buf[1];
+
+  int result = simhubArqBuildAck(0x05, buf, sizeof(buf));
+
+  zassert_equal(result, -ENOMEM,
+                "buildAck must return -ENOMEM for a 1-byte buffer");
 }
 
 /**
- * @test simhubDevProtoProcessCmd must return false, set the packet type to
- * SIMHUB_PKT_LED_DATA, reset the data index to 0, and advance the state to
- * SIMHUB_PROTO_RECEIVING_LED_DATA when the command "sleds" is received.
+ * @test simhubArqBuildAck must write 0x03 followed by the packet ID and
+ * return 2.
  */
-ZTEST(simhubDevProto_tests, test_process_cmd_sleds_opens_led_data)
+ZTEST(simhubArqProto_tests, test_buildAck_writes_03_and_id)
 {
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
+  uint8_t buf[4];
+  memset(buf, 0, sizeof(buf));
 
-  const uint8_t cmd[] = {'s', 'l', 'e', 'd', 's'};
-  bool result = false;
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    result = simhubDevProtoProcessCmd(cmd[i]);
+  int result = simhubArqBuildAck(0xAB, buf, sizeof(buf));
 
-  zassert_false(result,
-                "ProcessCmd must return false for 'sleds' (data follows)");
-  zassert_equal(simhubDevProtoGetPktType(), SIMHUB_PKT_LED_DATA,
-                "pkt type must be SIMHUB_PKT_LED_DATA for 'sleds'");
-  zassert_equal(ctx.dataIdx, 0,
-                "dataIdx must be reset to 0 when entering RECEIVING_LED_DATA");
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_RECEIVING_LED_DATA,
-                "state must advance to RECEIVING_LED_DATA after 'sleds'");
+  zassert_equal(result, 2,    "buildAck must return 2");
+  zassert_equal(buf[0], 0x03, "buf[0] must be 0x03 (ACK)");
+  zassert_equal(buf[1], 0xAB, "buf[1] must be the packet ID");
+}
+
+/* ===========================================================================
+ * simhubArqBuildByte
+ * =========================================================================*/
+
+/**
+ * @test simhubArqBuildByte must return -ENOMEM when the buffer is too small.
+ */
+ZTEST(simhubArqProto_tests, test_buildByte_returns_enomem_when_buffer_too_small)
+{
+  uint8_t buf[1];
+
+  int result = simhubArqBuildByte(0x42, buf, sizeof(buf));
+
+  zassert_equal(result, -ENOMEM,
+                "buildByte must return -ENOMEM for a 1-byte buffer");
 }
 
 /**
- * @test simhubDevProtoProcessCmd must return true, set the packet type to
- * SIMHUB_PKT_UNLOCK, and advance the state to SIMHUB_PROTO_RECEIVED_PKT when
- * the command "unlock" is received.
+ * @test simhubArqBuildByte must write 0x08 followed by the value and return 2.
  */
-ZTEST(simhubDevProto_tests, test_process_cmd_unlock_completes_packet)
+ZTEST(simhubArqProto_tests, test_buildByte_writes_08_and_val)
 {
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
+  uint8_t buf[4];
+  memset(buf, 0, sizeof(buf));
 
-  const uint8_t cmd[] = {'u', 'n', 'l', 'o', 'c', 'k'};
-  bool result = false;
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    result = simhubDevProtoProcessCmd(cmd[i]);
+  int result = simhubArqBuildByte(0x42, buf, sizeof(buf));
 
-  zassert_true(result,
-               "ProcessCmd must return true for 'unlock'");
-  zassert_equal(simhubDevProtoGetPktType(), SIMHUB_PKT_UNLOCK,
-                "pkt type must be SIMHUB_PKT_UNLOCK for 'unlock'");
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_RECEIVED_PKT,
-                "state must be RECEIVED_PKT after 'unlock'");
+  zassert_equal(result, 2,    "buildByte must return 2");
+  zassert_equal(buf[0], 0x08, "buf[0] must be 0x08 (BYTE)");
+  zassert_equal(buf[1], 0x42, "buf[1] must be the value");
+}
+
+/* ===========================================================================
+ * simhubArqBuildStr
+ * =========================================================================*/
+
+/**
+ * @test simhubArqBuildStr must return -ENOMEM when the buffer is too small to
+ * hold 0x06 + length byte + string + 0x20.
+ */
+ZTEST(simhubArqProto_tests, test_buildStr_returns_enomem_when_buffer_too_small)
+{
+  uint8_t buf[4];  /* 3 + 2 = 5 bytes needed for a 2-char string */
+
+  int result = simhubArqBuildStr("hi", 2, buf, sizeof(buf));
+
+  zassert_equal(result, -ENOMEM,
+                "buildStr must return -ENOMEM when buffer is too small");
 }
 
 /**
- * @test simhubDevProtoProcessCmd must return false and reset the parser to
- * the initial state when an unknown 6-byte command is received.
+ * @test simhubArqBuildStr must write 0x06, the length, the string bytes, and
+ * 0x20, returning (3 + len).
  */
-ZTEST(simhubDevProto_tests, test_process_cmd_unknown_resets_parser)
+ZTEST(simhubArqProto_tests, test_buildStr_writes_06_len_str_20)
 {
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
+  uint8_t buf[8];
+  memset(buf, 0, sizeof(buf));
 
-  const uint8_t cmd[] = {'b', 'a', 'd', 'c', 'm', 'd'};
-  bool result = false;
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    result = simhubDevProtoProcessCmd(cmd[i]);
+  int result = simhubArqBuildStr("AB", 2, buf, sizeof(buf));
 
-  zassert_false(result,
-                "ProcessCmd must return false for an unknown command");
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_EMPTY_BUFF,
-                "state must reset to EMPTY_BUFF on an unknown command");
-  zassert_equal(simhubDevProtoGetPktType(), SIMHUB_PKT_TYPE_COUNT,
-                "pkt type must reset to SIMHUB_PKT_TYPE_COUNT on an unknown command");
+  zassert_equal(result, 5,    "buildStr must return 3 + len");
+  zassert_equal(buf[0], 0x06, "buf[0] must be 0x06 (STR)");
+  zassert_equal(buf[1], 0x02, "buf[1] must be the string length");
+  zassert_equal(buf[2], 'A',  "buf[2] must be the first string byte");
+  zassert_equal(buf[3], 'B',  "buf[3] must be the second string byte");
+  zassert_equal(buf[4], 0x20, "buf[4] must be 0x20");
+}
+
+/* ===========================================================================
+ * simhubArqBuildStrTerm
+ * =========================================================================*/
+
+/**
+ * @test simhubArqBuildStrTerm must return -ENOMEM when the buffer is too small
+ * to hold the 4-byte terminator.
+ */
+ZTEST(simhubArqProto_tests, test_buildStrTerm_returns_enomem_when_buffer_too_small)
+{
+  uint8_t buf[3];
+
+  int result = simhubArqBuildStrTerm(buf, sizeof(buf));
+
+  zassert_equal(result, -ENOMEM,
+                "buildStrTerm must return -ENOMEM for a 3-byte buffer");
 }
 
 /**
- * @test simhubDevProtoProcessLedData must return false, keep the state
- * SIMHUB_PROTO_RECEIVING_LED_DATA, and store the received byte at the current
- * data index while the pixel buffer is not yet full.
+ * @test simhubArqBuildStrTerm must write 06 01 0A 20 and return 4.
  */
-ZTEST(simhubDevProto_tests, test_process_led_data_accumulates_bytes)
+ZTEST(simhubArqProto_tests, test_buildStrTerm_writes_06_01_0A_20)
 {
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-  const uint8_t cmd[] = {'s', 'l', 'e', 'd', 's'};
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    simhubDevProtoProcessCmd(cmd[i]);
+  uint8_t buf[8];
+  memset(buf, 0, sizeof(buf));
 
-  for(int i = 0; i < SIMHUB_LED_COUNT * 3 - 1; i++)
-  {
-    bool result = simhubDevProtoProcessLedData((uint8_t)i);
+  int result = simhubArqBuildStrTerm(buf, sizeof(buf));
 
-    zassert_false(result,
-                  "ProcessLedData must return false before the pixel buffer is full");
-    zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_RECEIVING_LED_DATA,
-                  "state must remain RECEIVING_LED_DATA before the pixel buffer is full");
-    zassert_equal(ctx.pixelBuf[i], (uint8_t)i,
-                  "received byte must be stored at the current data index");
-  }
+  zassert_equal(result, 4,    "buildStrTerm must return 4");
+  zassert_equal(buf[0], 0x06, "buf[0] must be 0x06 (STR)");
+  zassert_equal(buf[1], 0x01, "buf[1] must be 0x01 (length=1)");
+  zassert_equal(buf[2], 0x0A, "buf[2] must be 0x0A (newline)");
+  zassert_equal(buf[3], 0x20, "buf[3] must be 0x20");
 }
 
-/**
- * @test simhubDevProtoProcessLedData must return false and advance the state
- * to SIMHUB_PROTO_RECEIVING_LED_FOOTER when the last pixel buffer byte is
- * received.
- */
-ZTEST(simhubDevProto_tests, test_process_led_data_advances_state_on_last_byte)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-  const uint8_t cmd[] = {'s', 'l', 'e', 'd', 's'};
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    simhubDevProtoProcessCmd(cmd[i]);
-  for(int i = 0; i < SIMHUB_LED_COUNT * 3 - 1; i++)
-    simhubDevProtoProcessLedData((uint8_t)i);
-
-  bool result = simhubDevProtoProcessLedData(0xAA);
-
-  zassert_false(result,
-                "ProcessLedData must return false even on the last pixel buffer byte");
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_RECEIVING_LED_FOOTER,
-                "state must advance to RECEIVING_LED_FOOTER on the last pixel buffer byte");
-}
-
-/**
- * @test simhubDevProtoProcessLedData must reset the footer index to 0 when
- * advancing to the SIMHUB_PROTO_RECEIVING_LED_FOOTER state.
- */
-ZTEST(simhubDevProto_tests, test_process_led_data_resets_footer_idx)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-  const uint8_t cmd[] = {'s', 'l', 'e', 'd', 's'};
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    simhubDevProtoProcessCmd(cmd[i]);
-  for(int i = 0; i < SIMHUB_LED_COUNT * 3; i++)
-    simhubDevProtoProcessLedData((uint8_t)i);
-
-  zassert_equal(ctx.footerIdx, 0,
-                "footerIdx must be reset to 0 when entering RECEIVING_LED_FOOTER");
-}
-
-/**
- * @test simhubDevProtoProcessLedFooter must return false and reset the parser
- * to the initial state when the first footer byte is incorrect.
- */
-ZTEST(simhubDevProto_tests, test_process_led_footer_wrong_first_byte_resets_parser)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-  const uint8_t cmd[] = {'s', 'l', 'e', 'd', 's'};
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    simhubDevProtoProcessCmd(cmd[i]);
-  for(int i = 0; i < SIMHUB_LED_COUNT * 3; i++)
-    simhubDevProtoProcessLedData((uint8_t)i);
-
-  bool result = simhubDevProtoProcessLedFooter(0x00);
-
-  zassert_false(result,
-                "ProcessLedFooter must return false on a wrong first footer byte");
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_EMPTY_BUFF,
-                "state must reset to EMPTY_BUFF on a wrong first footer byte");
-  zassert_equal(simhubDevProtoGetPktType(), SIMHUB_PKT_TYPE_COUNT,
-                "pkt type must reset to SIMHUB_PKT_TYPE_COUNT on a wrong first footer byte");
-}
-
-/**
- * @test simhubDevProtoProcessLedFooter must return false, keep the state
- * SIMHUB_PROTO_RECEIVING_LED_FOOTER, and increment the footer index when a
- * correct footer byte is received and the footer is not yet complete.
- */
-ZTEST(simhubDevProto_tests, test_process_led_footer_increments_footer_idx)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-  const uint8_t cmd[] = {'s', 'l', 'e', 'd', 's'};
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    simhubDevProtoProcessCmd(cmd[i]);
-  for(int i = 0; i < SIMHUB_LED_COUNT * 3; i++)
-    simhubDevProtoProcessLedData((uint8_t)i);
-
-  bool result = simhubDevProtoProcessLedFooter(0xFF);
-
-  zassert_false(result,
-                "ProcessLedFooter must return false while footer is incomplete");
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_RECEIVING_LED_FOOTER,
-                "state must remain RECEIVING_LED_FOOTER while footer is incomplete");
-  zassert_equal(ctx.footerIdx, 1,
-                "footerIdx must be incremented on a correct footer byte");
-}
-
-/**
- * @test simhubDevProtoProcessLedFooter must return false and reset the parser
- * to the initial state when an incorrect byte is received mid-footer.
- */
-ZTEST(simhubDevProto_tests, test_process_led_footer_wrong_mid_byte_resets_parser)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-  const uint8_t cmd[] = {'s', 'l', 'e', 'd', 's'};
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    simhubDevProtoProcessCmd(cmd[i]);
-  for(int i = 0; i < SIMHUB_LED_COUNT * 3; i++)
-    simhubDevProtoProcessLedData((uint8_t)i);
-  simhubDevProtoProcessLedFooter(0xFF);
-
-  bool result = simhubDevProtoProcessLedFooter(0x00);
-
-  zassert_false(result,
-                "ProcessLedFooter must return false on a wrong mid-footer byte");
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_EMPTY_BUFF,
-                "state must reset to EMPTY_BUFF on a wrong mid-footer byte");
-  zassert_equal(simhubDevProtoGetPktType(), SIMHUB_PKT_TYPE_COUNT,
-                "pkt type must reset to SIMHUB_PKT_TYPE_COUNT on a wrong mid-footer byte");
-}
-
-/**
- * @test simhubDevProtoProcessLedFooter must return true and advance the state
- * to SIMHUB_PROTO_RECEIVED_PKT when all three footer bytes (0xFF, 0xFE, 0xFD)
- * are received in order.
- */
-ZTEST(simhubDevProto_tests, test_process_led_footer_complete_advances_state)
-{
-  simhubDevProtoReset();
-  simhubDevProtoProcessEmptyBuff(0xFF);
-  for(int i = 0; i < 5; i++)
-    simhubDevProtoProcessPreamble(0xFF);
-  const uint8_t cmd[] = {'s', 'l', 'e', 'd', 's'};
-  for(size_t i = 0; i < sizeof(cmd); i++)
-    simhubDevProtoProcessCmd(cmd[i]);
-  for(int i = 0; i < SIMHUB_LED_COUNT * 3; i++)
-    simhubDevProtoProcessLedData((uint8_t)i);
-  simhubDevProtoProcessLedFooter(0xFF);
-  simhubDevProtoProcessLedFooter(0xFE);
-
-  bool result = simhubDevProtoProcessLedFooter(0xFD);
-
-  zassert_true(result,
-               "ProcessLedFooter must return true after all 3 footer bytes");
-  zassert_equal(simhubDevProtoGetState(), SIMHUB_PROTO_RECEIVED_PKT,
-                "state must advance to RECEIVED_PKT after complete footer");
-}
-
-ZTEST_SUITE(simhubDevProto_tests, NULL, proto_tests_setup, proto_tests_before, NULL, NULL);
+ZTEST_SUITE(simhubArqProto_tests, NULL, arq_proto_setup, arq_proto_before, NULL, NULL);

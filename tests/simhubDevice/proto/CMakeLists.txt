@@ -1,4 +1,4 @@
-# Electronya SimHub Device Protocol Tests
+# Electronya SimHub ARQ Transport Protocol Tests
 # Copyright (C) 2026 by Electronya
 # SPDX-License-Identifier: Apache-2.0
 
@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.20.0)
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
-project(simhubDevProto_test)
+project(simhubArqProto_test)
 
 target_sources(app
   PRIVATE
