@@ -256,6 +256,10 @@ static void util_tests_before(void *fixture)
   memset(&config, 0, sizeof(config));
 }
 
+/* ===========================================================================
+ * configureChannels
+ * =========================================================================*/
+
 /**
  * @test The configureChannels function must return -EBUSY when
  * ADC device is not ready.
@@ -336,6 +340,10 @@ ZTEST(adc_util_tests, test_configure_channels_success)
   zassert_equal(sequence.channels, (BIT(0) | BIT(1)),
                 "sequence.channels should be set to 0x03 (BIT(0) | BIT(1))");
 }
+
+/* ===========================================================================
+ * triggerConversion
+ * =========================================================================*/
 
 /**
  * @test The triggerConversion function must clear adcBusy flag when
@@ -426,6 +434,10 @@ ZTEST(adc_util_tests, test_trigger_conversion_success)
                "adcBusy should be true after successful conversion start");
 }
 
+/* ===========================================================================
+ * configureTimer
+ * =========================================================================*/
+
 /**
  * @test The configureTimer function must return -EBUSY when
  * timer device is not ready.
@@ -493,6 +505,10 @@ ZTEST(adc_util_tests, test_configure_timer_success)
                 "triggerConfig.user_data should be set to NULL");
 }
 
+/* ===========================================================================
+ * calculateVdd
+ * =========================================================================*/
+
 /**
  * @test The calculateVdd function must correctly calculate VDD
  * when vrefVal equals the calibration value (VDD = 3000 mV).
@@ -540,6 +556,10 @@ ZTEST(adc_util_tests, test_calculate_vdd_lower_voltage)
   zassert_equal(vdd, 2699,
                 "VDD should be 2699 mV when vrefVal is 1667");
 }
+
+/* ===========================================================================
+ * adcSeqCallback
+ * =========================================================================*/
 
 /**
  * @test The adcSeqCallback function must assert when adc_raw_to_millivolts
@@ -695,6 +715,10 @@ ZTEST(adc_util_tests, test_adc_seq_callback_success)
   buffer = NULL;
 }
 
+/* ===========================================================================
+ * setupSequence
+ * =========================================================================*/
+
 /**
  * @test The setupSequence function must correctly initialize the
  * ADC sequence and sequence options structures.
@@ -743,6 +767,10 @@ ZTEST(adc_util_tests, test_setup_sequence)
   /* Clean up */
   buffer = NULL;
 }
+
+/* ===========================================================================
+ * adcAcqUtilInitAdc
+ * =========================================================================*/
 
 /**
  * @test The adcAcqUtilInitAdc function must return -ENOSPC when
@@ -944,6 +972,10 @@ ZTEST(adc_util_tests, test_init_adc_success)
                 "counter_us_to_ticks should be called once");
 }
 
+/* ===========================================================================
+ * adcAcqUtilInitSubscriptions
+ * =========================================================================*/
+
 /**
  * @test The adcAcqUtilInitSubscriptions function must return -ENOSPC
  * when subscription allocation fails.
@@ -1047,6 +1079,10 @@ ZTEST(adc_util_tests, test_init_subscriptions_success)
                   "osMemoryPoolNew should be called with NULL attr");
 }
 
+/* ===========================================================================
+ * adcAcqUtilStartTrigger
+ * =========================================================================*/
+
 /**
  * @test The adcAcqUtilStartTrigger function must return an error when
  * counter_set_top_value fails.
@@ -1126,6 +1162,10 @@ ZTEST(adc_util_tests, test_start_trigger_success)
                 "counter_start should be called with trigger timer device");
 }
 
+/* ===========================================================================
+ * adcAcqUtilStopTrigger
+ * =========================================================================*/
+
 /**
  * @test The adcAcqUtilStopTrigger function must return an error when
  * counter_stop fails.
@@ -1163,6 +1203,10 @@ ZTEST(adc_util_tests, test_stop_trigger_success)
   zassert_equal(counter_stop_fake.arg0_val, &mock_timer_device,
                 "counter_stop should be called with trigger timer device");
 }
+
+/* ===========================================================================
+ * adcAcqUtilProcessData
+ * =========================================================================*/
 
 /**
  * @test The adcAcqUtilProcessData function must return an error when
@@ -1282,6 +1326,10 @@ ZTEST(adc_util_tests, test_process_data_success)
   /* Clean up */
   voltValues = NULL;
 }
+
+/* ===========================================================================
+ * adcAcqUtilNotifySubscribers
+ * =========================================================================*/
 
 /**
  * @test The adcAcqUtilNotifySubscribers function must skip callback
@@ -1489,6 +1537,10 @@ ZTEST(adc_util_tests, test_notify_subscribers_skips_paused)
   voltValues = NULL;
 }
 
+/* ===========================================================================
+ * adcAcqUtilAddSubscription
+ * =========================================================================*/
+
 /**
  * @test The adcAcqUtilAddSubscription function must return -ENOSPC
  * when the maximum subscription count is reached.
@@ -1557,6 +1609,10 @@ ZTEST(adc_util_tests, test_add_subscription_success)
   subConfig.activeSubCount = 0;
   subConfig.maxSubCount = 0;
 }
+
+/* ===========================================================================
+ * adcAcqUtilRemoveSubscription
+ * =========================================================================*/
 
 /**
  * @test The adcAcqUtilRemoveSubscription function must return -ESRCH
@@ -1636,6 +1692,10 @@ ZTEST(adc_util_tests, test_remove_subscription_success)
   subConfig.activeSubCount = 0;
   subConfig.maxSubCount = 0;
 }
+
+/* ===========================================================================
+ * adcAcqUtilSetSubPauseState
+ * =========================================================================*/
 
 /**
  * @test The adcAcqUtilSetSubPauseState function must return -ESRCH
@@ -1742,6 +1802,10 @@ ZTEST(adc_util_tests, test_set_sub_pause_state_unpause_success)
   subConfig.maxSubCount = 0;
 }
 
+/* ===========================================================================
+ * adcAcqUtilGetChanCount
+ * =========================================================================*/
+
 /**
  * @test The adcAcqUtilGetChanCount function must return the volt buffer
  * size (channel count + 1 for Vdd).
@@ -1755,6 +1819,10 @@ ZTEST(adc_util_tests, test_get_chan_count_returns_channel_count)
 
   zassert_equal(count, 0, "Channel count should be 0 before initialization");
 }
+
+/* ===========================================================================
+ * adcAcqUtilGetRaw
+ * =========================================================================*/
 
 /**
  * @test The adcAcqUtilGetRaw function must return -EINVAL when
@@ -1850,6 +1918,10 @@ ZTEST(adc_util_tests, test_get_raw_success)
   zassert_equal(adcAcqFilterGetThirdOrderData_fake.arg0_val, 0,
                 "Filter should be called with correct channel ID");
 }
+
+/* ===========================================================================
+ * adcAcqUtilGetVolt
+ * =========================================================================*/
 
 /**
  * @test The adcAcqUtilGetVolt function must return -EINVAL when

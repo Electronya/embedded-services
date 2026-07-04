@@ -280,6 +280,10 @@ static void service_tests_before(void *f)
   serviceManagerRegisterSrv_fake.custom_fake = serviceManagerRegisterSrv_capture;
 }
 
+/* ===========================================================================
+ * run
+ * =========================================================================*/
+
 /**
  * @test The run function must log error but continue when adcAcqUtilStopTrigger fails on STOP.
  */
@@ -510,6 +514,10 @@ ZTEST(adc_service_tests, test_run_success)
                 "k_sleep should not be called");
 }
 
+/* ===========================================================================
+ * onStart
+ * =========================================================================*/
+
 /**
  * @test The onStart callback must return error when adcAcqUtilStartTrigger fails.
  */
@@ -557,6 +565,10 @@ ZTEST(adc_service_tests, test_onStart_success)
                 "adcAcqUtilStartTrigger should be called once");
 }
 
+/* ===========================================================================
+ * onStop
+ * =========================================================================*/
+
 /**
  * @test The onStop callback must return error when k_msgq_put fails.
  */
@@ -600,6 +612,10 @@ ZTEST(adc_service_tests, test_onStop_success)
                 "k_msgq_put should be called with SVC_CTRL_STOP");
 }
 
+/* ===========================================================================
+ * onSuspend
+ * =========================================================================*/
+
 /**
  * @test The onSuspend callback must return error when k_msgq_put fails.
  */
@@ -642,6 +658,10 @@ ZTEST(adc_service_tests, test_onSuspend_success)
   zassert_equal(captured_ctrl_msg, SVC_CTRL_SUSPEND,
                 "k_msgq_put should be called with SVC_CTRL_SUSPEND");
 }
+
+/* ===========================================================================
+ * onResume
+ * =========================================================================*/
 
 /**
  * @test The onResume callback must return error when adcAcqUtilStartTrigger fails.
@@ -689,6 +709,10 @@ ZTEST(adc_service_tests, test_onResume_success)
   zassert_equal(adcAcqUtilStartTrigger_fake.call_count, 1,
                 "adcAcqUtilStartTrigger should be called once");
 }
+
+/* ===========================================================================
+ * adcAcqInit
+ * =========================================================================*/
 
 /**
  * @test The adcAcqInit function must return error when adcAcqUtilInitAdc fails.
@@ -936,6 +960,10 @@ static int dummyCallback(SrvMsgPayload_t *data)
   return 0;
 }
 
+/* ===========================================================================
+ * adcAcqSubscribe
+ * =========================================================================*/
+
 /**
  * @test The adcAcqSubscribe function must return error when adcAcqUtilAddSubscription fails.
  */
@@ -984,6 +1012,10 @@ ZTEST(adc_service_tests, test_subscribe_success)
                 "adcAcqUtilAddSubscription should be called with callback");
 }
 
+/* ===========================================================================
+ * adcAcqUnsubscribe
+ * =========================================================================*/
+
 /**
  * @test The adcAcqUnsubscribe function must return error when adcAcqUtilRemoveSubscription fails.
  */
@@ -1031,6 +1063,10 @@ ZTEST(adc_service_tests, test_unsubscribe_success)
   zassert_equal(adcAcqUtilRemoveSubscription_fake.arg0_val, dummyCallback,
                 "adcAcqUtilRemoveSubscription should be called with callback");
 }
+
+/* ===========================================================================
+ * adcAcqPauseSubscription
+ * =========================================================================*/
 
 /**
  * @test The adcAcqPauseSubscription function must return error when adcAcqUtilSetSubPauseState fails.
@@ -1083,6 +1119,10 @@ ZTEST(adc_service_tests, test_pause_subscription_success)
   zassert_true(adcAcqUtilSetSubPauseState_fake.arg1_val,
                "adcAcqUtilSetSubPauseState should be called with true for pause");
 }
+
+/* ===========================================================================
+ * adcAcqUnpauseSubscription
+ * =========================================================================*/
 
 /**
  * @test The adcAcqUnpauseSubscription function must return error when adcAcqUtilSetSubPauseState fails.

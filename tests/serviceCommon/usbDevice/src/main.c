@@ -156,6 +156,9 @@ static void usbDevice_tests_before(void *fixture)
   descriptorFailOn    = 0;
 }
 
+/* ===========================================================================
+ * usbDeviceInit
+ * =========================================================================*/
 /**
  * @test usbDeviceInit must return error when the language descriptor fails.
  */
@@ -409,6 +412,9 @@ ZTEST(usbDevice, test_init_withCb_success)
                 "usbd_init should be called with the USB context");
 }
 
+/* ===========================================================================
+ * usbDeviceEnable
+ * =========================================================================*/
 /**
  * @test usbDeviceEnable must return error when usbd_enable fails.
  */
@@ -443,6 +449,9 @@ ZTEST(usbDevice, test_enable_success)
                 "usbd_enable should be called with the USB context");
 }
 
+/* ===========================================================================
+ * usbDeviceDisable
+ * =========================================================================*/
 /**
  * @test usbDeviceDisable must return error when usbd_disable fails.
  */

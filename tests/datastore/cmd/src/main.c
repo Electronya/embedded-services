@@ -359,6 +359,9 @@ static int findDatapointByName_with_unsupported_entry(const char *name, const Da
   return 0;
 }
 
+/* ===========================================================================
+ * execList
+ * =========================================================================*/
 /**
  * @test execList should handle datastoreRead failure and continue.
  */
@@ -561,6 +564,9 @@ ZTEST(datastore_cmd_tests, test_exec_list_success)
   }
 }
 
+/* ===========================================================================
+ * execRead
+ * =========================================================================*/
 /**
  * @test execRead should fail when datapoint is not found.
  */
@@ -929,6 +935,9 @@ ZTEST(datastore_cmd_tests, test_exec_read_uint_success)
                 "shell_error should not be called on success");
 }
 
+/* ===========================================================================
+ * execWrite
+ * =========================================================================*/
 /**
  * @test execWrite should fail when datapoint is not found.
  */

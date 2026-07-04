@@ -352,6 +352,10 @@ static void service_tests_before(void *fixture)
   testRingBufByteRead    = 0;
 }
 
+/* ===========================================================================
+ * uartCallback
+ * =========================================================================*/
+
 /**
  * @test uartCallback must always call uart_irq_update
  */
@@ -468,6 +472,10 @@ ZTEST(simhubDevice_tests, test_uart_callback_disables_tx_and_gives_tx_sem_when_t
   zassert_equal(k_sem_give_mock_fake.call_count, 1, "expected k_sem_give called once");
   zassert_equal_ptr(k_sem_give_mock_fake.arg0_val, &txSem, "expected k_sem_give called with &txSem");
 }
+
+/* ===========================================================================
+ * dispatchPkt
+ * =========================================================================*/
 
 /**
  * @test dispatchPkt must acquire the TX semaphore, call process, then release
@@ -612,6 +620,10 @@ ZTEST(simhubDevice_tests, test_dispatch_pkt_resets_parser_for_unknown_pkt_type)
   zassert_equal(uart_irq_tx_enable_mock_fake.call_count, 0, "expected uart_irq_tx_enable not called");
 }
 
+/* ===========================================================================
+ * rxEnable
+ * =========================================================================*/
+
 /**
  * @test rxEnable must reset the ring buffer and enable UART RX IRQ
  */
@@ -626,6 +638,10 @@ ZTEST(simhubDevice_tests, test_rx_enable_resets_ring_buf_and_enables_uart_irq_rx
                     "expected uart_irq_rx_enable called with ctx.uart");
 }
 
+/* ===========================================================================
+ * rxDisable
+ * =========================================================================*/
+
 /**
  * @test rxDisable must disable UART RX IRQ
  */
@@ -637,6 +653,10 @@ ZTEST(simhubDevice_tests, test_rx_disable_disables_uart_irq_rx)
   zassert_equal_ptr(uart_irq_rx_disable_mock_fake.arg0_val, &testUartDevice,
                     "expected uart_irq_rx_disable called with ctx.uart");
 }
+
+/* ===========================================================================
+ * run
+ * =========================================================================*/
 
 /**
  * @test run must return early when simhubDevUtilInit fails
@@ -864,6 +884,10 @@ ZTEST(simhubDevice_tests, test_run_dispatches_pkt_when_received_pkt_completes)
   zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 2, "expected heartbeat updated twice");
 }
 
+/* ===========================================================================
+ * onStart
+ * =========================================================================*/
+
 /**
  * @test onStart must start the service thread and return success
  */
@@ -875,6 +899,10 @@ ZTEST(simhubDevice_tests, test_on_start_starts_thread_and_returns_success)
   zassert_equal(k_thread_start_mock_fake.call_count, 1, "expected k_thread_start called once");
   zassert_equal_ptr(k_thread_start_mock_fake.arg0_val, &thread, "expected k_thread_start called with &thread");
 }
+
+/* ===========================================================================
+ * onStop
+ * =========================================================================*/
 
 /**
  * @test onStop must propagate the error when enqueueing the stop message fails
@@ -901,6 +929,10 @@ ZTEST(simhubDevice_tests, test_on_stop_enqueues_stop_message_and_returns_success
   zassert_equal(k_msgq_put_mock_fake.call_count, 1, "expected k_msgq_put called once");
   zassert_equal(capturedCtrlMsg, SVC_CTRL_STOP, "expected SVC_CTRL_STOP enqueued");
 }
+
+/* ===========================================================================
+ * onSuspend
+ * =========================================================================*/
 
 /**
  * @test onSuspend must propagate the error when enqueueing the suspend message
@@ -929,6 +961,10 @@ ZTEST(simhubDevice_tests, test_on_suspend_enqueues_suspend_message_and_returns_s
   zassert_equal(capturedCtrlMsg, SVC_CTRL_SUSPEND, "expected SVC_CTRL_SUSPEND enqueued");
 }
 
+/* ===========================================================================
+ * onResume
+ * =========================================================================*/
+
 /**
  * @test onResume must resume the service thread and return success
  */
@@ -940,6 +976,10 @@ ZTEST(simhubDevice_tests, test_on_resume_resumes_thread_and_returns_success)
   zassert_equal(k_thread_resume_mock_fake.call_count, 1, "expected k_thread_resume called once");
   zassert_equal_ptr(k_thread_resume_mock_fake.arg0_val, &thread, "expected k_thread_resume called with &thread");
 }
+
+/* ===========================================================================
+ * simhubDeviceInit
+ * =========================================================================*/
 
 /**
  * @test simhubDeviceInit must return -ENODEV and not create the thread when

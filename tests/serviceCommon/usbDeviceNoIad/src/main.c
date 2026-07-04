@@ -137,6 +137,9 @@ static void usbDeviceNoIad_tests_before(void *fixture)
   FFF_RESET_HISTORY();
 }
 
+/* ===========================================================================
+ * usbDeviceInit
+ * =========================================================================*/
 /**
  * @test usbDeviceInit must set the zero code triple when no IAD class is enabled.
  */

@@ -243,6 +243,9 @@ static void service_tests_before(void *f)
   k_msgq_get_mock_fake.custom_fake = k_msgq_get_no_message;
 }
 
+/* ===========================================================================
+ * run
+ * =========================================================================*/
 /**
  * @test The run function must log error but continue when confirming the running state fails.
  */
@@ -516,6 +519,9 @@ ZTEST_F(ledStrip, test_run_successBrightness)
                 "serviceManagerUpdateHeartbeat should be called for each iteration");
 }
 
+/* ===========================================================================
+ * onStart
+ * =========================================================================*/
 /**
  * @test The onStart callback must start the service thread.
  */
@@ -532,6 +538,9 @@ ZTEST_F(ledStrip, test_onStart_success)
                 "k_thread_start should be called with the service thread");
 }
 
+/* ===========================================================================
+ * onStop
+ * =========================================================================*/
 /**
  * @test The onStop callback must return error when queuing the stop message fails.
  */
@@ -565,6 +574,9 @@ ZTEST_F(ledStrip, test_onStop_success)
                 "k_msgq_put should be called with a STOP message");
 }
 
+/* ===========================================================================
+ * onSuspend
+ * =========================================================================*/
 /**
  * @test The onSuspend callback must return error when queuing the suspend message fails.
  */
@@ -598,6 +610,9 @@ ZTEST_F(ledStrip, test_onSuspend_success)
                 "k_msgq_put should be called with a SUSPEND message");
 }
 
+/* ===========================================================================
+ * onResume
+ * =========================================================================*/
 /**
  * @test The onResume callback must restart the frame timer and resume the service thread.
  */
@@ -614,6 +629,9 @@ ZTEST_F(ledStrip, test_onResume_success)
                 "k_thread_resume should be called with the service thread");
 }
 
+/* ===========================================================================
+ * ledStripInit
+ * =========================================================================*/
 /**
  * @test The init function must return error when initializing the strip fails.
  */
@@ -743,6 +761,9 @@ ZTEST_F(ledStrip, test_ledStripInit_success)
                 "descriptor resume callback should be onResume");
 }
 
+/* ===========================================================================
+ * ledStripGetNextFramebuffer
+ * =========================================================================*/
 /**
  * @test ledStripGetNextFramebuffer must return NULL when the pool allocation fails.
  */
@@ -777,6 +798,9 @@ ZTEST_F(ledStrip, test_ledStripGetNextFramebuffer_success)
                 "ledStripUtilGetNextFramebuffer should be called once");
 }
 
+/* ===========================================================================
+ * ledStripUpdateFrame
+ * =========================================================================*/
 /**
  * @test ledStripUpdateFrame must return error when queuing the new frame message fails.
  */
@@ -814,6 +838,9 @@ ZTEST_F(ledStrip, test_ledStripUpdateFrame_success)
                 "k_msgq_put should be called with the correct frame pointer");
 }
 
+/* ===========================================================================
+ * ledStripSetBrightness
+ * =========================================================================*/
 /**
  * @test ledStripSetBrightness must return error when queuing the brightness message fails.
  */

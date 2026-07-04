@@ -202,6 +202,9 @@ static void datastore_tests_before(void *f)
   k_msgq_purge(&datastoreQueue);
 }
 
+/* ===========================================================================
+ * run
+ * =========================================================================*/
 /**
  * @test  The run function must skip message processing and call heartbeat on timeout.
  */
@@ -570,6 +573,9 @@ ZTEST(datastore_tests, test_run_suspend_confirms_state)
                 "serviceManagerUpdateHeartbeat should be called with current thread ID");
 }
 
+/* ===========================================================================
+ * onStart
+ * =========================================================================*/
 /**
  * @test  The onStart callback must start the datastore thread and return 0.
  */
@@ -586,6 +592,9 @@ ZTEST(datastore_tests, test_onStart_starts_thread)
                 "k_thread_start should be called with the datastore thread");
 }
 
+/* ===========================================================================
+ * onStop
+ * =========================================================================*/
 /**
  * @test  The onStop callback must return the error code when k_msgq_put fails.
  */
@@ -623,6 +632,9 @@ ZTEST(datastore_tests, test_onStop_success)
                 "Enqueued message should have DATASTORE_STOP type");
 }
 
+/* ===========================================================================
+ * onSuspend
+ * =========================================================================*/
 /**
  * @test  The onSuspend callback must return the error code when k_msgq_put fails.
  */
@@ -660,6 +672,9 @@ ZTEST(datastore_tests, test_onSuspend_success)
                 "Enqueued message should have DATASTORE_SUSPEND type");
 }
 
+/* ===========================================================================
+ * onResume
+ * =========================================================================*/
 /**
  * @test  The onResume callback must resume the datastore thread and return 0.
  */
@@ -676,6 +691,9 @@ ZTEST(datastore_tests, test_onResume_resumes_thread)
                 "k_thread_resume should be called with the datastore thread");
 }
 
+/* ===========================================================================
+ * datastoreInit
+ * =========================================================================*/
 /**
  * @test  The datastoreInit function must return an error when
  *        datastoreUtilAllocateBinarySubs fails.
@@ -1088,6 +1106,9 @@ ZTEST(datastore_tests, test_init_success)
                 "descriptor resume callback should be onResume");
 }
 
+/* ===========================================================================
+ * datastoreRead
+ * =========================================================================*/
 /**
  * @test  The datastoreRead function must return an error when buffer allocation
  *        fails (osMemoryPoolAlloc returns NULL).
@@ -1360,6 +1381,9 @@ ZTEST(datastore_tests, test_read_success)
                 "osMemoryPoolFree should be called with the allocated payload");
 }
 
+/* ===========================================================================
+ * datastoreWrite
+ * =========================================================================*/
 /**
  * @test  The datastoreWrite function must return an error when buffer allocation
  *        fails (osMemoryPoolAlloc returns NULL).
@@ -1675,6 +1699,9 @@ ZTEST(datastore_tests, test_write_success)
                 "osMemoryPoolFree should not be called in datastoreWrite when operation succeeds with response");
 }
 
+/* ===========================================================================
+ * datastoreSubscribeBinary
+ * =========================================================================*/
 /**
  * @test  The datastoreSubscribeBinary function must return an error when
  *        datastoreUtilAddBinarySub fails.
@@ -1729,6 +1756,9 @@ ZTEST(datastore_tests, test_subscribe_binary_success)
                 "datastoreUtilAddBinarySub should be called with bufferPool");
 }
 
+/* ===========================================================================
+ * datastoreUnsubscribeBinary
+ * =========================================================================*/
 /**
  * @test  The datastoreUnsubscribeBinary function must return an error when
  *        datastoreUtilRemoveBinarySub fails.
@@ -1779,6 +1809,9 @@ ZTEST(datastore_tests, test_unsubscribe_binary_success)
                 "datastoreUtilRemoveBinarySub should be called with the callback");
 }
 
+/* ===========================================================================
+ * datastorePauseSubBinary
+ * =========================================================================*/
 /**
  * @test  The datastorePauseSubBinary function must return an error when
  *        datastoreUtilSetBinarySubPauseState fails.
@@ -1837,6 +1870,9 @@ ZTEST(datastore_tests, test_pause_sub_binary_success)
                 "datastoreUtilSetBinarySubPauseState should be called with bufferPool");
 }
 
+/* ===========================================================================
+ * datastoreUnpauseSubBinary
+ * =========================================================================*/
 /**
  * @test  The datastoreUnpauseSubBinary function must return an error when
  *        datastoreUtilSetBinarySubPauseState fails.
@@ -1895,6 +1931,9 @@ ZTEST(datastore_tests, test_unpause_sub_binary_success)
                 "datastoreUtilSetBinarySubPauseState should be called with bufferPool");
 }
 
+/* ===========================================================================
+ * datastoreReadBinary
+ * =========================================================================*/
 /**
  * @test  The datastoreReadBinary function must return -EINVAL when values
  *        parameter is NULL.
@@ -2088,6 +2127,9 @@ ZTEST(datastore_tests, test_read_binary_success)
                 "osMemoryPoolFree should be called once to free the buffer");
 }
 
+/* ===========================================================================
+ * datastoreWriteBinary
+ * =========================================================================*/
 /**
  * @test  The datastoreWriteBinary function must return -EINVAL when values
  *        parameter is NULL.
@@ -2248,6 +2290,9 @@ ZTEST(datastore_tests, test_write_binary_success)
                 "osMemoryPoolFree should not be called when response is expected");
 }
 
+/* ===========================================================================
+ * datastoreSubscribeButton
+ * =========================================================================*/
 /**
  * @test  The datastoreSubscribeButton function must return an error when
  *        datastoreUtilAddButtonSub fails.
@@ -2302,6 +2347,9 @@ ZTEST(datastore_tests, test_subscribe_button_success)
                 "datastoreUtilAddButtonSub should be called with bufferPool");
 }
 
+/* ===========================================================================
+ * datastoreUnsubscribeButton
+ * =========================================================================*/
 /**
  * @test  The datastoreUnsubscribeButton function must return an error when
  *        datastoreUtilRemoveButtonSub fails.
@@ -2352,6 +2400,9 @@ ZTEST(datastore_tests, test_unsubscribe_button_success)
                 "datastoreUtilRemoveButtonSub should be called with the callback");
 }
 
+/* ===========================================================================
+ * datastorePauseSubButton
+ * =========================================================================*/
 /**
  * @test  The datastorePauseSubButton function must return an error when
  *        datastoreUtilSetButtonSubPauseState fails.
@@ -2410,6 +2461,9 @@ ZTEST(datastore_tests, test_pause_sub_button_success)
                 "datastoreUtilSetButtonSubPauseState should be called with bufferPool");
 }
 
+/* ===========================================================================
+ * datastoreUnpauseSubButton
+ * =========================================================================*/
 /**
  * @test  The datastoreUnpauseSubButton function must return an error when
  *        datastoreUtilSetButtonSubPauseState fails.
@@ -2468,6 +2522,9 @@ ZTEST(datastore_tests, test_unpause_sub_button_success)
                 "datastoreUtilSetButtonSubPauseState should be called with bufferPool");
 }
 
+/* ===========================================================================
+ * datastoreReadButton
+ * =========================================================================*/
 /**
  * @test  The datastoreReadButton function must return -EINVAL when values
  *        parameter is NULL.
@@ -2661,6 +2718,9 @@ ZTEST(datastore_tests, test_read_button_success)
                 "osMemoryPoolFree should be called once to free the buffer");
 }
 
+/* ===========================================================================
+ * datastoreWriteButton
+ * =========================================================================*/
 /**
  * @test  The datastoreWriteButton function must return -EINVAL when values
  *        parameter is NULL.
@@ -2821,6 +2881,9 @@ ZTEST(datastore_tests, test_write_button_success)
                 "osMemoryPoolFree should not be called when response is expected");
 }
 
+/* ===========================================================================
+ * datastoreSubscribeFloat
+ * =========================================================================*/
 /**
  * @test  The datastoreSubscribeFloat function must return an error when
  *        datastoreUtilAddFloatSub fails.
@@ -2875,6 +2938,9 @@ ZTEST(datastore_tests, test_subscribe_float_success)
                 "datastoreUtilAddFloatSub should be called with bufferPool");
 }
 
+/* ===========================================================================
+ * datastoreUnsubscribeFloat
+ * =========================================================================*/
 /**
  * @test  The datastoreUnsubscribeFloat function must return an error when
  *        datastoreUtilRemoveFloatSub fails.
@@ -2925,6 +2991,9 @@ ZTEST(datastore_tests, test_unsubscribe_float_success)
                 "datastoreUtilRemoveFloatSub should be called with the callback");
 }
 
+/* ===========================================================================
+ * datastorePauseSubFloat
+ * =========================================================================*/
 /**
  * @test  The datastorePauseSubFloat function must return an error when
  *        datastoreUtilSetFloatSubPauseState fails.
@@ -2983,6 +3052,9 @@ ZTEST(datastore_tests, test_pause_sub_float_success)
                 "datastoreUtilSetFloatSubPauseState should be called with bufferPool");
 }
 
+/* ===========================================================================
+ * datastoreUnpauseSubFloat
+ * =========================================================================*/
 /**
  * @test  The datastoreUnpauseSubFloat function must return an error when
  *        datastoreUtilSetFloatSubPauseState fails.
@@ -3041,6 +3113,9 @@ ZTEST(datastore_tests, test_unpause_sub_float_success)
                 "datastoreUtilSetFloatSubPauseState should be called with bufferPool");
 }
 
+/* ===========================================================================
+ * datastoreReadFloat
+ * =========================================================================*/
 /**
  * @test  The datastoreReadFloat function must return an error when the values
  *        parameter is NULL.
@@ -3187,6 +3262,9 @@ ZTEST(datastore_tests, test_read_float_success)
   zassert_equal(dataValues[2].floatVal, 3.125f, "values[2] should be 3.125");
 }
 
+/* ===========================================================================
+ * datastoreWriteFloat
+ * =========================================================================*/
 /**
  * @test  The datastoreWriteFloat function must return an error when the values
  *        parameter is NULL.
@@ -3321,6 +3399,9 @@ ZTEST(datastore_tests, test_write_float_success)
   zassert_equal(payloadData[2].floatVal, 3.125f, "Third value should be 3.125");
 }
 
+/* ===========================================================================
+ * datastoreSubscribeInt
+ * =========================================================================*/
 /**
  * @test  The datastoreSubscribeInt function must return an error when
  *        datastoreUtilAddIntSub fails.
@@ -3379,6 +3460,9 @@ ZTEST(datastore_tests, test_subscribe_int_success)
                 "datastoreUtilAddIntSub should be called with bufferPool");
 }
 
+/* ===========================================================================
+ * datastoreUnsubscribeInt
+ * =========================================================================*/
 /**
  * @test  The datastoreUnsubscribeInt function must return an error when
  *        datastoreUtilRemoveIntSub fails.
@@ -3429,6 +3513,9 @@ ZTEST(datastore_tests, test_unsubscribe_int_success)
                 "datastoreUtilRemoveIntSub should be called with the callback");
 }
 
+/* ===========================================================================
+ * datastorePauseSubInt
+ * =========================================================================*/
 /**
  * @test  The datastorePauseSubInt function must return an error when
  *        datastoreUtilSetIntSubPauseState fails.
@@ -3487,6 +3574,9 @@ ZTEST(datastore_tests, test_pause_sub_int_success)
                 "datastoreUtilSetIntSubPauseState should be called with bufferPool");
 }
 
+/* ===========================================================================
+ * datastoreUnpauseSubInt
+ * =========================================================================*/
 /**
  * @test  The datastoreUnpauseSubInt function must return an error when
  *        datastoreUtilSetIntSubPauseState fails.
@@ -3545,6 +3635,9 @@ ZTEST(datastore_tests, test_unpause_sub_int_success)
                 "datastoreUtilSetIntSubPauseState should be called with bufferPool");
 }
 
+/* ===========================================================================
+ * datastoreReadInt
+ * =========================================================================*/
 /**
  * @test  The datastoreReadInt function must return an error when the values
  *        parameter is NULL.
@@ -3691,6 +3784,9 @@ ZTEST(datastore_tests, test_read_int_success)
   zassert_equal(dataValues[2].intVal, 200, "values[2] should be 200");
 }
 
+/* ===========================================================================
+ * datastoreWriteInt
+ * =========================================================================*/
 /**
  * @test  The datastoreWriteInt function must return an error when the values
  *        parameter is NULL.
@@ -3825,6 +3921,9 @@ ZTEST(datastore_tests, test_write_int_success)
   zassert_equal(payloadData[2].intVal, 200, "Third value should be 200");
 }
 
+/* ===========================================================================
+ * datastoreSubscribeMultiState
+ * =========================================================================*/
 /**
  * @test  The datastoreSubscribeMultiState function must return an error when
  *        datastoreUtilAddMultiStateSub fails.
@@ -3883,6 +3982,9 @@ ZTEST(datastore_tests, test_subscribe_multi_state_success)
                 "datastoreUtilAddMultiStateSub should be called with bufferPool");
 }
 
+/* ===========================================================================
+ * datastoreUnsubscribeMultiState
+ * =========================================================================*/
 /**
  * @test  The datastoreUnsubscribeMultiState function must return an error when
  *        datastoreUtilRemoveMultiStateSub fails.
@@ -3933,6 +4035,9 @@ ZTEST(datastore_tests, test_unsubscribe_multi_state_success)
                 "datastoreUtilRemoveMultiStateSub should be called with the callback");
 }
 
+/* ===========================================================================
+ * datastorePauseSubMultiState
+ * =========================================================================*/
 /**
  * @test  The datastorePauseSubMultiState function must return an error when
  *        datastoreUtilSetMultiStateSubPauseState fails.
@@ -3991,6 +4096,9 @@ ZTEST(datastore_tests, test_pause_sub_multi_state_success)
                 "datastoreUtilSetMultiStateSubPauseState should be called with bufferPool");
 }
 
+/* ===========================================================================
+ * datastoreUnpauseSubMultiState
+ * =========================================================================*/
 /**
  * @test  The datastoreUnpauseSubMultiState function must return an error when
  *        datastoreUtilSetMultiStateSubPauseState fails.
@@ -4049,6 +4157,9 @@ ZTEST(datastore_tests, test_unpause_sub_multi_state_success)
                 "datastoreUtilSetMultiStateSubPauseState should be called with bufferPool");
 }
 
+/* ===========================================================================
+ * datastoreReadMultiState
+ * =========================================================================*/
 /**
  * @test  The datastoreReadMultiState function must return an error when the values
  *        parameter is NULL.
@@ -4195,6 +4306,9 @@ ZTEST(datastore_tests, test_read_multi_state_success)
   zassert_equal(dataValues[2].uintVal, 30, "values[2] should be 30");
 }
 
+/* ===========================================================================
+ * datastoreWriteMultiState
+ * =========================================================================*/
 /**
  * @test  The datastoreWriteMultiState function must return an error when the values
  *        parameter is NULL.
@@ -4340,6 +4454,9 @@ ZTEST(datastore_tests, test_write_multi_state_success)
   zassert_equal(payloadData[2].uintVal, 30, "Third value should be 30");
 }
 
+/* ===========================================================================
+ * datastoreSubscribeUint
+ * =========================================================================*/
 /**
  * @test  The datastoreSubscribeUint function must return an error when
  *        datastoreUtilAddUintSub fails.
@@ -4382,6 +4499,9 @@ ZTEST(datastore_tests, test_subscribe_uint_success)
   zassert_equal(ret, 0, "datastoreSubscribeUint should return 0 on success");
 }
 
+/* ===========================================================================
+ * datastoreUnsubscribeUint
+ * =========================================================================*/
 /**
  * @test  The datastoreUnsubscribeUint function must return an error when
  *        datastoreUtilRemoveUintSub fails.
@@ -4432,6 +4552,9 @@ ZTEST(datastore_tests, test_unsubscribe_uint_success)
                 "datastoreUtilRemoveUintSub should be called with correct callback");
 }
 
+/* ===========================================================================
+ * datastorePauseSubUint
+ * =========================================================================*/
 /**
  * @test  The datastorePauseSubUint function must return an error when
  *        datastoreUtilSetUintSubPauseState fails.
@@ -4486,6 +4609,9 @@ ZTEST(datastore_tests, test_pause_sub_uint_success)
                 "datastoreUtilSetUintSubPauseState should be called with true for pause state");
 }
 
+/* ===========================================================================
+ * datastoreUnpauseSubUint
+ * =========================================================================*/
 /**
  * @test  The datastoreUnpauseSubUint function must return an error when
  *        datastoreUtilSetUintSubPauseState fails.
@@ -4540,6 +4666,9 @@ ZTEST(datastore_tests, test_unpause_sub_uint_success)
                 "datastoreUtilSetUintSubPauseState should be called with false for unpause state");
 }
 
+/* ===========================================================================
+ * datastoreReadUint
+ * =========================================================================*/
 /**
  * @test  The datastoreReadUint function must return an error when
  *        the values parameter is NULL.
@@ -4682,6 +4811,9 @@ ZTEST(datastore_tests, test_read_uint_success)
   zassert_equal(dataValues[2].uintVal, 30, "values[2] should be 30");
 }
 
+/* ===========================================================================
+ * datastoreWriteUint
+ * =========================================================================*/
 /**
  * @test  The datastoreWriteUint function must return an error when
  *        the values parameter is NULL.

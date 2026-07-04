@@ -100,6 +100,9 @@ static void util_tests_before(void *fixture)
   activeFrame = NULL;
 }
 
+/* ===========================================================================
+ * applyGlobalBrightness
+ * =========================================================================*/
 /**
  * @test applyGlobalBrightness must be a no-op when called with a NULL frame.
  */
@@ -185,6 +188,9 @@ ZTEST(ledStripUtil, test_applyGlobalBrightness_partialBrightness)
   }
 }
 
+/* ===========================================================================
+ * ledStripUtilInitStrip
+ * =========================================================================*/
 /**
  * @test ledStripUtilInitStrip must return -EBUSY when the device is not ready.
  */
@@ -219,6 +225,9 @@ ZTEST(ledStripUtil, test_initStrip_success)
                 "device_is_ready should be called with the LED strip device");
 }
 
+/* ===========================================================================
+ * ledStripUtilInitFramebuffers
+ * =========================================================================*/
 /**
  * @test ledStripUtilInitFramebuffers must return -ENOSPC when the framebuffers
  *       allocation fails.
@@ -259,6 +268,9 @@ ZTEST(ledStripUtil, test_initFramebuffers_success)
                 "Block size should be pixel_count * sizeof(struct led_rgb)");
 }
 
+/* ===========================================================================
+ * ledStripUtilGetNextFramebuffer
+ * =========================================================================*/
 /**
  * @test ledStripUtilGetNextFramebuffer must return NULL when the pool allocation fails.
  */
@@ -295,6 +307,9 @@ ZTEST(ledStripUtil, test_getNextFramebuffer_success)
                 "osMemoryPoolAlloc should be called with the allocation timeout");
 }
 
+/* ===========================================================================
+ * ledStripUtilActivateFrame
+ * =========================================================================*/
 /**
  * @test ledStripUtilActivateFrame must free the current frame and store the new one.
  */
@@ -320,6 +335,9 @@ ZTEST(ledStripUtil, test_activateFrame_success)
                 "osMemoryPoolFree should be called with the previous frame");
 }
 
+/* ===========================================================================
+ * ledStripUtilPushFrame
+ * =========================================================================*/
 /**
  * @test ledStripUtilPushFrame must return 0 without calling the driver when no frame is active.
  */
@@ -376,6 +394,9 @@ ZTEST(ledStripUtil, test_pushFrame_success)
                 "led_strip_update_rgb should be called with the pixel count");
 }
 
+/* ===========================================================================
+ * ledStripUtilSetBrightness
+ * =========================================================================*/
 /**
  * @test ledStripUtilSetBrightness must store the brightness value used by applyGlobalBrightness.
  */

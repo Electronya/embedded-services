@@ -70,6 +70,10 @@ static void util_tests_before(void *fixture)
   FFF_RESET_HISTORY();
 }
 
+/* ===========================================================================
+ * simhubDevUtilInit
+ * =========================================================================*/
+
 /**
  * @test simhubDevUtilInit must call simhubDevProtoReset to initialize the
  * parser to the initial state and return 0 on success.
@@ -84,6 +88,10 @@ ZTEST(simhubDevUtil_tests, test_init_resets_proto_and_returns_success)
                 "Init must return 0 on success");
 }
 
+/* ===========================================================================
+ * simhubDevUtilReset
+ * =========================================================================*/
+
 /**
  * @test simhubDevUtilReset must call simhubDevProtoReset to reset the parser
  * to the initial state.
@@ -95,6 +103,10 @@ ZTEST(simhubDevUtil_tests, test_reset_resets_proto)
   zassert_equal(simhubDevProtoReset_fake.call_count, 1,
                 "Reset must call simhubDevProtoReset once");
 }
+
+/* ===========================================================================
+ * simhubDevUtilReceivedPkt
+ * =========================================================================*/
 
 /**
  * @test simhubDevUtilReceivedPkt must call simhubDevProtoReset and return false
@@ -228,6 +240,10 @@ ZTEST(simhubDevUtil_tests, test_received_pkt_dispatches_to_process_led_footer)
                "ReceivedPkt must return the result of simhubDevProtoProcessLedFooter");
 }
 
+/* ===========================================================================
+ * simhubDevUtilGetPktType
+ * =========================================================================*/
+
 /**
  * @test simhubDevUtilGetPktType must call simhubDevProtoGetPktType and return
  * its result.
@@ -243,6 +259,10 @@ ZTEST(simhubDevUtil_tests, test_get_pkt_type_returns_proto_pkt_type)
   zassert_equal(result, SIMHUB_PKT_LED_DATA,
                 "GetPktType must return the result of simhubDevProtoGetPktType");
 }
+
+/* ===========================================================================
+ * simhubDevUtilProcessProto
+ * =========================================================================*/
 
 /**
  * @test simhubDevUtilProcessProto must call simhubDevProtoReset and return
@@ -278,6 +298,10 @@ ZTEST(simhubDevUtil_tests, test_process_proto_writes_response_resets_and_returns
                     "ProcessProto must copy the proto response into the TX buffer");
 }
 
+/* ===========================================================================
+ * simhubDevUtilProcessLedCount
+ * =========================================================================*/
+
 /**
  * @test simhubDevUtilProcessLedCount must call simhubDevProtoReset and return
  * -ENOMEM when the TX buffer is too small to hold the LED count response.
@@ -312,6 +336,10 @@ ZTEST(simhubDevUtil_tests, test_process_led_count_writes_response_resets_and_ret
                     "ProcessLedCount must write the LED count response into the TX buffer");
 }
 
+/* ===========================================================================
+ * simhubDevUtilProcessUnlock
+ * =========================================================================*/
+
 /**
  * @test simhubDevUtilProcessUnlock must call simhubDevProtoReset to discard the
  * unlock command and return 0 on success.
@@ -325,6 +353,10 @@ ZTEST(simhubDevUtil_tests, test_process_unlock_resets_proto_and_returns_success)
   zassert_equal(result, 0,
                 "ProcessUnlock must return 0 on success");
 }
+
+/* ===========================================================================
+ * simhubDevUtilProcessLedData
+ * =========================================================================*/
 
 /**
  * @test simhubDevUtilProcessLedData must call simhubDevProtoGetPixelBuf to
