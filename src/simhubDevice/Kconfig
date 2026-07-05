@@ -6,6 +6,7 @@ config ENYA_SIMHUB_DEVICE
   bool "Electronya SimHub Device Service"
   default n
   depends on UART_ASYNC_API && ENYA_LED_STRIP
+  select CRC
   help
     The Electronya SimHub Device service. Implements the SimHub Standard
     Arduino/Dash serial protocol over CDC ACM USB, receiving RGB frame data
@@ -48,6 +49,18 @@ config ENYA_SIMHUB_DEVICE_HEARTBEAT_INTERVAL_MS
   help
     The interval in milliseconds at which the SimHub device service updates
     its heartbeat with the service manager.
+
+config ENYA_SIMHUB_DEVICE_NAME
+  string "SimHub device name"
+  default "Electronya LED"
+  help
+    Device name reported during ARQ enumeration (command 'N').
+
+config ENYA_SIMHUB_DEVICE_UID
+  string "SimHub device unique ID"
+  default "ENYA001"
+  help
+    Unique ID string reported during ARQ enumeration (command 'I').
 
 config ENYA_SIMHUB_DEVICE_SHELL
   bool "Electronya SimHub Device Shell Commands"

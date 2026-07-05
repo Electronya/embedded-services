@@ -3,11 +3,12 @@
  *
  * @file      simhubDevUtil.h
  * @author    jbacon
- * @date      2026-05-03
+ * @date      2026-07-04
  * @brief     SimHub Device Utility
  *
- *            Protocol dispatch and packet builder. Drives the per-state parser
- *            and builds TX responses into caller-provided buffers.
+ *            ARQ session state machine. Owns protocol session state, dispatches
+ *            received ARQ frames to command handlers, and drives the TX function
+ *            to send responses.
  *
  * @ingroup  simhubDevice
  *
@@ -17,71 +18,77 @@
 #ifndef SIMHUB_DEV_UTIL_H
 #define SIMHUB_DEV_UTIL_H
 
-#include "simhubDevProto.h"
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/drivers/led_strip.h>
 
 /**
- * @brief   Initialize the protocol parser.
+ * @brief   Number of LEDs on the connected strip, read from devicetree.
+ */
+#define SIMHUB_LED_COUNT       DT_PROP(DT_ALIAS(led_strip), chain_length)
+
+/**
+ * @brief   Size of the TX scratch buffer used for building responses.
+ */
+#define SIMHUB_DEV_TX_BUF_SIZE 64
+
+/**
+ * @brief   ARQ session states.
+ */
+typedef enum
+{
+  SIMHUB_ARQ_IDLE,         /**< No active session.          */
+  SIMHUB_ARQ_ENUMERATING,  /**< Enumeration in progress.    */
+  SIMHUB_ARQ_STREAMING,    /**< LED streaming active.       */
+} SimhubArqState_t;
+
+/**
+ * @brief   Callback type for sending bytes over the UART TX path.
+ */
+typedef int (*SimhubDevTxFn_t)(const uint8_t *buf, size_t len);
+
+/**
+ * @brief   Initialize the ARQ session state machine.
+ *
+ * @param[in]   txFn: Function to call when sending a response.
  *
  * @return  0 if successful, the error code otherwise.
  */
-int simhubDevUtilInit(void);
+int simhubDevUtilInit(SimhubDevTxFn_t txFn);
 
 /**
- * @brief   Reset the protocol parser to the initial state.
+ * @brief   Reset the session back to IDLE and clear all state.
  */
 void simhubDevUtilReset(void);
 
 /**
- * @brief   Push a new byte into the protocol parser.
+ * @brief   Feed one received byte into the ARQ frame parser.
  *
- * @param[in]   byte: The received byte.
+ *          Returns true when a complete frame has been received and dispatched.
  *
- * @return  true if a complete packet has been received, false otherwise.
+ * @param[in]   byte: Received byte.
+ *
+ * @return  true if a complete frame was processed, false otherwise.
  */
-bool simhubDevUtilReceivedPkt(uint8_t byte);
+bool simhubDevUtilReceivedByte(uint8_t byte);
 
 /**
- * @brief   Get the type of the last received packet.
+ * @brief   Retrieve the pending LED frame if one is ready.
  *
- * @return  The packet type.
+ * @param[out]  frame: Buffer of SIMHUB_LED_COUNT led_rgb entries to fill.
+ *
+ * @return  true if a frame was ready and copied, false otherwise.
  */
-SimhubProtoPktType_t simhubDevUtilGetPktType(void);
+bool simhubDevUtilGetLedFrame(struct led_rgb *frame);
 
 /**
- * @brief   Build the protocol version response packet.
+ * @brief   Return the current ARQ session state.
  *
- * @param[out]  txBuf: The transmit buffer.
- * @param[in]   size:  The transmit buffer size.
- *
- * @return  The number of bytes written if successful, the error code otherwise.
+ * @return  Current SimhubArqState_t value.
  */
-int simhubDevUtilProcessProto(uint8_t *txBuf, size_t size);
-
-/**
- * @brief   Build the LED count response packet.
- *
- * @param[out]  txBuf: The transmit buffer.
- * @param[in]   size:  The transmit buffer size.
- *
- * @return  The number of bytes written if successful, the error code otherwise.
- */
-int simhubDevUtilProcessLedCount(uint8_t *txBuf, size_t size);
-
-/**
- * @brief   Process an unlock packet (silently discarded).
- *
- * @return  0 if successful, the error code otherwise.
- */
-int simhubDevUtilProcessUnlock(void);
-
-/**
- * @brief   Extract pixel data from the received LED data packet into a frame.
- *
- * @param[out]  frame: The LED strip framebuffer to fill.
- *
- * @return  0 if successful, the error code otherwise.
- */
-int simhubDevUtilProcessLedData(struct led_rgb *frame);
+SimhubArqState_t simhubDevUtilGetState(void);
 
 #endif /* SIMHUB_DEV_UTIL_H */
 

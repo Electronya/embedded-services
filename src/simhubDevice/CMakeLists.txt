@@ -8,7 +8,7 @@ if(NOT DEFINED CONFIG_ZTEST)
   zephyr_library_sources(
     simhubDevice.c
     simhubDevUtil.c
-    simhubDevProto.c
+    simhubArqProto.c
   )
 
   if(CONFIG_ENYA_SIMHUB_DEVICE_SHELL)

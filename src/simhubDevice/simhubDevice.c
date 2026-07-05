@@ -14,6 +14,7 @@
  * @{
  */
 
+#include <string.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -28,7 +29,7 @@ LOG_MODULE_REGISTER(simhubDevice, CONFIG_ENYA_SIMHUB_DEVICE_LOG_LEVEL);
 
 #define SIMHUB_DEV_RX_BUF_SIZE   64
 #define SIMHUB_DEV_RING_BUF_SIZE 256
-#define SIMHUB_DEV_TX_BUF_SIZE   (SIMHUB_PROTO_RES_MAX_SIZE + 4)
+#define SIMHUB_DEV_TX_BUF_SIZE   64
 #define SIMHUB_DEV_CTRL_POLL_MS  100
 
 typedef struct
@@ -87,59 +88,14 @@ static void uartCallback(const struct device *dev, void *userData)
   }
 }
 
-static void dispatchPkt(void)
+static int txSend(const uint8_t *buf, size_t len)
 {
-  int len;
-  struct led_rgb *frame;
-
-  switch(simhubDevUtilGetPktType())
-  {
-    case SIMHUB_PKT_PROTO:
-      k_sem_take(&txSem, K_MSEC(SIMHUB_DEV_CTRL_POLL_MS));
-      len = simhubDevUtilProcessProto(txBuf, sizeof(txBuf));
-      if(len > 0)
-      {
-        txPtr = txBuf;
-        txRemaining = (size_t)len;
-        uart_irq_tx_enable(ctx.uart);
-      } else
-        k_sem_give(&txSem);
-      break;
-
-    case SIMHUB_PKT_LED_COUNT:
-      k_sem_take(&txSem, K_MSEC(SIMHUB_DEV_CTRL_POLL_MS));
-      len = simhubDevUtilProcessLedCount(txBuf, sizeof(txBuf));
-      if(len > 0)
-      {
-        txPtr = txBuf;
-        txRemaining = (size_t)len;
-        uart_irq_tx_enable(ctx.uart);
-      } else
-        k_sem_give(&txSem);
-      break;
-
-    case SIMHUB_PKT_UNLOCK:
-      simhubDevUtilProcessUnlock();
-      break;
-
-    case SIMHUB_PKT_LED_DATA:
-      frame = ledStripGetNextFramebuffer();
-      if(frame != NULL)
-      {
-        simhubDevUtilProcessLedData(frame);
-        ledStripUpdateFrame(frame);
-      } else
-      {
-        LOG_WRN("no framebuffer available, discarding LED data");
-        simhubDevUtilReset();
-      }
-      break;
-
-    default:
-      LOG_WRN("unknown packet type, resetting parser");
-      simhubDevUtilReset();
-      break;
-  }
+  k_sem_take(&txSem, K_MSEC(SIMHUB_DEV_CTRL_POLL_MS));
+  memcpy(txBuf, buf, len);
+  txPtr = txBuf;
+  txRemaining = len;
+  uart_irq_tx_enable(ctx.uart);
+  return 0;
 }
 
 static void rxEnable(void)
@@ -165,7 +121,7 @@ static void run(void *p1, void *p2, void *p3)
   ServiceCtrlMsg_t ctrlMsg;
   uint8_t byte;
 
-  err = simhubDevUtilInit();
+  err = simhubDevUtilInit(txSend);
   if(err < 0)
   {
     LOG_ERR("ERROR %d: unable to initialize protocol parser", err);
@@ -173,22 +129,6 @@ static void run(void *p1, void *p2, void *p3)
   }
 
   uart_irq_callback_user_data_set(ctx.uart, uartCallback, NULL);
-
-  uint32_t dtr = 0;
-  while(!dtr)
-  {
-    if(k_msgq_get(&simhubDevCtrlQueue, &ctrlMsg, K_NO_WAIT) == 0 && ctrlMsg == SVC_CTRL_STOP)
-    {
-      serviceManagerConfirmState(k_current_get(), SVC_STATE_STOPPED);
-      return;
-    }
-    err = uart_line_ctrl_get(ctx.uart, UART_LINE_CTRL_DTR, &dtr);
-    if(err < 0)
-      LOG_WRN("DTR not asserted");
-    k_sleep(K_MSEC(SIMHUB_DEV_CTRL_POLL_MS));
-    serviceManagerUpdateHeartbeat(k_current_get());
-  }
-
   rxEnable();
 
   LOG_INF("SimHub device thread started");
@@ -227,8 +167,12 @@ static void run(void *p1, void *p2, void *p3)
 
     while(ring_buf_get(&rxRingBuf, &byte, 1) == 1)
     {
-      if(simhubDevUtilReceivedPkt(byte))
-        dispatchPkt();
+      if(simhubDevUtilReceivedByte(byte))
+      {
+        struct led_rgb *ledFrame = ledStripGetNextFramebuffer();
+        if(ledFrame != NULL && simhubDevUtilGetLedFrame(ledFrame))
+          ledStripUpdateFrame(ledFrame);
+      }
     }
 
     serviceManagerUpdateHeartbeat(k_current_get());

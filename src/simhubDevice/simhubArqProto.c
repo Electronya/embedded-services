@@ -30,9 +30,9 @@ uint8_t simhubArqCrc8(const uint8_t *buf, size_t len)
 
 void simhubArqFrameReset(SimhubArqFrame_t *frame)
 {
-  frame->state   = ARQ_SYNC0;
-  frame->pktId   = 0;
-  frame->len     = 0;
+  frame->state = ARQ_SYNC0;
+  frame->pktId = 0;
+  frame->len = 0;
   frame->dataIdx = 0;
 }
 
@@ -64,9 +64,9 @@ bool simhubArqParseByte(SimhubArqFrame_t *frame, uint8_t byte)
         simhubArqFrameReset(frame);
         break;
       }
-      frame->len     = byte;
+      frame->len = byte;
       frame->dataIdx = 0;
-      frame->state   = ARQ_DATA;
+      frame->state = ARQ_DATA;
       break;
 
     case ARQ_DATA:
@@ -75,8 +75,7 @@ bool simhubArqParseByte(SimhubArqFrame_t *frame, uint8_t byte)
         frame->state = ARQ_CRC;
       break;
 
-    case ARQ_CRC:
-    {
+    case ARQ_CRC: {
       uint8_t crcBuf[2 + SIMHUB_ARQ_MAX_DATA];
       crcBuf[0] = frame->pktId;
       crcBuf[1] = frame->len;

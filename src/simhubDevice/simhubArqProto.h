@@ -24,20 +24,20 @@
 /**
  * @brief   ARQ frame header bytes.
  */
-#define SIMHUB_ARQ_HDR0     0x01
-#define SIMHUB_ARQ_HDR1     0x01
+#define SIMHUB_ARQ_HDR0 0x01
+#define SIMHUB_ARQ_HDR1 0x01
 
 /**
  * @brief   Broadcast packet ID used by the Hello frame; does not advance the
  *          packet sequence counter on either side.
  */
-#define SIMHUB_ARQ_BCAST    0xFF
+#define SIMHUB_ARQ_BCAST 0xFF
 
 /**
  * @brief   MESSAGE_HEADER byte that always appears as data[0] in every ARQ
  *          payload.
  */
-#define SIMHUB_ARQ_MSG_H    0x03
+#define SIMHUB_ARQ_MSG_H 0x03
 
 /**
  * @brief   Maximum payload (data field) length supported by the parser.
@@ -47,23 +47,23 @@
 /**
  * @brief   Response type prefix bytes.
  */
-#define SIMHUB_ARQ_ACK      0x03  /**< Acknowledgement:  03 ID             */
-#define SIMHUB_ARQ_NACK     0x04  /**< Negative ack:     04 lastId reason  */
-#define SIMHUB_ARQ_STR      0x06  /**< String response:  06 len data... 20 */
-#define SIMHUB_ARQ_BYTE     0x08  /**< Byte response:    08 val            */
+#define SIMHUB_ARQ_ACK  0x03 /**< Acknowledgement:  03 ID             */
+#define SIMHUB_ARQ_NACK 0x04 /**< Negative ack:     04 lastId reason  */
+#define SIMHUB_ARQ_STR  0x06 /**< String response:  06 len data... 20 */
+#define SIMHUB_ARQ_BYTE 0x08 /**< Byte response:    08 val            */
 
 /**
  * @brief   Frame parser state machine states.
  */
 typedef enum
 {
-  ARQ_SYNC0 = 0,  /**< Waiting for first header byte (0x01).  */
-  ARQ_SYNC1,      /**< Waiting for second header byte (0x01). */
-  ARQ_PKTID,      /**< Receiving packet ID.                   */
-  ARQ_LEN,        /**< Receiving payload length.              */
-  ARQ_DATA,       /**< Accumulating payload bytes.            */
-  ARQ_CRC,        /**< Receiving and validating CRC-8.        */
-  ARQ_DONE,       /**< Complete, CRC-valid frame ready.       */
+  ARQ_SYNC0 = 0, /**< Waiting for first header byte (0x01).  */
+  ARQ_SYNC1,     /**< Waiting for second header byte (0x01). */
+  ARQ_PKTID,     /**< Receiving packet ID.                   */
+  ARQ_LEN,       /**< Receiving payload length.              */
+  ARQ_DATA,      /**< Accumulating payload bytes.            */
+  ARQ_CRC,       /**< Receiving and validating CRC-8.        */
+  ARQ_DONE,      /**< Complete, CRC-valid frame ready.       */
 } SimhubArqParseState_t;
 
 /**
@@ -71,11 +71,11 @@ typedef enum
  */
 typedef struct
 {
-  SimhubArqParseState_t state;                    /**< Current parser state.   */
-  uint8_t               pktId;                    /**< Frame packet ID.        */
-  uint8_t               len;                      /**< Payload length (bytes). */
-  uint8_t               data[SIMHUB_ARQ_MAX_DATA]; /**< Payload bytes.         */
-  uint8_t               dataIdx;                  /**< Bytes received so far.  */
+  SimhubArqParseState_t state;       /**< Current parser state.   */
+  uint8_t pktId;                     /**< Frame packet ID.        */
+  uint8_t len;                       /**< Payload length (bytes). */
+  uint8_t data[SIMHUB_ARQ_MAX_DATA]; /**< Payload bytes.         */
+  uint8_t dataIdx;                   /**< Bytes received so far.  */
 } SimhubArqFrame_t;
 
 /**

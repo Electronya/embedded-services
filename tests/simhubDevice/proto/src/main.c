@@ -51,11 +51,13 @@ static const uint8_t kHelloFrame[] = {0x01, 0x01, 0xFF, 0x03, 0x03, 0x31, 0x10, 
 #define HELLO_FRAME_CRC      0x6A
 #define HELLO_FRAME_CRC_LEN  5   /* 2 header bytes + LEN=3 */
 
+/** Test setup function. */
 static void *arq_proto_setup(void)
 {
   return NULL;
 }
 
+/** Test before function. */
 static void arq_proto_before(void *fixture)
 {
   ARG_UNUSED(fixture);
@@ -67,8 +69,8 @@ static void arq_proto_before(void *fixture)
  * =========================================================================*/
 
 /**
- * @test simhubArqCrc8 must call Zephyr crc8 with the input buffer, the input
- * length, polynomial 0xD5, seed 0, and reflected=false.
+ * @test The simhubArqCrc8 function must call Zephyr crc8 with the input buffer,
+ *       the input length, polynomial 0xD5, seed 0, and reflected=false.
  */
 ZTEST(simhubArqProto_tests, test_crc8_passes_correct_params_to_zephyr_crc8)
 {
@@ -92,7 +94,8 @@ ZTEST(simhubArqProto_tests, test_crc8_passes_correct_params_to_zephyr_crc8)
 }
 
 /**
- * @test simhubArqCrc8 must return the value produced by Zephyr crc8 unchanged.
+ * @test The simhubArqCrc8 function must return the value produced by Zephyr
+ *       crc8 unchanged.
  */
 ZTEST(simhubArqProto_tests, test_crc8_returns_zephyr_crc8_result)
 {
@@ -122,7 +125,7 @@ ZTEST(simhubArqProto_tests, test_crc8_returns_zephyr_crc8_result)
  * =========================================================================*/
 
 /**
- * @test simhubArqFrameReset must set the parser state to ARQ_SYNC0.
+ * @test The simhubArqFrameReset function must set the parser state to ARQ_SYNC0.
  */
 ZTEST(simhubArqProto_tests, test_frameReset_sets_state_to_sync0)
 {
@@ -136,7 +139,8 @@ ZTEST(simhubArqProto_tests, test_frameReset_sets_state_to_sync0)
 }
 
 /**
- * @test simhubArqFrameReset must clear pktId, len, and dataIdx to 0.
+ * @test The simhubArqFrameReset function must clear pktId, len, and dataIdx
+ *       to 0.
  */
 ZTEST(simhubArqProto_tests, test_frameReset_clears_pktId_len_dataIdx)
 {
@@ -155,8 +159,8 @@ ZTEST(simhubArqProto_tests, test_frameReset_clears_pktId_len_dataIdx)
  * =========================================================================*/
 
 /**
- * @test simhubArqParseByte must return false and reset to ARQ_SYNC0 when the
- * frame is in an unrecognized state.
+ * @test The simhubArqParseByte function must return false and reset to
+ *       ARQ_SYNC0 when the frame is in an unrecognized state.
  */
 ZTEST(simhubArqProto_tests, test_parseByte_resets_on_unknown_state)
 {
@@ -175,8 +179,8 @@ ZTEST(simhubArqProto_tests, test_parseByte_resets_on_unknown_state)
 }
 
 /**
- * @test simhubArqParseByte must return false and stay in ARQ_SYNC0 when the
- * first byte is not 0x01.
+ * @test The simhubArqParseByte function must return false and stay in ARQ_SYNC0
+ *       when the first byte is not 0x01.
  */
 ZTEST(simhubArqProto_tests, test_parseByte_ignores_non_01_first_byte)
 {
@@ -194,8 +198,8 @@ ZTEST(simhubArqProto_tests, test_parseByte_ignores_non_01_first_byte)
 }
 
 /**
- * @test simhubArqParseByte must return false and reset to ARQ_SYNC0 when the
- * second byte is not 0x01.
+ * @test The simhubArqParseByte function must return false and reset to
+ *       ARQ_SYNC0 when the second byte is not 0x01.
  */
 ZTEST(simhubArqProto_tests, test_parseByte_resets_on_bad_second_byte)
 {
@@ -214,8 +218,8 @@ ZTEST(simhubArqProto_tests, test_parseByte_resets_on_bad_second_byte)
 }
 
 /**
- * @test simhubArqParseByte must return false and reset to ARQ_SYNC0 when the
- * length field is zero.
+ * @test The simhubArqParseByte function must return false and reset to
+ *       ARQ_SYNC0 when the length field is zero.
  */
 ZTEST(simhubArqProto_tests, test_parseByte_rejects_zero_length)
 {
@@ -236,8 +240,8 @@ ZTEST(simhubArqProto_tests, test_parseByte_rejects_zero_length)
 }
 
 /**
- * @test simhubArqParseByte must return false and reset to ARQ_SYNC0 when the
- * length field exceeds SIMHUB_ARQ_MAX_DATA.
+ * @test The simhubArqParseByte function must return false and reset to
+ *       ARQ_SYNC0 when the length field exceeds SIMHUB_ARQ_MAX_DATA.
  */
 ZTEST(simhubArqProto_tests, test_parseByte_rejects_overlength)
 {
@@ -258,8 +262,8 @@ ZTEST(simhubArqProto_tests, test_parseByte_rejects_overlength)
 }
 
 /**
- * @test simhubArqParseByte must return false for every byte up to and
- * including the last data byte of a valid frame.
+ * @test The simhubArqParseByte function must return false for every byte up to
+ *       and including the last data byte of a valid frame.
  */
 ZTEST(simhubArqProto_tests, test_parseByte_returns_false_while_accumulating)
 {
@@ -278,8 +282,8 @@ ZTEST(simhubArqProto_tests, test_parseByte_returns_false_while_accumulating)
 }
 
 /**
- * @test simhubArqParseByte must return false and reset to ARQ_SYNC0 on a CRC
- * mismatch.
+ * @test The simhubArqParseByte function must return false and reset to
+ *       ARQ_SYNC0 on a CRC mismatch.
  */
 ZTEST(simhubArqProto_tests, test_parseByte_rejects_mismatched_crc_and_resets)
 {
@@ -310,8 +314,8 @@ ZTEST(simhubArqProto_tests, test_parseByte_rejects_mismatched_crc_and_resets)
 }
 
 /**
- * @test simhubArqParseByte must return false and reset when a byte is fed
- * while already in ARQ_DONE.
+ * @test The simhubArqParseByte function must return false and reset when a byte
+ *       is fed while already in ARQ_DONE.
  */
 ZTEST(simhubArqProto_tests, test_parseByte_resets_on_byte_in_done_state)
 {
@@ -333,8 +337,8 @@ ZTEST(simhubArqProto_tests, test_parseByte_resets_on_byte_in_done_state)
 }
 
 /**
- * @test simhubArqParseByte must return true and populate the frame correctly
- * when a complete, CRC-valid Features-query frame is received.
+ * @test The simhubArqParseByte function must return true and populate the frame
+ *       correctly when a complete, CRC-valid Features-query frame is received.
  */
 ZTEST(simhubArqProto_tests, test_parseByte_returns_true_on_valid_features_frame)
 {
@@ -366,8 +370,8 @@ ZTEST(simhubArqProto_tests, test_parseByte_returns_true_on_valid_features_frame)
 }
 
 /**
- * @test simhubArqParseByte must return true for the Hello broadcast frame
- * (ID=0xFF).
+ * @test The simhubArqParseByte function must return true for the Hello
+ *       broadcast frame (ID=0xFF).
  */
 ZTEST(simhubArqProto_tests, test_parseByte_returns_true_on_valid_hello_frame)
 {
@@ -401,7 +405,8 @@ ZTEST(simhubArqProto_tests, test_parseByte_returns_true_on_valid_hello_frame)
  * =========================================================================*/
 
 /**
- * @test simhubArqBuildAck must return -ENOMEM when the buffer is too small.
+ * @test The simhubArqBuildAck function must return -ENOMEM when the buffer is
+ *       too small.
  */
 ZTEST(simhubArqProto_tests, test_buildAck_returns_enomem_when_buffer_too_small)
 {
@@ -414,8 +419,8 @@ ZTEST(simhubArqProto_tests, test_buildAck_returns_enomem_when_buffer_too_small)
 }
 
 /**
- * @test simhubArqBuildAck must write 0x03 followed by the packet ID and
- * return 2.
+ * @test The simhubArqBuildAck function must write 0x03 followed by the packet
+ *       ID and return 2.
  */
 ZTEST(simhubArqProto_tests, test_buildAck_writes_03_and_id)
 {
@@ -434,7 +439,8 @@ ZTEST(simhubArqProto_tests, test_buildAck_writes_03_and_id)
  * =========================================================================*/
 
 /**
- * @test simhubArqBuildByte must return -ENOMEM when the buffer is too small.
+ * @test The simhubArqBuildByte function must return -ENOMEM when the buffer is
+ *       too small.
  */
 ZTEST(simhubArqProto_tests, test_buildByte_returns_enomem_when_buffer_too_small)
 {
@@ -447,7 +453,8 @@ ZTEST(simhubArqProto_tests, test_buildByte_returns_enomem_when_buffer_too_small)
 }
 
 /**
- * @test simhubArqBuildByte must write 0x08 followed by the value and return 2.
+ * @test The simhubArqBuildByte function must write 0x08 followed by the value
+ *       and return 2.
  */
 ZTEST(simhubArqProto_tests, test_buildByte_writes_08_and_val)
 {
@@ -466,8 +473,8 @@ ZTEST(simhubArqProto_tests, test_buildByte_writes_08_and_val)
  * =========================================================================*/
 
 /**
- * @test simhubArqBuildStr must return -ENOMEM when the buffer is too small to
- * hold 0x06 + length byte + string + 0x20.
+ * @test The simhubArqBuildStr function must return -ENOMEM when the buffer is
+ *       too small to hold 0x06 + length byte + string + 0x20.
  */
 ZTEST(simhubArqProto_tests, test_buildStr_returns_enomem_when_buffer_too_small)
 {
@@ -480,8 +487,8 @@ ZTEST(simhubArqProto_tests, test_buildStr_returns_enomem_when_buffer_too_small)
 }
 
 /**
- * @test simhubArqBuildStr must write 0x06, the length, the string bytes, and
- * 0x20, returning (3 + len).
+ * @test The simhubArqBuildStr function must write 0x06, the length, the string
+ *       bytes, and 0x20, returning (3 + len).
  */
 ZTEST(simhubArqProto_tests, test_buildStr_writes_06_len_str_20)
 {
@@ -503,8 +510,8 @@ ZTEST(simhubArqProto_tests, test_buildStr_writes_06_len_str_20)
  * =========================================================================*/
 
 /**
- * @test simhubArqBuildStrTerm must return -ENOMEM when the buffer is too small
- * to hold the 4-byte terminator.
+ * @test The simhubArqBuildStrTerm function must return -ENOMEM when the buffer
+ *       is too small to hold the 4-byte terminator.
  */
 ZTEST(simhubArqProto_tests, test_buildStrTerm_returns_enomem_when_buffer_too_small)
 {
@@ -517,7 +524,7 @@ ZTEST(simhubArqProto_tests, test_buildStrTerm_returns_enomem_when_buffer_too_sma
 }
 
 /**
- * @test simhubArqBuildStrTerm must write 06 01 0A 20 and return 4.
+ * @test The simhubArqBuildStrTerm function must write 06 01 0A 20 and return 4.
  */
 ZTEST(simhubArqProto_tests, test_buildStrTerm_writes_06_01_0A_20)
 {
