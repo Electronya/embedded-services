@@ -27,7 +27,7 @@
 /**
  * @brief   Number of LEDs on the connected strip, read from devicetree.
  */
-#define SIMHUB_LED_COUNT       DT_PROP(DT_ALIAS(led_strip), chain_length)
+#define SIMHUB_LED_COUNT DT_PROP(DT_ALIAS(led_strip), chain_length)
 
 /**
  * @brief   Size of the TX scratch buffer used for building responses.
@@ -39,9 +39,9 @@
  */
 typedef enum
 {
-  SIMHUB_ARQ_IDLE,         /**< No active session.          */
-  SIMHUB_ARQ_ENUMERATING,  /**< Enumeration in progress.    */
-  SIMHUB_ARQ_STREAMING,    /**< LED streaming active.       */
+  SIMHUB_ARQ_IDLE,        /**< No active session.          */
+  SIMHUB_ARQ_ENUMERATING, /**< Enumeration in progress.    */
+  SIMHUB_ARQ_STREAMING,   /**< LED streaming active.       */
 } SimhubArqState_t;
 
 /**
@@ -82,6 +82,16 @@ bool simhubDevUtilReceivedByte(uint8_t byte);
  * @return  true if a frame was ready and copied, false otherwise.
  */
 bool simhubDevUtilGetLedFrame(struct led_rgb *frame);
+
+/**
+ * @brief   Return the button state byte from the most recent LED group frame.
+ *
+ *          Each bit corresponds to one button (bit 0 = button 0). Returns 0
+ *          until the first complete group frame has been received.
+ *
+ * @return  Last received button state bitmask.
+ */
+uint8_t simhubDevUtilGetButtonState(void);
 
 /**
  * @brief   Return the current ARQ session state.

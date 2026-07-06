@@ -62,6 +62,12 @@ config ENYA_SIMHUB_DEVICE_UID
   help
     Unique ID string reported during ARQ enumeration (command 'I').
 
+config ENYA_SIMHUB_DEVICE_BUTTON_COUNT
+  int "SimHub device button count"
+  default 0
+  help
+    Number of buttons reported during ARQ enumeration (command 'J').
+
 config ENYA_SIMHUB_DEVICE_SHELL
   bool "Electronya SimHub Device Shell Commands"
   default y

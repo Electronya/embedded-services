@@ -27,8 +27,9 @@ struct led_rgb { uint8_t r; uint8_t g; uint8_t b; };
 #define DT_N_NODELABEL_test_led_strip_P_chain_length  3
 
 /* Kconfig values consumed by the module under test. */
-#define CONFIG_ENYA_SIMHUB_DEVICE_NAME "TestDevice"
-#define CONFIG_ENYA_SIMHUB_DEVICE_UID  "TEST001"
+#define CONFIG_ENYA_SIMHUB_DEVICE_NAME         "TestDevice"
+#define CONFIG_ENYA_SIMHUB_DEVICE_UID          "TEST001"
+#define CONFIG_ENYA_SIMHUB_DEVICE_BUTTON_COUNT 0
 
 /* Setup logging before including the module under test. */
 #include <zephyr/logging/log.h>
@@ -244,32 +245,36 @@ static bool parseByte_xListFrame(SimhubArqFrame_t *f, uint8_t byte)
 {
   ARG_UNUSED(byte);
   f->pktId   = 0x04;
-  f->len     = 7;
+  f->len     = 9;
   f->data[0] = SIMHUB_ARQ_MSG_H;
-  f->data[1] = 'X';
-  f->data[2] = 'l';
-  f->data[3] = 'i';
-  f->data[4] = 's';
-  f->data[5] = 't';
-  f->data[6] = '\n';
+  f->data[1] = SIMHUB_ARQ_MSG_H;
+  f->data[2] = SIMHUB_ARQ_MSG_H;
+  f->data[3] = 'X';
+  f->data[4] = 'l';
+  f->data[5] = 'i';
+  f->data[6] = 's';
+  f->data[7] = 't';
+  f->data[8] = '\n';
   return true;
 }
 
 static bool parseByte_xMcutypeFrame(SimhubArqFrame_t *f, uint8_t byte)
 {
   ARG_UNUSED(byte);
-  f->pktId   = 0x08;
-  f->len     = 10;
-  f->data[0] = SIMHUB_ARQ_MSG_H;
-  f->data[1] = 'X';
-  f->data[2] = 'm';
-  f->data[3] = 'c';
-  f->data[4] = 'u';
-  f->data[5] = 't';
-  f->data[6] = 'y';
-  f->data[7] = 'p';
-  f->data[8] = 'e';
-  f->data[9] = '\n';
+  f->pktId    = 0x08;
+  f->len      = 12;
+  f->data[0]  = SIMHUB_ARQ_MSG_H;
+  f->data[1]  = SIMHUB_ARQ_MSG_H;
+  f->data[2]  = SIMHUB_ARQ_MSG_H;
+  f->data[3]  = 'X';
+  f->data[4]  = 'm';
+  f->data[5]  = 'c';
+  f->data[6]  = 'u';
+  f->data[7]  = 't';
+  f->data[8]  = 'y';
+  f->data[9]  = 'p';
+  f->data[10] = 'e';
+  f->data[11] = '\n';
   return true;
 }
 
@@ -277,11 +282,13 @@ static bool parseByte_xShortSubFrame(SimhubArqFrame_t *f, uint8_t byte)
 {
   ARG_UNUSED(byte);
   f->pktId   = 0x0A;
-  f->len     = 4;
+  f->len     = 6;
   f->data[0] = SIMHUB_ARQ_MSG_H;
-  f->data[1] = 'X';
-  f->data[2] = 'z';
-  f->data[3] = 'z';
+  f->data[1] = SIMHUB_ARQ_MSG_H;
+  f->data[2] = SIMHUB_ARQ_MSG_H;
+  f->data[3] = 'X';
+  f->data[4] = 'z';
+  f->data[5] = 'z';
   return true;
 }
 
@@ -289,13 +296,15 @@ static bool parseByte_xUnknownSubFrame(SimhubArqFrame_t *f, uint8_t byte)
 {
   ARG_UNUSED(byte);
   f->pktId   = 0x05;
-  f->len     = 6;
+  f->len     = 8;
   f->data[0] = SIMHUB_ARQ_MSG_H;
-  f->data[1] = 'X';
-  f->data[2] = 'z';
-  f->data[3] = 'a';
-  f->data[4] = 'p';
-  f->data[5] = 'p';
+  f->data[1] = SIMHUB_ARQ_MSG_H;
+  f->data[2] = SIMHUB_ARQ_MSG_H;
+  f->data[3] = 'X';
+  f->data[4] = 'z';
+  f->data[5] = 'a';
+  f->data[6] = 'p';
+  f->data[7] = 'p';
   return true;
 }
 
@@ -303,18 +312,186 @@ static bool parseByte_xLongUnknownSubFrame(SimhubArqFrame_t *f, uint8_t byte)
 {
   ARG_UNUSED(byte);
   f->pktId    = 0x0B;
-  f->len      = 11;
+  f->len      = 13;
+  f->data[0]  = SIMHUB_ARQ_MSG_H;
+  f->data[1]  = SIMHUB_ARQ_MSG_H;
+  f->data[2]  = SIMHUB_ARQ_MSG_H;
+  f->data[3]  = 'X';
+  f->data[4]  = 'u';
+  f->data[5]  = 'n';
+  f->data[6]  = 'k';
+  f->data[7]  = 'n';
+  f->data[8]  = 'o';
+  f->data[9]  = 'w';
+  f->data[10] = 'n';
+  f->data[11] = '\n';
+  f->data[12] = 0;
+  return true;
+}
+
+static bool parseByte_xSubFrameShortLen(SimhubArqFrame_t *f, uint8_t byte)
+{
+  ARG_UNUSED(byte);
+  f->pktId   = 0x0E;
+  f->len     = 3;   /* >= 2 (passes short-frame guard), < 4 (skips handleXCmd) */
+  f->data[0] = SIMHUB_ARQ_MSG_H;
+  f->data[1] = SIMHUB_ARQ_MSG_H;
+  f->data[2] = SIMHUB_ARQ_MSG_H;
+  return true;
+}
+
+static bool parseByte_xKeepaliveFrame(SimhubArqFrame_t *f, uint8_t byte)
+{
+  ARG_UNUSED(byte);
+  f->pktId    = 0x0D;
+  f->len      = 12;
   f->data[0]  = SIMHUB_ARQ_MSG_H;
   f->data[1]  = 'X';
-  f->data[2]  = 'u';
-  f->data[3]  = 'n';
-  f->data[4]  = 'k';
-  f->data[5]  = 'n';
-  f->data[6]  = 'o';
-  f->data[7]  = 'w';
-  f->data[8]  = 'n';
-  f->data[9]  = '\n';
-  f->data[10] = 0;
+  f->data[2]  = 'k';
+  f->data[3]  = 'e';
+  f->data[4]  = 'e';
+  f->data[5]  = 'p';
+  f->data[6]  = 'a';
+  f->data[7]  = 'l';
+  f->data[8]  = 'i';
+  f->data[9]  = 'v';
+  f->data[10] = 'e';
+  f->data[11] = '\n';
+  return true;
+}
+
+/*
+ * G-frame sequence for 3 LEDs (= SIMHUB_LED_COUNT in tests):
+ *   Frame 1 (LEN=16): G header[8] + first 8 of 9 LED bytes
+ *   Frame 2 (LEN=2):  last 1 LED byte + button state
+ */
+static const uint8_t kGroupLedRgb[] = {
+  0x11, 0x22, 0x33,
+  0x44, 0x55, 0x66,
+  0x77, 0x88, 0x99,
+};
+
+static bool parseByte_groupShortFrame(SimhubArqFrame_t *f, uint8_t byte)
+{
+  ARG_UNUSED(byte);
+  f->pktId   = 0x0A;
+  f->len     = 4;
+  f->data[0] = SIMHUB_ARQ_MSG_H;
+  f->data[1] = 'G';
+  f->data[2] = 0x20;
+  f->data[3] = SIMHUB_ARQ_MSG_H;
+  return true;
+}
+
+static bool parseByte_groupFrame(SimhubArqFrame_t *f, uint8_t byte)
+{
+  ARG_UNUSED(byte);
+  f->pktId   = 0x0A;
+  f->len     = 16;
+  f->data[0] = SIMHUB_ARQ_MSG_H;
+  f->data[1] = 'G';
+  f->data[2] = 0x20;
+  f->data[3] = SIMHUB_ARQ_MSG_H;
+  f->data[4] = '6';
+  f->data[5] = 0x02;
+  f->data[6] = 0x00;
+  f->data[7] = 0x03;
+  memcpy(&f->data[8], kGroupLedRgb, 8);
+  return true;
+}
+
+static bool parseByte_groupTerminalFrame(SimhubArqFrame_t *f, uint8_t byte)
+{
+  ARG_UNUSED(byte);
+  f->pktId   = 0x0B;
+  f->len     = 2;
+  f->data[0] = kGroupLedRgb[8];
+  f->data[1] = 0x00;
+  return true;
+}
+
+static bool parseByte_groupTerminalFrameWithButton(SimhubArqFrame_t *f, uint8_t byte)
+{
+  ARG_UNUSED(byte);
+  f->pktId   = 0x0B;
+  f->len     = 2;
+  f->data[0] = kGroupLedRgb[8];
+  f->data[1] = 0x01;
+  return true;
+}
+
+/* Empty terminal frame: len=0, exercises (len > 0) false branch in handleGroupData */
+static bool parseByte_groupDataEmptyFrame(SimhubArqFrame_t *f, uint8_t byte)
+{
+  ARG_UNUSED(byte);
+  f->pktId = 0x0E;
+  f->len   = 0;
+  return true;
+}
+
+static bool parseByte_groupContinuationFrame(SimhubArqFrame_t *f, uint8_t byte)
+{
+  ARG_UNUSED(byte);
+  f->pktId = 0x0C;
+  f->len   = 16;
+  memset(f->data, 0xBB, 16);
+  return true;
+}
+
+/* Single-frame G: count=2 starting at LED 1 → LEN=15 (header[8]+LED[6]+button[1]) */
+static const uint8_t kGroupSingleLedRgb[] = {
+  0xAA, 0xBB, 0xCC,
+  0xDD, 0xEE, 0xFF,
+};
+
+static bool parseByte_groupSingleFrame(SimhubArqFrame_t *f, uint8_t byte)
+{
+  ARG_UNUSED(byte);
+  f->pktId   = 0x20;
+  f->len     = 15;
+  f->data[0] = SIMHUB_ARQ_MSG_H;
+  f->data[1] = 'G';
+  f->data[2] = 0x20;
+  f->data[3] = SIMHUB_ARQ_MSG_H;
+  f->data[4] = '6';
+  f->data[5] = 0x02;
+  f->data[6] = 0x01;
+  f->data[7] = 0x02;
+  memcpy(&f->data[8], kGroupSingleLedRgb, 6);
+  f->data[14] = 0x01;
+  return true;
+}
+
+/* Single-frame G: start=2, count=2 — loop exits at i=1 via bounds check */
+static const uint8_t kGroupOobLedRgb[] = {
+  0xA1, 0xB1, 0xC1,
+  0xD1, 0xE1, 0xF1,
+};
+
+static bool parseByte_groupSingleOobStart(SimhubArqFrame_t *f, uint8_t byte)
+{
+  ARG_UNUSED(byte);
+  f->pktId   = 0x21;
+  f->len     = 15;
+  f->data[0] = SIMHUB_ARQ_MSG_H;
+  f->data[1] = 'G';
+  f->data[2] = 0x20;
+  f->data[3] = SIMHUB_ARQ_MSG_H;
+  f->data[4] = '6';
+  f->data[5] = 0x02;
+  f->data[6] = 0x02;  /* ledRxStart = 2 */
+  f->data[7] = 0x02;  /* ledRxCount = 2 */
+  memcpy(&f->data[8], kGroupOobLedRgb, 6);
+  f->data[14] = 0x00;
+  return true;
+}
+
+static bool parseByte_shortDispatchFrame(SimhubArqFrame_t *f, uint8_t byte)
+{
+  ARG_UNUSED(byte);
+  f->pktId   = 0x0A;
+  f->len     = 1;
+  f->data[0] = SIMHUB_ARQ_MSG_H;
   return true;
 }
 
@@ -615,8 +792,8 @@ ZTEST(simhubDevUtil_tests, test_features_does_not_call_txfn_when_first_str_fails
 
   zassert_equal(simhubArqBuildStr_fake.call_count, 1,
                 "Features must call simhubArqBuildStr once before failure");
-  zassert_equal(simhubArqBuildStr_fake.arg0_val[0], 'N',
-                "Features first buildStr must be called with 'N'");
+  zassert_equal(simhubArqBuildStr_fake.arg0_val[0], 'G',
+                "Features first buildStr must be called with 'G'");
   zassert_equal(simhubArqBuildStr_fake.arg1_val, 1,
                 "Features first buildStr must be called with length 1");
   zassert_equal(mock_tx_fake.call_count, 0,
@@ -637,10 +814,10 @@ ZTEST(simhubDevUtil_tests, test_features_does_not_call_txfn_when_second_str_fail
 
   zassert_equal(simhubArqBuildStr_fake.call_count, 2,
                 "Features must call simhubArqBuildStr twice before failure");
-  zassert_equal(simhubArqBuildStr_fake.arg0_history[0][0], 'N',
-                "Features first buildStr must be called with 'N'");
-  zassert_equal(simhubArqBuildStr_fake.arg0_history[1][0], 'I',
-                "Features second buildStr must be called with 'I'");
+  zassert_equal(simhubArqBuildStr_fake.arg0_history[0][0], 'G',
+                "Features first buildStr must be called with 'G'");
+  zassert_equal(simhubArqBuildStr_fake.arg0_history[1][0], 'N',
+                "Features second buildStr must be called with 'N'");
   zassert_equal(mock_tx_fake.call_count, 0,
                 "Features must not call txFn when second buildStr fails");
 }
@@ -659,10 +836,10 @@ ZTEST(simhubDevUtil_tests, test_features_does_not_call_txfn_when_third_str_fails
 
   zassert_equal(simhubArqBuildStr_fake.call_count, 3,
                 "Features must call simhubArqBuildStr three times before failure");
-  zassert_equal(simhubArqBuildStr_fake.arg0_history[1][0], 'I',
-                "Features second buildStr must be called with 'I'");
-  zassert_equal(simhubArqBuildStr_fake.arg0_history[2][0], 'J',
-                "Features third buildStr must be called with 'J'");
+  zassert_equal(simhubArqBuildStr_fake.arg0_history[1][0], 'N',
+                "Features second buildStr must be called with 'N'");
+  zassert_equal(simhubArqBuildStr_fake.arg0_history[2][0], 'I',
+                "Features third buildStr must be called with 'I'");
   zassert_equal(mock_tx_fake.call_count, 0,
                 "Features must not call txFn when third buildStr fails");
 }
@@ -681,12 +858,56 @@ ZTEST(simhubDevUtil_tests, test_features_does_not_call_txfn_when_fourth_str_fail
 
   zassert_equal(simhubArqBuildStr_fake.call_count, 4,
                 "Features must call simhubArqBuildStr four times before failure");
-  zassert_equal(simhubArqBuildStr_fake.arg0_history[2][0], 'J',
-                "Features third buildStr must be called with 'J'");
-  zassert_equal(simhubArqBuildStr_fake.arg0_history[3][0], 'X',
-                "Features fourth buildStr must be called with 'X'");
+  zassert_equal(simhubArqBuildStr_fake.arg0_history[2][0], 'I',
+                "Features third buildStr must be called with 'I'");
+  zassert_equal(simhubArqBuildStr_fake.arg0_history[3][0], 'J',
+                "Features fourth buildStr must be called with 'J'");
   zassert_equal(mock_tx_fake.call_count, 0,
                 "Features must not call txFn when fourth buildStr fails");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must not call txFn when
+ * handleFeatures encounters a failure on the fifth buildStr call.
+ */
+ZTEST(simhubDevUtil_tests, test_features_does_not_call_txfn_when_fifth_str_fails)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_featuresFrame;
+  buildStr_succeed_n                  = 4;
+  simhubArqBuildStr_fake.custom_fake  = buildStr_fail_after_n;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildStr_fake.call_count, 5,
+                "Features must call simhubArqBuildStr five times before failure");
+  zassert_equal(simhubArqBuildStr_fake.arg0_history[3][0], 'J',
+                "Features fourth buildStr must be called with 'J'");
+  zassert_equal(simhubArqBuildStr_fake.arg0_history[4][0], 'P',
+                "Features fifth buildStr must be called with 'P'");
+  zassert_equal(mock_tx_fake.call_count, 0,
+                "Features must not call txFn when fifth buildStr fails");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must not call txFn when
+ * handleFeatures encounters a failure on the sixth buildStr call.
+ */
+ZTEST(simhubDevUtil_tests, test_features_does_not_call_txfn_when_sixth_str_fails)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_featuresFrame;
+  buildStr_succeed_n                  = 5;
+  simhubArqBuildStr_fake.custom_fake  = buildStr_fail_after_n;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildStr_fake.call_count, 6,
+                "Features must call simhubArqBuildStr six times before failure");
+  zassert_equal(simhubArqBuildStr_fake.arg0_history[4][0], 'P',
+                "Features fifth buildStr must be called with 'P'");
+  zassert_equal(simhubArqBuildStr_fake.arg0_history[5][0], 'X',
+                "Features sixth buildStr must be called with 'X'");
+  zassert_equal(mock_tx_fake.call_count, 0,
+                "Features must not call txFn when sixth buildStr fails");
 }
 
 /**
@@ -700,10 +921,10 @@ ZTEST(simhubDevUtil_tests, test_features_does_not_call_txfn_when_str_term_fails)
 
   simhubDevUtilReceivedByte(TEST_BYTE);
 
-  zassert_equal(simhubArqBuildStr_fake.call_count, 4,
-                "Features must call simhubArqBuildStr four times");
-  zassert_equal(simhubArqBuildStr_fake.arg0_history[3][0], 'X',
-                "Features fourth buildStr must be called with 'X'");
+  zassert_equal(simhubArqBuildStr_fake.call_count, 6,
+                "Features must call simhubArqBuildStr six times");
+  zassert_equal(simhubArqBuildStr_fake.arg0_history[5][0], 'X',
+                "Features sixth buildStr must be called with 'X'");
   zassert_equal(simhubArqBuildStrTerm_fake.call_count, 1,
                 "Features must call simhubArqBuildStrTerm once");
   zassert_not_null(simhubArqBuildStrTerm_fake.arg0_val,
@@ -713,10 +934,10 @@ ZTEST(simhubDevUtil_tests, test_features_does_not_call_txfn_when_str_term_fails)
 }
 
 /**
- * @test The simhubDevUtilReceivedByte function must send ACK followed by four
+ * @test The simhubDevUtilReceivedByte function must send ACK followed by six
  * single-char STR frames and a STRTERM when a Features frame is received.
  */
-ZTEST(simhubDevUtil_tests, test_features_sends_four_feature_chars_and_terminator)
+ZTEST(simhubDevUtil_tests, test_features_sends_six_feature_chars_and_terminator)
 {
   simhubArqParseByte_fake.custom_fake = parseByte_featuresFrame;
 
@@ -726,28 +947,28 @@ ZTEST(simhubDevUtil_tests, test_features_sends_four_feature_chars_and_terminator
                 "Features must call simhubArqBuildAck once");
   zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x00,
                 "Features must call simhubArqBuildAck with pkt ID 0x00");
-  zassert_equal(simhubArqBuildStr_fake.call_count, 4,
-                "Features must call simhubArqBuildStr four times");
-  zassert_equal(simhubArqBuildStr_fake.arg1_history[0], 1, "first STR len must be 1");
-  zassert_equal(simhubArqBuildStr_fake.arg1_history[1], 1, "second STR len must be 1");
-  zassert_equal(simhubArqBuildStr_fake.arg1_history[2], 1, "third STR len must be 1");
-  zassert_equal(simhubArqBuildStr_fake.arg1_history[3], 1, "fourth STR len must be 1");
-  zassert_equal(simhubArqBuildStr_fake.arg0_history[0][0], 'N', "first STR must be 'N'");
-  zassert_equal(simhubArqBuildStr_fake.arg0_history[1][0], 'I', "second STR must be 'I'");
-  zassert_equal(simhubArqBuildStr_fake.arg0_history[2][0], 'J', "third STR must be 'J'");
-  zassert_equal(simhubArqBuildStr_fake.arg0_history[3][0], 'X', "fourth STR must be 'X'");
+  zassert_equal(simhubArqBuildStr_fake.call_count, 6,
+                "Features must call simhubArqBuildStr six times");
+  zassert_equal(simhubArqBuildStr_fake.arg0_history[0][0], 'G', "first STR must be 'G'");
+  zassert_equal(simhubArqBuildStr_fake.arg0_history[1][0], 'N', "second STR must be 'N'");
+  zassert_equal(simhubArqBuildStr_fake.arg0_history[2][0], 'I', "third STR must be 'I'");
+  zassert_equal(simhubArqBuildStr_fake.arg0_history[3][0], 'J', "fourth STR must be 'J'");
+  zassert_equal(simhubArqBuildStr_fake.arg0_history[4][0], 'P', "fifth STR must be 'P'");
+  zassert_equal(simhubArqBuildStr_fake.arg0_history[5][0], 'X', "sixth STR must be 'X'");
   zassert_equal(simhubArqBuildStrTerm_fake.call_count, 1,
                 "Features must call simhubArqBuildStrTerm once");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "Features must call simhubArqFrameReset after dispatch");
-  /* ACK(00) + STR(1,'N') + STR(1,'I') + STR(1,'J') + STR(1,'X') + STRTERM
-   * = 2 + 4 + 4 + 4 + 4 + 4 = 22 bytes */
-  zassert_equal(mock_tx_fake.arg1_val, 22,
-                "Features must pass 22 bytes to txFn");
-  zassert_equal(txCapBuf[4],  'N', "byte 4: 'N'");
-  zassert_equal(txCapBuf[8],  'I', "byte 8: 'I'");
-  zassert_equal(txCapBuf[12], 'J', "byte 12: 'J'");
-  zassert_equal(txCapBuf[16], 'X', "byte 16: 'X'");
+  /* ACK(00) + STR(1,'G') + STR(1,'N') + STR(1,'I') + STR(1,'J') + STR(1,'P')
+   * + STR(1,'X') + STRTERM = 2 + 6*4 + 4 = 30 bytes */
+  zassert_equal(mock_tx_fake.arg1_val, 30,
+                "Features must pass 30 bytes to txFn");
+  zassert_equal(txCapBuf[4],  'G', "byte 4: 'G'");
+  zassert_equal(txCapBuf[8],  'N', "byte 8: 'N'");
+  zassert_equal(txCapBuf[12], 'I', "byte 12: 'I'");
+  zassert_equal(txCapBuf[16], 'J', "byte 16: 'J'");
+  zassert_equal(txCapBuf[20], 'P', "byte 20: 'P'");
+  zassert_equal(txCapBuf[24], 'X', "byte 24: 'X'");
 }
 
 /**
@@ -1428,8 +1649,8 @@ ZTEST(simhubDevUtil_tests, test_x_mcutype_does_not_call_txfn_when_second_byte_fa
                 "X mcutype must call simhubArqBuildByte twice before failure");
   zassert_equal(simhubArqBuildByte_fake.arg0_history[0], 0x1E,
                 "X mcutype first buildByte must be called with 0x1E");
-  zassert_equal(simhubArqBuildByte_fake.arg0_history[1], 0x98,
-                "X mcutype second buildByte must be called with 0x98");
+  zassert_equal(simhubArqBuildByte_fake.arg0_history[1], 0x95,
+                "X mcutype second buildByte must be called with 0x95");
   zassert_equal(mock_tx_fake.call_count, 0,
                 "X mcutype must not call txFn when second buildByte fails");
 }
@@ -1448,17 +1669,17 @@ ZTEST(simhubDevUtil_tests, test_x_mcutype_does_not_call_txfn_when_third_byte_fai
 
   zassert_equal(simhubArqBuildByte_fake.call_count, 3,
                 "X mcutype must call simhubArqBuildByte three times before failure");
-  zassert_equal(simhubArqBuildByte_fake.arg0_history[1], 0x98,
-                "X mcutype second buildByte must be called with 0x98");
-  zassert_equal(simhubArqBuildByte_fake.arg0_history[2], 0x01,
-                "X mcutype third buildByte must be called with 0x01");
+  zassert_equal(simhubArqBuildByte_fake.arg0_history[1], 0x95,
+                "X mcutype second buildByte must be called with 0x95");
+  zassert_equal(simhubArqBuildByte_fake.arg0_history[2], 0x87,
+                "X mcutype third buildByte must be called with 0x87");
   zassert_equal(mock_tx_fake.call_count, 0,
                 "X mcutype must not call txFn when third buildByte fails");
 }
 
 /**
  * @test The simhubDevUtilReceivedByte function must send ACK followed by
- * BYTE(0x1E), BYTE(0x98), BYTE(0x01) when an X-mcutype frame is received.
+ * BYTE(0x1E), BYTE(0x95), BYTE(0x87) when an X-mcutype frame is received.
  */
 ZTEST(simhubDevUtil_tests, test_x_mcutype_sends_three_byte_values)
 {
@@ -1472,14 +1693,754 @@ ZTEST(simhubDevUtil_tests, test_x_mcutype_sends_three_byte_values)
                 "X mcutype must call simhubArqBuildByte three times");
   zassert_equal(simhubArqBuildByte_fake.arg0_history[0], 0x1E,
                 "first BYTE must be 0x1E");
-  zassert_equal(simhubArqBuildByte_fake.arg0_history[1], 0x98,
-                "second BYTE must be 0x98");
-  zassert_equal(simhubArqBuildByte_fake.arg0_history[2], 0x01,
-                "third BYTE must be 0x01");
+  zassert_equal(simhubArqBuildByte_fake.arg0_history[1], 0x95,
+                "second BYTE must be 0x95");
+  zassert_equal(simhubArqBuildByte_fake.arg0_history[2], 0x87,
+                "third BYTE must be 0x87");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "X mcutype must call simhubArqFrameReset after dispatch");
-  /* ACK(08) + BYTE(1E) + BYTE(98) + BYTE(01) = 8 bytes */
+  /* ACK(08) + BYTE(1E) + BYTE(95) + BYTE(87) = 8 bytes */
   zassert_equal(mock_tx_fake.arg1_val, 8, "X mcutype must pass 8 bytes to txFn");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must send ACK only when an
+ * X keepalive frame (data[1] equal to 'X') is received.
+ */
+ZTEST(simhubDevUtil_tests, test_x_cmd_keepalive_sends_ack_only)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_xKeepaliveFrame;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "X keepalive must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x0D,
+                "X keepalive must call simhubArqBuildAck with pkt ID 0x0D");
+  zassert_equal(simhubArqBuildStr_fake.call_count, 0,
+                "X keepalive must not call simhubArqBuildStr");
+  zassert_equal(simhubArqBuildByte_fake.call_count, 0,
+                "X keepalive must not call simhubArqBuildByte");
+  zassert_equal(simhubArqFrameReset_fake.call_count, 1,
+                "X keepalive must call simhubArqFrameReset after dispatch");
+  zassert_equal(mock_tx_fake.arg1_val, 2,
+                "X keepalive must pass 2 bytes to txFn (ACK only)");
+}
+
+/* === handleGroupFrame === */
+
+/**
+ * @test The simhubDevUtilReceivedByte function must not call txFn when
+ * handleGroupFrame encounters a buildAck failure on a short G frame (len < 8).
+ */
+ZTEST(simhubDevUtil_tests, test_group_frame_short_does_not_call_txfn_when_build_ack_fails)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupShortFrame;
+  simhubArqBuildAck_fake.custom_fake  = buildAck_fail;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "G short frame must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x0A,
+                "G short frame must call simhubArqBuildAck with pkt ID 0x0A");
+  zassert_not_null(simhubArqBuildAck_fake.arg1_val,
+                   "G short frame must pass a non-NULL buf to simhubArqBuildAck");
+  zassert_equal(simhubArqBuildByte_fake.call_count, 0,
+                "G short frame must not call simhubArqBuildByte");
+  zassert_equal(mock_tx_fake.call_count, 0,
+                "G short frame must not call txFn when buildAck fails");
+  zassert_false(groupActive,
+                "G short frame must not activate groupActive");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must send ACK only and must not
+ * activate groupActive when a G frame with fewer than 8 data bytes is received.
+ */
+ZTEST(simhubDevUtil_tests, test_group_frame_short_sends_ack_only)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupShortFrame;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "G short frame must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x0A,
+                "G short frame must call simhubArqBuildAck with pkt ID 0x0A");
+  zassert_equal(simhubArqBuildByte_fake.call_count, 0,
+                "G short frame must not call simhubArqBuildByte");
+  zassert_equal(simhubArqFrameReset_fake.call_count, 1,
+                "G short frame must call simhubArqFrameReset after dispatch");
+  zassert_equal(mock_tx_fake.call_count, 1,
+                "G short frame must call txFn once");
+  zassert_equal(mock_tx_fake.arg1_val, 2,
+                "G short frame must pass 2 bytes to txFn (ACK only)");
+  zassert_equal(txCapBuf[0], SIMHUB_ARQ_ACK, "byte 0: ACK");
+  zassert_equal(txCapBuf[1], 0x0A,           "byte 1: pkt ID");
+  zassert_false(groupActive,
+                "G short frame must not activate groupActive");
+  zassert_equal(ledRxBytes, 0,
+                "G short frame must not buffer any LED bytes");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must not call txFn when
+ * handleGroupFrame encounters a buildAck failure on a full-length G frame.
+ */
+ZTEST(simhubDevUtil_tests, test_group_frame_does_not_call_txfn_when_build_ack_fails)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+  simhubArqBuildAck_fake.custom_fake  = buildAck_fail;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "G frame must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x0A,
+                "G frame must call simhubArqBuildAck with pkt ID 0x0A");
+  zassert_not_null(simhubArqBuildAck_fake.arg1_val,
+                   "G frame must pass a non-NULL buf to simhubArqBuildAck");
+  zassert_equal(simhubArqBuildByte_fake.call_count, 0,
+                "G frame must not call simhubArqBuildByte");
+  zassert_equal(mock_tx_fake.call_count, 0,
+                "G frame must not call txFn when buildAck fails");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must send ACK only, activate
+ * the group state, and buffer the first LED bytes when a full-length G frame
+ * (LEN=16) is received.
+ */
+ZTEST(simhubDevUtil_tests, test_group_frame_sends_ack_only_and_activates_group)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "G frame must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x0A,
+                "G frame must call simhubArqBuildAck with pkt ID 0x0A");
+  zassert_equal(simhubArqBuildByte_fake.call_count, 0,
+                "G frame must not call simhubArqBuildByte");
+  zassert_equal(simhubArqFrameReset_fake.call_count, 1,
+                "G frame must call simhubArqFrameReset after dispatch");
+  zassert_equal(mock_tx_fake.call_count, 1,
+                "G frame must call txFn once");
+  zassert_equal(mock_tx_fake.arg1_val, 2,
+                "G frame must pass 2 bytes to txFn (ACK only)");
+  zassert_equal(txCapBuf[0], SIMHUB_ARQ_ACK, "byte 0: ACK");
+  zassert_equal(txCapBuf[1], 0x0A,           "byte 1: pkt ID");
+  zassert_true(groupActive,
+               "G frame with LEN=16 must set groupActive");
+  zassert_equal(ledRxStart, 0x00,
+                "G frame must store start LED index from data[6]");
+  zassert_equal(ledRxCount, 0x03,
+                "G frame must store LED count from data[7]");
+  zassert_equal(ledRxBytes, 8,
+                "G frame must buffer 8 LED bytes");
+  zassert_mem_equal(ledRxBuf, kGroupLedRgb, 8,
+                    "G frame must copy first 8 LED bytes into ledRxBuf");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must not call txFn when
+ * handleGroupFrame encounters a buildAck failure on a single-frame G frame.
+ */
+ZTEST(simhubDevUtil_tests, test_group_single_frame_does_not_call_txfn_when_build_ack_fails)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupSingleFrame;
+  simhubArqBuildAck_fake.custom_fake  = buildAck_fail;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "G single frame must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x20,
+                "G single frame must call simhubArqBuildAck with pkt ID 0x20");
+  zassert_not_null(simhubArqBuildAck_fake.arg1_val,
+                   "G single frame must pass a non-NULL buf to simhubArqBuildAck");
+  zassert_equal(simhubArqBuildByte_fake.call_count, 0,
+                "G single frame must not call simhubArqBuildByte when buildAck fails");
+  zassert_equal(mock_tx_fake.call_count, 0,
+                "G single frame must not call txFn when buildAck fails");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must not call txFn when
+ * handleGroupFrame encounters a buildByte failure on a single-frame G frame.
+ */
+ZTEST(simhubDevUtil_tests, test_group_single_frame_does_not_call_txfn_when_build_byte_fails)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupSingleFrame;
+  simhubArqBuildByte_fake.custom_fake = buildByte_fail;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "G single frame must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x20,
+                "G single frame must call simhubArqBuildAck with pkt ID 0x20");
+  zassert_equal(simhubArqBuildByte_fake.call_count, 1,
+                "G single frame must call simhubArqBuildByte once");
+  zassert_equal(simhubArqBuildByte_fake.arg0_val, 0x15,
+                "G single frame must call simhubArqBuildByte with 0x15");
+  zassert_not_null(simhubArqBuildByte_fake.arg1_val,
+                   "G single frame must pass a non-NULL buf to simhubArqBuildByte");
+  zassert_equal(mock_tx_fake.call_count, 0,
+                "G single frame must not call txFn when buildByte fails");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must send ACK+BYTE(0x15) and
+ * apply the partial LED update when a single-frame G frame (LEN<16) is received.
+ */
+ZTEST(simhubDevUtil_tests, test_group_single_frame_sends_ack_and_0x15)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupSingleFrame;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "G single frame must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x20,
+                "G single frame must call simhubArqBuildAck with pkt ID 0x20");
+  zassert_equal(simhubArqBuildByte_fake.call_count, 1,
+                "G single frame must call simhubArqBuildByte once");
+  zassert_equal(simhubArqBuildByte_fake.arg0_val, 0x15,
+                "G single frame must call simhubArqBuildByte with 0x15");
+  zassert_equal(simhubArqFrameReset_fake.call_count, 1,
+                "G single frame must call simhubArqFrameReset after dispatch");
+  zassert_equal(mock_tx_fake.call_count, 1,
+                "G single frame must call txFn once");
+  zassert_equal(mock_tx_fake.arg1_val, 4,
+                "G single frame must pass 4 bytes to txFn (ACK+BYTE)");
+  zassert_equal(txCapBuf[0], SIMHUB_ARQ_ACK,  "byte 0: ACK");
+  zassert_equal(txCapBuf[1], 0x20,             "byte 1: pkt ID");
+  zassert_equal(txCapBuf[2], SIMHUB_ARQ_BYTE,  "byte 2: BYTE type");
+  zassert_equal(txCapBuf[3], 0x15,             "byte 3: 0x15");
+  zassert_false(groupActive,
+                "G single frame must not set groupActive");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must apply only the LEDs in the
+ * partial update range when a single-frame G frame is received.
+ */
+ZTEST(simhubDevUtil_tests, test_group_single_frame_applies_partial_led_update)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupSingleFrame;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  struct led_rgb frame[3];
+  zassert_true(simhubDevUtilGetLedFrame(frame),
+               "G single frame must produce a pending LED frame");
+  zassert_equal(frame[1].r, kGroupSingleLedRgb[0], "LED 1 red must match");
+  zassert_equal(frame[1].g, kGroupSingleLedRgb[1], "LED 1 green must match");
+  zassert_equal(frame[1].b, kGroupSingleLedRgb[2], "LED 1 blue must match");
+  zassert_equal(frame[2].r, kGroupSingleLedRgb[3], "LED 2 red must match");
+  zassert_equal(frame[2].g, kGroupSingleLedRgb[4], "LED 2 green must match");
+  zassert_equal(frame[2].b, kGroupSingleLedRgb[5], "LED 2 blue must match");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must not call txFn when a
+ * single-frame G with out-of-bounds start encounters a buildAck failure.
+ */
+ZTEST(simhubDevUtil_tests, test_group_single_oob_start_does_not_call_txfn_when_build_ack_fails)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupSingleOobStart;
+  simhubArqBuildAck_fake.custom_fake  = buildAck_fail;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "G oob-start single frame must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x21,
+                "G oob-start single frame must call simhubArqBuildAck with pkt ID 0x21");
+  zassert_not_null(simhubArqBuildAck_fake.arg1_val,
+                   "G oob-start single frame must pass non-NULL buf to simhubArqBuildAck");
+  zassert_equal(mock_tx_fake.call_count, 0,
+                "G oob-start single frame must not call txFn when buildAck fails");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must not call txFn when a
+ * single-frame G with out-of-bounds start encounters a buildByte failure.
+ */
+ZTEST(simhubDevUtil_tests, test_group_single_oob_start_does_not_call_txfn_when_build_byte_fails)
+{
+  simhubArqParseByte_fake.custom_fake  = parseByte_groupSingleOobStart;
+  simhubArqBuildByte_fake.custom_fake  = buildByte_fail;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "G oob-start single frame must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x21,
+                "G oob-start single frame must call simhubArqBuildAck with pkt ID 0x21");
+  zassert_not_null(simhubArqBuildAck_fake.arg1_val,
+                   "G oob-start single frame must pass non-NULL buf to simhubArqBuildAck");
+  zassert_equal(simhubArqBuildByte_fake.call_count, 1,
+                "G oob-start single frame must call simhubArqBuildByte once");
+  zassert_equal(simhubArqBuildByte_fake.arg0_val, 0x15,
+                "G oob-start single frame must call simhubArqBuildByte with 0x15");
+  zassert_not_null(simhubArqBuildByte_fake.arg1_val,
+                   "G oob-start single frame must pass non-NULL buf to simhubArqBuildByte");
+  zassert_equal(mock_tx_fake.call_count, 0,
+                "G oob-start single frame must not call txFn when buildByte fails");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must stop applying LEDs when
+ * ledRxStart + i reaches SIMHUB_LED_COUNT, writing only in-bounds indices.
+ */
+ZTEST(simhubDevUtil_tests, test_group_single_oob_start_applies_leds_within_bounds)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupSingleOobStart;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  struct led_rgb frame[3];
+  zassert_true(simhubDevUtilGetLedFrame(frame),
+               "G oob-start frame must produce a pending LED frame");
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "G oob-start frame must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x21,
+                "G oob-start frame must call simhubArqBuildAck with pkt ID 0x21");
+  zassert_not_null(simhubArqBuildAck_fake.arg1_val,
+                   "G oob-start frame must pass non-NULL buf to simhubArqBuildAck");
+  zassert_equal(frame[2].r, kGroupOobLedRgb[0], "LED 2 red must match");
+  zassert_equal(frame[2].g, kGroupOobLedRgb[1], "LED 2 green must match");
+  zassert_equal(frame[2].b, kGroupOobLedRgb[2], "LED 2 blue must match");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must store the button state from
+ * the last byte of a single-frame G frame.
+ */
+ZTEST(simhubDevUtil_tests, test_group_single_frame_stores_button_state)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupSingleFrame;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubDevUtilGetButtonState(), 0x01,
+                "G single frame must store the button state from data[len-1]");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must transition the state to
+ * STREAMING when a single-frame G frame is received.
+ */
+ZTEST(simhubDevUtil_tests, test_group_single_frame_transitions_to_streaming)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupSingleFrame;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubDevUtilGetState(), SIMHUB_ARQ_STREAMING,
+                "G single frame must transition state to STREAMING");
+}
+
+/* === handleGroupData === */
+
+/**
+ * @test The simhubDevUtilReceivedByte function must not call txFn when
+ * handleGroupData encounters a buildAck failure on a continuation frame.
+ */
+ZTEST(simhubDevUtil_tests, test_group_continuation_does_not_call_txfn_when_build_ack_fails)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  RESET_FAKE(simhubArqBuildAck);
+  RESET_FAKE(mock_tx);
+  simhubArqBuildAck_fake.custom_fake = buildAck_fail;
+  mock_tx_fake.custom_fake           = mock_tx_capture;
+  simhubArqParseByte_fake.custom_fake = parseByte_groupContinuationFrame;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "G continuation must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x0C,
+                "G continuation must call simhubArqBuildAck with pkt ID 0x0C");
+  zassert_not_null(simhubArqBuildAck_fake.arg1_val,
+                   "G continuation must pass a non-NULL buf to simhubArqBuildAck");
+  zassert_equal(mock_tx_fake.call_count, 0,
+                "G continuation must not call txFn when buildAck fails");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must send ACK only and keep
+ * groupActive set when a continuation frame (LEN=16) is received.
+ */
+ZTEST(simhubDevUtil_tests, test_group_continuation_sends_ack_only_and_stays_active)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  RESET_FAKE(simhubArqBuildAck);
+  RESET_FAKE(simhubArqBuildByte);
+  RESET_FAKE(simhubArqFrameReset);
+  RESET_FAKE(mock_tx);
+  simhubArqBuildAck_fake.custom_fake = buildAck_real;
+  mock_tx_fake.custom_fake           = mock_tx_capture;
+  simhubArqParseByte_fake.custom_fake = parseByte_groupContinuationFrame;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "G continuation must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x0C,
+                "G continuation must call simhubArqBuildAck with pkt ID 0x0C");
+  zassert_equal(simhubArqBuildByte_fake.call_count, 0,
+                "G continuation must not call simhubArqBuildByte");
+  zassert_equal(simhubArqFrameReset_fake.call_count, 1,
+                "G continuation must call simhubArqFrameReset after dispatch");
+  zassert_equal(mock_tx_fake.call_count, 1,
+                "G continuation must call txFn once");
+  zassert_equal(mock_tx_fake.arg1_val, 2,
+                "G continuation must pass 2 bytes to txFn (ACK only)");
+  zassert_equal(txCapBuf[0], SIMHUB_ARQ_ACK, "byte 0: ACK");
+  zassert_equal(txCapBuf[1], 0x0C,           "byte 1: pkt ID");
+  zassert_true(groupActive,
+               "G continuation must keep groupActive set");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must not call txFn when a
+ * full-buffer continuation encounters a buildAck failure.
+ */
+ZTEST(simhubDevUtil_tests, test_group_continuation_full_buffer_does_not_call_txfn_when_build_ack_fails)
+{
+  /* Fill buffer: initial G (8 bytes) + first continuation (1 byte, clamps to 9) */
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+  simhubArqParseByte_fake.custom_fake = parseByte_groupContinuationFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  RESET_FAKE(simhubArqBuildAck);
+  RESET_FAKE(mock_tx);
+  simhubArqBuildAck_fake.custom_fake = buildAck_fail;
+  mock_tx_fake.custom_fake           = mock_tx_capture;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "full-buffer continuation must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x0C,
+                "full-buffer continuation must call simhubArqBuildAck with pkt ID 0x0C");
+  zassert_not_null(simhubArqBuildAck_fake.arg1_val,
+                   "full-buffer continuation must pass non-NULL buf to simhubArqBuildAck");
+  zassert_equal(mock_tx_fake.call_count, 0,
+                "full-buffer continuation must not call txFn when buildAck fails");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must send ACK and remain in the
+ * group when the LED RX buffer is already full (appendToLedRxBuf clamps to 0).
+ */
+ZTEST(simhubDevUtil_tests, test_group_continuation_full_buffer_clamps_append_to_zero)
+{
+  /* step 1: initial G fills ledRxBytes to 8 */
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  /* step 2: first continuation fills the buffer to capacity (ledRxBytes = 9) */
+  simhubArqParseByte_fake.custom_fake = parseByte_groupContinuationFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  /* step 3: second continuation — buffer full, append must clamp to 0 */
+  RESET_FAKE(simhubArqBuildAck);
+  RESET_FAKE(mock_tx);
+  simhubArqBuildAck_fake.custom_fake = buildAck_real;
+  mock_tx_fake.custom_fake           = mock_tx_capture;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_true(groupActive,
+               "G continuation on full buffer must keep groupActive set");
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "G continuation on full buffer must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x0C,
+                "G continuation on full buffer must call simhubArqBuildAck with pkt ID 0x0C");
+  zassert_not_null(simhubArqBuildAck_fake.arg1_val,
+                   "G continuation on full buffer must pass non-NULL buf to simhubArqBuildAck");
+  zassert_equal(mock_tx_fake.call_count, 1,
+                "G continuation on full buffer must call txFn once");
+  zassert_not_null(mock_tx_fake.arg0_val,
+                   "G continuation on full buffer must pass non-NULL buf to txFn");
+  zassert_equal(mock_tx_fake.arg1_val, 2,
+                "G continuation on full buffer must pass 2 bytes to txFn (ACK only)");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must not call txFn when
+ * handleGroupData encounters a buildAck failure on a terminal frame.
+ */
+ZTEST(simhubDevUtil_tests, test_group_terminal_does_not_call_txfn_when_build_ack_fails)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  RESET_FAKE(simhubArqBuildAck);
+  RESET_FAKE(simhubArqBuildByte);
+  RESET_FAKE(mock_tx);
+  simhubArqBuildAck_fake.custom_fake  = buildAck_fail;
+  mock_tx_fake.custom_fake            = mock_tx_capture;
+  simhubArqParseByte_fake.custom_fake = parseByte_groupTerminalFrame;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "G terminal must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x0B,
+                "G terminal must call simhubArqBuildAck with pkt ID 0x0B");
+  zassert_not_null(simhubArqBuildAck_fake.arg1_val,
+                   "G terminal must pass a non-NULL buf to simhubArqBuildAck");
+  zassert_equal(simhubArqBuildByte_fake.call_count, 0,
+                "G terminal must not call simhubArqBuildByte when buildAck fails");
+  zassert_equal(mock_tx_fake.call_count, 0,
+                "G terminal must not call txFn when buildAck fails");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must not call txFn when
+ * handleGroupData encounters a buildByte failure on a terminal frame.
+ */
+ZTEST(simhubDevUtil_tests, test_group_terminal_does_not_call_txfn_when_build_byte_fails)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  RESET_FAKE(simhubArqBuildByte);
+  RESET_FAKE(mock_tx);
+  simhubArqBuildByte_fake.custom_fake = buildByte_fail;
+  mock_tx_fake.custom_fake            = mock_tx_capture;
+  simhubArqParseByte_fake.custom_fake = parseByte_groupTerminalFrame;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildByte_fake.call_count, 1,
+                "G terminal must call simhubArqBuildByte once");
+  zassert_equal(simhubArqBuildByte_fake.arg0_val, 0x15,
+                "G terminal must call simhubArqBuildByte with 0x15");
+  zassert_not_null(simhubArqBuildByte_fake.arg1_val,
+                   "G terminal must pass a non-NULL buf to simhubArqBuildByte");
+  zassert_equal(mock_tx_fake.call_count, 0,
+                "G terminal must not call txFn when buildByte fails");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must send ACK+BYTE(0x15) and
+ * clear groupActive when a terminal frame (LEN<16) is received.
+ */
+ZTEST(simhubDevUtil_tests, test_group_terminal_sends_ack_and_0x15_and_clears_group)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  RESET_FAKE(simhubArqBuildAck);
+  RESET_FAKE(simhubArqBuildByte);
+  RESET_FAKE(simhubArqFrameReset);
+  RESET_FAKE(mock_tx);
+  simhubArqBuildAck_fake.custom_fake  = buildAck_real;
+  simhubArqBuildByte_fake.custom_fake = buildByte_real;
+  mock_tx_fake.custom_fake            = mock_tx_capture;
+  simhubArqParseByte_fake.custom_fake = parseByte_groupTerminalFrame;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "G terminal must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x0B,
+                "G terminal must call simhubArqBuildAck with pkt ID 0x0B");
+  zassert_equal(simhubArqBuildByte_fake.call_count, 1,
+                "G terminal must call simhubArqBuildByte once");
+  zassert_equal(simhubArqBuildByte_fake.arg0_val, 0x15,
+                "G terminal must call simhubArqBuildByte with 0x15");
+  zassert_equal(simhubArqFrameReset_fake.call_count, 1,
+                "G terminal must call simhubArqFrameReset after dispatch");
+  zassert_equal(mock_tx_fake.call_count, 1,
+                "G terminal must call txFn once");
+  zassert_equal(mock_tx_fake.arg1_val, 4,
+                "G terminal must pass 4 bytes to txFn (ACK+BYTE)");
+  zassert_equal(txCapBuf[0], SIMHUB_ARQ_ACK,  "byte 0: ACK");
+  zassert_equal(txCapBuf[1], 0x0B,             "byte 1: pkt ID");
+  zassert_equal(txCapBuf[2], SIMHUB_ARQ_BYTE,  "byte 2: BYTE type");
+  zassert_equal(txCapBuf[3], 0x15,             "byte 3: 0x15");
+  zassert_false(groupActive,
+                "G terminal must clear groupActive");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must apply the complete LED
+ * sequence when a terminal frame completes a G frame sequence.
+ */
+ZTEST(simhubDevUtil_tests, test_group_terminal_applies_full_led_sequence)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  simhubArqParseByte_fake.custom_fake = parseByte_groupTerminalFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  struct led_rgb frame[3];
+  zassert_true(simhubDevUtilGetLedFrame(frame),
+               "G terminal must produce a pending LED frame");
+  for(int i = 0; i < 3; i++)
+  {
+    zassert_equal(frame[i].r, kGroupLedRgb[i * 3],
+                  "LED %d red must match",   i);
+    zassert_equal(frame[i].g, kGroupLedRgb[i * 3 + 1],
+                  "LED %d green must match", i);
+    zassert_equal(frame[i].b, kGroupLedRgb[i * 3 + 2],
+                  "LED %d blue must match",  i);
+  }
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must store the button state from
+ * the last byte of the terminal frame.
+ */
+ZTEST(simhubDevUtil_tests, test_group_terminal_stores_button_state)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  simhubArqParseByte_fake.custom_fake = parseByte_groupTerminalFrameWithButton;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubDevUtilGetButtonState(), 0x01,
+                "G terminal must store the button state from data[len-1]");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must transition the session
+ * state to STREAMING when a terminal frame completes a G frame sequence.
+ */
+ZTEST(simhubDevUtil_tests, test_group_terminal_transitions_to_streaming)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  simhubArqParseByte_fake.custom_fake = parseByte_groupTerminalFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubDevUtilGetState(), SIMHUB_ARQ_STREAMING,
+                "G terminal must transition state to STREAMING");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must not call txFn when a
+ * zero-length terminal frame encounters a buildAck failure.
+ */
+ZTEST(simhubDevUtil_tests, test_group_terminal_zero_len_does_not_call_txfn_when_build_ack_fails)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  RESET_FAKE(simhubArqBuildAck);
+  RESET_FAKE(mock_tx);
+  simhubArqBuildAck_fake.custom_fake  = buildAck_fail;
+  mock_tx_fake.custom_fake            = mock_tx_capture;
+  simhubArqParseByte_fake.custom_fake = parseByte_groupDataEmptyFrame;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "zero-len terminal must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x0E,
+                "zero-len terminal must call simhubArqBuildAck with pkt ID 0x0E");
+  zassert_not_null(simhubArqBuildAck_fake.arg1_val,
+                   "zero-len terminal must pass non-NULL buf to simhubArqBuildAck");
+  zassert_equal(mock_tx_fake.call_count, 0,
+                "zero-len terminal must not call txFn when buildAck fails");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must not call txFn when a
+ * zero-length terminal frame encounters a buildByte failure.
+ */
+ZTEST(simhubDevUtil_tests, test_group_terminal_zero_len_does_not_call_txfn_when_build_byte_fails)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  RESET_FAKE(simhubArqBuildAck);
+  RESET_FAKE(simhubArqBuildByte);
+  RESET_FAKE(mock_tx);
+  simhubArqBuildByte_fake.custom_fake = buildByte_fail;
+  mock_tx_fake.custom_fake            = mock_tx_capture;
+  simhubArqParseByte_fake.custom_fake = parseByte_groupDataEmptyFrame;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "zero-len terminal must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x0E,
+                "zero-len terminal must call simhubArqBuildAck with pkt ID 0x0E");
+  zassert_not_null(simhubArqBuildAck_fake.arg1_val,
+                   "zero-len terminal must pass non-NULL buf to simhubArqBuildAck");
+  zassert_equal(simhubArqBuildByte_fake.call_count, 1,
+                "zero-len terminal must call simhubArqBuildByte once");
+  zassert_equal(simhubArqBuildByte_fake.arg0_val, 0x15,
+                "zero-len terminal must call simhubArqBuildByte with 0x15");
+  zassert_not_null(simhubArqBuildByte_fake.arg1_val,
+                   "zero-len terminal must pass non-NULL buf to simhubArqBuildByte");
+  zassert_equal(mock_tx_fake.call_count, 0,
+                "zero-len terminal must not call txFn when buildByte fails");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must clear groupActive, transition
+ * to STREAMING, and set button state to 0 when a zero-length terminal frame is
+ * received.
+ */
+ZTEST(simhubDevUtil_tests, test_group_terminal_zero_len_clears_group_and_sets_streaming)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  RESET_FAKE(simhubArqBuildAck);
+  RESET_FAKE(simhubArqBuildByte);
+  RESET_FAKE(simhubArqFrameReset);
+  RESET_FAKE(mock_tx);
+  simhubArqBuildAck_fake.custom_fake  = buildAck_real;
+  simhubArqBuildByte_fake.custom_fake = buildByte_real;
+  mock_tx_fake.custom_fake            = mock_tx_capture;
+  simhubArqParseByte_fake.custom_fake = parseByte_groupDataEmptyFrame;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_false(groupActive,
+                "zero-len terminal must clear groupActive");
+  zassert_equal(simhubDevUtilGetState(), SIMHUB_ARQ_STREAMING,
+                "zero-len terminal must transition to STREAMING");
+  zassert_equal(simhubDevUtilGetButtonState(), 0,
+                "zero-len terminal must set button state to 0");
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "zero-len terminal must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x0E,
+                "zero-len terminal must call simhubArqBuildAck with pkt ID 0x0E");
+  zassert_not_null(simhubArqBuildAck_fake.arg1_val,
+                   "zero-len terminal must pass non-NULL buf to simhubArqBuildAck");
+  zassert_equal(simhubArqBuildByte_fake.call_count, 1,
+                "zero-len terminal must call simhubArqBuildByte once");
+  zassert_equal(simhubArqBuildByte_fake.arg0_val, 0x15,
+                "zero-len terminal must call simhubArqBuildByte with 0x15");
+  zassert_not_null(simhubArqBuildByte_fake.arg1_val,
+                   "zero-len terminal must pass non-NULL buf to simhubArqBuildByte");
+  zassert_equal(mock_tx_fake.call_count, 1,
+                "zero-len terminal must call txFn once");
+  zassert_not_null(mock_tx_fake.arg0_val,
+                   "zero-len terminal must pass non-NULL buf to txFn");
+  zassert_equal(mock_tx_fake.arg1_val, 4,
+                "zero-len terminal must pass 4 bytes to txFn (ACK+BYTE)");
 }
 
 /**
@@ -1571,24 +2532,30 @@ ZTEST(simhubDevUtil_tests, test_led_data_mode1_payload_too_short_acks_without_fr
 
 /**
  * @test The simhubDevUtilReceivedByte function must send ACK without setting
- * a pending frame when an LED data frame with an unsupported mode is received.
+ * a pending frame when an LED data frame with too few payload bytes is received.
  */
-ZTEST(simhubDevUtil_tests, test_led_data_unsupported_mode_acks_without_frame)
+ZTEST(simhubDevUtil_tests, test_led_data_short_payload_acks_without_frame)
 {
   simhubArqParseByte_fake.custom_fake = parseByte_ledDataUnsupportedModeFrame;
 
   simhubDevUtilReceivedByte(TEST_BYTE);
 
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "LED data short must call simhubArqBuildAck once");
   zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x11,
-                "Unsupported LED mode must call simhubArqBuildAck with pkt ID 0x11");
+                "LED data short must call simhubArqBuildAck with pkt ID 0x11");
+  zassert_not_null(simhubArqBuildAck_fake.arg1_val,
+                   "LED data short must pass a non-NULL buf to simhubArqBuildAck");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
-                "Unsupported LED mode must call simhubArqFrameReset after dispatch");
+                "LED data short must call simhubArqFrameReset after dispatch");
+  zassert_equal(mock_tx_fake.call_count, 1,
+                "LED data short must call txFn once");
   zassert_equal(mock_tx_fake.arg1_val, 2,
-                "Unsupported LED mode must pass 2 bytes to txFn (ACK only)");
+                "LED data short must pass 2 bytes to txFn (ACK only)");
 
   struct led_rgb frame[3];
   zassert_false(simhubDevUtilGetLedFrame(frame),
-                "Unsupported LED mode must not set a pending frame");
+                "LED data short must not set a pending frame");
 }
 
 /**
@@ -1677,6 +2644,77 @@ ZTEST(simhubDevUtil_tests, test_unknown_command_sends_ack)
                 "Unknown command must pass 2 bytes to txFn (ACK only)");
 }
 
+/* === dispatchFrame === */
+
+/**
+ * @test The simhubDevUtilReceivedByte function must not call txFn when
+ * dispatchFrame encounters a buildAck failure on a frame with fewer than 2 bytes.
+ */
+ZTEST(simhubDevUtil_tests, test_dispatch_short_frame_does_not_call_txfn_when_build_ack_fails)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_shortDispatchFrame;
+  simhubArqBuildAck_fake.custom_fake  = buildAck_fail;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "Short dispatch must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x0A,
+                "Short dispatch must call simhubArqBuildAck with pkt ID 0x0A");
+  zassert_not_null(simhubArqBuildAck_fake.arg1_val,
+                   "Short dispatch must pass a non-NULL buf to simhubArqBuildAck");
+  zassert_equal(mock_tx_fake.call_count, 0,
+                "Short dispatch must not call txFn when buildAck fails");
+  zassert_equal(simhubArqFrameReset_fake.call_count, 1,
+                "Short dispatch must still call simhubArqFrameReset");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must send ACK only and reset the
+ * frame when a complete ARQ frame with fewer than 2 data bytes is received.
+ */
+ZTEST(simhubDevUtil_tests, test_dispatch_short_frame_sends_ack_only)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_shortDispatchFrame;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubArqBuildAck_fake.call_count, 1,
+                "Short dispatch must call simhubArqBuildAck once");
+  zassert_equal(simhubArqBuildAck_fake.arg0_val, 0x0A,
+                "Short dispatch must call simhubArqBuildAck with pkt ID 0x0A");
+  zassert_equal(simhubArqBuildByte_fake.call_count, 0,
+                "Short dispatch must not call simhubArqBuildByte");
+  zassert_equal(simhubArqFrameReset_fake.call_count, 1,
+                "Short dispatch must call simhubArqFrameReset after dispatch");
+  zassert_equal(mock_tx_fake.call_count, 1,
+                "Short dispatch must call txFn once");
+  zassert_equal(mock_tx_fake.arg1_val, 2,
+                "Short dispatch must pass 2 bytes to txFn (ACK only)");
+  zassert_equal(txCapBuf[0], SIMHUB_ARQ_ACK, "byte 0: ACK");
+  zassert_equal(txCapBuf[1], 0x0A,           "byte 1: pkt ID");
+}
+
+/**
+ * @test The simhubDevUtilReceivedByte function must not call txFn when a
+ * triple-H X sub-frame has fewer than 4 bytes (skips handleXCmd).
+ */
+ZTEST(simhubDevUtil_tests, test_dispatch_x_sub_frame_len_lt4_skips_xcmd)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_xSubFrameShortLen;
+
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(mock_tx_fake.call_count, 0,
+                "X sub frame len < 4 must not call txFn");
+  zassert_equal(simhubArqBuildAck_fake.call_count, 0,
+                "X sub frame len < 4 must not call simhubArqBuildAck");
+  zassert_equal(simhubArqFrameReset_fake.call_count, 1,
+                "X sub frame len < 4 must still call simhubArqFrameReset");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "X sub frame len < 4 must pass non-NULL frame to simhubArqFrameReset");
+}
+
 /* ===========================================================================
  * simhubDevUtilGetLedFrame
  * =========================================================================*/
@@ -1713,6 +2751,37 @@ ZTEST(simhubDevUtil_tests, test_get_led_frame_returns_true_and_clears_flag)
                "GetLedFrame must return true when a frame is pending");
   zassert_false(second,
                 "GetLedFrame must return false after the flag is cleared");
+}
+
+/* === simhubDevUtilGetButtonState === */
+
+/**
+ * @test The simhubDevUtilGetButtonState function must return 0 before any
+ * G frame has been received.
+ */
+ZTEST(simhubDevUtil_tests, test_get_button_state_returns_zero_before_first_frame)
+{
+  zassert_equal(simhubDevUtilGetButtonState(), 0,
+                "GetButtonState must return 0 before any G frame is received");
+}
+
+/**
+ * @test The simhubDevUtilGetButtonState function must return 0 after
+ * simhubDevUtilReset is called.
+ */
+ZTEST(simhubDevUtil_tests, test_get_button_state_returns_zero_after_reset)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+  simhubArqParseByte_fake.custom_fake = parseByte_groupTerminalFrameWithButton;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+  zassert_equal(simhubDevUtilGetButtonState(), 0x01,
+                "pre-condition: button state must be 0x01");
+
+  simhubDevUtilReset();
+
+  zassert_equal(simhubDevUtilGetButtonState(), 0,
+                "GetButtonState must return 0 after reset");
 }
 
 ZTEST_SUITE(simhubDevUtil_tests, NULL, util_tests_setup, util_tests_before, NULL, NULL);

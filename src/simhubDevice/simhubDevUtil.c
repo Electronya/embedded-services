@@ -28,6 +28,13 @@ static struct led_rgb   pendingLedFrame[SIMHUB_LED_COUNT];
 static bool             ledFrameReady;
 static uint8_t          txScratch[SIMHUB_DEV_TX_BUF_SIZE];
 
+static bool     groupActive;
+static uint8_t  ledRxBuf[SIMHUB_LED_COUNT * 3];
+static uint8_t  ledRxCount;
+static uint8_t  ledRxStart;
+static uint16_t ledRxBytes;
+static uint8_t  lastButtonState;
+
 static void handleHello(void)
 {
   int len = 0;
@@ -57,6 +64,11 @@ static void handleFeatures(uint8_t id)
     return;
   len += n;
 
+  n = simhubArqBuildStr("G", 1, txScratch + len, sizeof(txScratch) - len);
+  if(n < 0)
+    return;
+  len += n;
+
   n = simhubArqBuildStr("N", 1, txScratch + len, sizeof(txScratch) - len);
   if(n < 0)
     return;
@@ -68,6 +80,11 @@ static void handleFeatures(uint8_t id)
   len += n;
 
   n = simhubArqBuildStr("J", 1, txScratch + len, sizeof(txScratch) - len);
+  if(n < 0)
+    return;
+  len += n;
+
+  n = simhubArqBuildStr("P", 1, txScratch + len, sizeof(txScratch) - len);
   if(n < 0)
     return;
   len += n;
@@ -199,7 +216,8 @@ static void handleButtonCount(uint8_t id)
     return;
   len += n;
 
-  n = simhubArqBuildByte(0, txScratch + len, sizeof(txScratch) - len);
+  n = simhubArqBuildByte(CONFIG_ENYA_SIMHUB_DEVICE_BUTTON_COUNT,
+                         txScratch + len, sizeof(txScratch) - len);
   if(n < 0)
     return;
   len += n;
@@ -241,18 +259,124 @@ static void handleXCmd(uint8_t id, const uint8_t *sub, uint8_t subLen)
       return;
     len += n;
 
-    n = simhubArqBuildByte(0x98, txScratch + len, sizeof(txScratch) - len);
+    n = simhubArqBuildByte(0x95, txScratch + len, sizeof(txScratch) - len);
     if(n < 0)
       return;
     len += n;
 
-    n = simhubArqBuildByte(0x01, txScratch + len, sizeof(txScratch) - len);
+    n = simhubArqBuildByte(0x87, txScratch + len, sizeof(txScratch) - len);
     if(n < 0)
       return;
     len += n;
   }
 
   txFn(txScratch, len);
+}
+
+static void applyLedUpdate(void)
+{
+  for(uint8_t i = 0; i < ledRxCount && (ledRxStart + i) < SIMHUB_LED_COUNT; i++)
+  {
+    uint8_t ledIdx = ledRxStart + i;
+    pendingLedFrame[ledIdx].r = ledRxBuf[i * 3];
+    pendingLedFrame[ledIdx].g = ledRxBuf[i * 3 + 1];
+    pendingLedFrame[ledIdx].b = ledRxBuf[i * 3 + 2];
+  }
+  ledFrameReady = true;
+  sessionState  = SIMHUB_ARQ_STREAMING;
+}
+
+static void appendToLedRxBuf(const uint8_t *src, uint8_t n)
+{
+  uint16_t bufSize   = (uint16_t)SIMHUB_LED_COUNT * 3;
+  uint16_t available = (ledRxBytes < bufSize) ? (uint16_t)(bufSize - ledRxBytes) : 0;
+  if(n > available)
+    n = (uint8_t)available;
+  if(n > 0)
+    memcpy(ledRxBuf + ledRxBytes, src, n);
+  ledRxBytes += n;
+}
+
+static void handleGroupFrame(uint8_t id, const uint8_t *data, uint8_t len)
+{
+  int txLen = 0;
+  int n;
+
+  if(len < 8)
+  {
+    n = simhubArqBuildAck(id, txScratch, sizeof(txScratch));
+    if(n > 0)
+      txFn(txScratch, n);
+    return;
+  }
+
+  ledRxStart = data[6];
+  ledRxCount = data[7];
+  ledRxBytes = 0;
+
+  if(len == 16)
+  {
+    appendToLedRxBuf(&data[8], len - 8);
+    groupActive = true;
+
+    n = simhubArqBuildAck(id, txScratch, sizeof(txScratch));
+    if(n < 0)
+      return;
+    txFn(txScratch, n);
+  }
+  else
+  {
+    uint8_t ledBytes = (uint8_t)(len - 8 - 1);
+    lastButtonState  = data[len - 1];
+
+    appendToLedRxBuf(&data[8], ledBytes);
+    applyLedUpdate();
+
+    n = simhubArqBuildAck(id, txScratch, sizeof(txScratch));
+    if(n < 0)
+      return;
+    txLen += n;
+    n = simhubArqBuildByte(0x15, txScratch + txLen, sizeof(txScratch) - txLen);
+    if(n < 0)
+      return;
+    txLen += n;
+    txFn(txScratch, txLen);
+  }
+}
+
+static void handleGroupData(uint8_t id, const uint8_t *data, uint8_t len)
+{
+  int txLen = 0;
+  int n;
+
+  if(len == 16)
+  {
+    appendToLedRxBuf(data, 16);
+
+    n = simhubArqBuildAck(id, txScratch, sizeof(txScratch));
+    if(n < 0)
+      return;
+    txFn(txScratch, n);
+  }
+  else
+  {
+    uint8_t ledBytes = (len > 0) ? (uint8_t)(len - 1) : 0;
+    lastButtonState  = (len > 0) ? data[len - 1] : 0;
+
+    appendToLedRxBuf(data, ledBytes);
+    groupActive = false;
+    applyLedUpdate();
+
+    n = simhubArqBuildAck(id, txScratch, sizeof(txScratch));
+    if(n < 0)
+      return;
+    txLen += n;
+    n = simhubArqBuildByte(0x15, txScratch + txLen, sizeof(txScratch) - txLen);
+    if(n < 0)
+      return;
+    txLen += n;
+    txFn(txScratch, txLen);
+  }
 }
 
 static void handleBaudRate(uint8_t id)
@@ -265,14 +389,9 @@ static void handleBaudRate(uint8_t id)
 
 static void handleLedData(uint8_t id, const uint8_t *sub, uint8_t subLen)
 {
-  uint8_t mode = sub[0];
   int n;
 
-  if(mode != 0x01)
-  {
-    LOG_WRN("unsupported LED mode 0x%02x", mode);
-  }
-  else if(subLen >= 1 + 3 * SIMHUB_LED_COUNT)
+  if(subLen >= 1 + 3 * SIMHUB_LED_COUNT)
   {
     const uint8_t *rgb = &sub[1];
 
@@ -295,7 +414,24 @@ static void handleLedData(uint8_t id, const uint8_t *sub, uint8_t subLen)
 
 static void dispatchFrame(SimhubArqFrame_t *frame)
 {
-  uint8_t id  = frame->pktId;
+  uint8_t id = frame->pktId;
+
+  if(groupActive)
+  {
+    handleGroupData(id, frame->data, frame->len);
+    simhubArqFrameReset(frame);
+    return;
+  }
+
+  if(frame->len < 2)
+  {
+    int n = simhubArqBuildAck(id, txScratch, sizeof(txScratch));
+    if(n > 0)
+      txFn(txScratch, n);
+    simhubArqFrameReset(frame);
+    return;
+  }
+
   uint8_t cmd = frame->data[1];
 
   switch(cmd)
@@ -324,8 +460,15 @@ static void dispatchFrame(SimhubArqFrame_t *frame)
     case 'J':
       handleButtonCount(id);
       break;
+    case SIMHUB_ARQ_MSG_H:
+      if(frame->len >= 4)
+        handleXCmd(id, frame->data + 4, frame->len - 4);
+      break;
     case 'X':
       handleXCmd(id, frame->data + 2, frame->len - 2);
+      break;
+    case 'G':
+      handleGroupFrame(id, frame->data, frame->len);
       break;
     case '8':
       handleBaudRate(id);
@@ -356,8 +499,13 @@ int simhubDevUtilInit(SimhubDevTxFn_t fn)
 void simhubDevUtilReset(void)
 {
   simhubArqFrameReset(&rxFrame);
-  sessionState  = SIMHUB_ARQ_IDLE;
-  ledFrameReady = false;
+  sessionState    = SIMHUB_ARQ_IDLE;
+  ledFrameReady   = false;
+  groupActive     = false;
+  ledRxBytes      = 0;
+  ledRxCount      = 0;
+  ledRxStart      = 0;
+  lastButtonState = 0;
 }
 
 bool simhubDevUtilReceivedByte(uint8_t byte)
@@ -377,6 +525,11 @@ bool simhubDevUtilGetLedFrame(struct led_rgb *frame)
   memcpy(frame, pendingLedFrame, sizeof(pendingLedFrame));
   ledFrameReady = false;
   return true;
+}
+
+uint8_t simhubDevUtilGetButtonState(void)
+{
+  return lastButtonState;
 }
 
 SimhubArqState_t simhubDevUtilGetState(void)
