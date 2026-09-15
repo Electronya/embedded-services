@@ -296,14 +296,23 @@ err = usbDeviceEnable();
 
 ## Shell Commands
 
-**Not implemented yet.** `src/simhubDevice/simhubDevCmd.c` and `CONFIG_ENYA_SIMHUB_DEVICE_SHELL`
-are reserved for future `simhub status` / `simhub reset` / `simhub info` commands, but the file
-is currently empty.
+Shell commands are registered under `simhub`. Enable with `CONFIG_ENYA_SIMHUB_DEVICE_SHELL=y`.
+
+| Command | Description |
+|---------|-------------|
+| `simhub status` | Session state (idle/enumerating/streaming) plus the static identity fields reported during enumeration (device name, UID, LED count, button count) |
+
+```console
+uart:~$ simhub status
+SUCCESS: state=streaming name=Electronya LED uid=ENYA001 led_count=8 button_count=0
+```
+
+`simhub reset` (force the session back to `IDLE`) is not implemented yet.
 
 ## Testing
 
 Tests live in `tests/simhubDevice/` and follow the same include-the-source pattern used
-elsewhere in this project. All three suites run at 100% line/branch/function coverage.
+elsewhere in this project. All four suites run at 100% line/branch/function coverage.
 
 - **`proto/`** — `simhubArqProto.c` in isolation: CRC-8, frame parser state machine (sync
   detection, length validation, CRC mismatch handling), and every response builder.
@@ -313,6 +322,8 @@ elsewhere in this project. All three suites run at 100% line/branch/function cov
 - **`service/`** — `simhubDevice.c` with UART/ring-buffer/service-manager mocked: the UART ISR,
   the thread's control-message handling (stop/suspend/resume), the RX drain loop (including the
   framebuffer-starvation guard described above), and `simhubDeviceInit()`'s error paths.
+- **`cmd/`** — `simhubDevCmd.c` with `simhubDevUtil` mocked: `simhub status` output for each
+  session state and the configured device identity fields.
 
 ## Troubleshooting
 

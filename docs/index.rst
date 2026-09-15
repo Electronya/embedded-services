@@ -95,6 +95,7 @@ LED strip for display.
 - Session state machine (``IDLE`` → ``ENUMERATING`` → ``STREAMING``)
 - Single-frame and multi-frame group LED streaming, matching SimHub's real on-wire behavior
 - Interrupt-driven UART RX/TX with ring buffer
+- Shell command for runtime session status and device identity inspection
 
 See :doc:`services/simhub-device` for the full API reference.
 
