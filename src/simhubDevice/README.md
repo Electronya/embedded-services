@@ -263,7 +263,7 @@ CONFIG_ENYA_SIMHUB_DEVICE_BUTTON_COUNT=0
 | `CONFIG_ENYA_SIMHUB_DEVICE_NAME` | `"Electronya LED"` | Device name reported during enumeration (`'N'`) |
 | `CONFIG_ENYA_SIMHUB_DEVICE_UID` | `"ENYA001"` | Unique ID reported during enumeration (`'I'`) |
 | `CONFIG_ENYA_SIMHUB_DEVICE_BUTTON_COUNT` | 0 | Button count reported during enumeration (`'J'`) |
-| `CONFIG_ENYA_SIMHUB_DEVICE_SHELL` | y | Reserved — no shell commands implemented yet (see below) |
+| `CONFIG_ENYA_SIMHUB_DEVICE_SHELL` | y | Enable shell commands (see below) |
 
 ### Dependencies
 

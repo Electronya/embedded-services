@@ -386,7 +386,7 @@ Tuning options:
      - Button count reported during enumeration (``'J'``)
    * - ``CONFIG_ENYA_SIMHUB_DEVICE_SHELL``
      - y
-     - Reserved — no shell commands implemented yet (see below)
+     - Enable shell commands (see below)
 
 Dependencies
 ~~~~~~~~~~~~
