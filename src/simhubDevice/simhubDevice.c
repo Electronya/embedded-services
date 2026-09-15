@@ -120,6 +120,7 @@ static void run(void *p1, void *p2, void *p3)
   int err;
   ServiceCtrlMsg_t ctrlMsg;
   uint8_t byte;
+  struct led_rgb *ledFrame;
 
   err = simhubDevUtilInit(txSend);
   if(err < 0)
@@ -167,9 +168,9 @@ static void run(void *p1, void *p2, void *p3)
 
     while(ring_buf_get(&rxRingBuf, &byte, 1) == 1)
     {
-      if(simhubDevUtilReceivedByte(byte))
+      if(simhubDevUtilReceivedByte(byte) && simhubDevUtilLedFrameReady())
       {
-        struct led_rgb *ledFrame = ledStripGetNextFramebuffer();
+        ledFrame = ledStripGetNextFramebuffer();
         if(ledFrame != NULL && simhubDevUtilGetLedFrame(ledFrame))
           ledStripUpdateFrame(ledFrame);
       }

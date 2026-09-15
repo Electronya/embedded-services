@@ -527,6 +527,11 @@ bool simhubDevUtilGetLedFrame(struct led_rgb *frame)
   return true;
 }
 
+bool simhubDevUtilLedFrameReady(void)
+{
+  return ledFrameReady;
+}
+
 uint8_t simhubDevUtilGetButtonState(void)
 {
   return lastButtonState;

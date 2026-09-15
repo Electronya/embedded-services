@@ -171,6 +171,7 @@ FAKE_VALUE_FUNC(int, simhubDevUtilInit, SimhubDevTxFn_t);
 FAKE_VOID_FUNC(simhubDevUtilReset);
 FAKE_VALUE_FUNC(bool, simhubDevUtilReceivedByte, uint8_t);
 FAKE_VALUE_FUNC(bool, simhubDevUtilGetLedFrame, struct led_rgb *);
+FAKE_VALUE_FUNC(bool, simhubDevUtilLedFrameReady);
 FAKE_VALUE_FUNC(SimhubArqState_t, simhubDevUtilGetState);
 
 /* ledStrip mock fakes. */
@@ -209,6 +210,7 @@ FAKE_VALUE_FUNC(int, ledStripUpdateFrame, struct led_rgb *);
   FAKE(simhubDevUtilReset)                           \
   FAKE(simhubDevUtilReceivedByte)                    \
   FAKE(simhubDevUtilGetLedFrame)                     \
+  FAKE(simhubDevUtilLedFrameReady)                   \
   FAKE(simhubDevUtilGetState)                        \
   FAKE(ledStripGetNextFramebuffer)                   \
   FAKE(ledStripUpdateFrame)
@@ -662,11 +664,15 @@ ZTEST(simhubDevice_tests, test_run_suspends_service_on_suspend_ctrl_message)
                 "expected serviceManagerConfirmState called with SVC_STATE_SUSPENDED");
   zassert_equal(k_thread_suspend_mock_fake.call_count, 1,
                 "expected k_thread_suspend called once");
+  zassert_equal_ptr(k_thread_suspend_mock_fake.arg0_val, k_current_get_mock_fake.return_val,
+                    "expected k_thread_suspend called with k_current_get()");
   /* uart_irq_rx_enable called twice: initial rxEnable and post-resume rxEnable. */
   zassert_equal(uart_irq_rx_enable_mock_fake.call_count, 2,
                 "expected uart_irq_rx_enable called twice (init + after resume)");
   zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 1,
                 "expected heartbeat updated once in main loop body after resume");
+  zassert_equal_ptr(serviceManagerUpdateHeartbeat_fake.arg0_val, k_current_get_mock_fake.return_val,
+                    "expected heartbeat updated with k_current_get()");
 }
 
 /**
@@ -685,6 +691,8 @@ ZTEST(simhubDevice_tests, test_run_continues_on_unknown_ctrl_message)
                 "expected uart_irq_rx_disable not called");
   zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 1,
                 "expected heartbeat updated once in main loop body");
+  zassert_equal_ptr(serviceManagerUpdateHeartbeat_fake.arg0_val, k_current_get_mock_fake.return_val,
+                    "expected heartbeat updated with k_current_get()");
 }
 
 /**
@@ -703,6 +711,8 @@ ZTEST(simhubDevice_tests, test_run_polls_rx_sem_and_updates_heartbeat_when_no_da
                 "expected simhubDevUtilReceivedByte not called when ring buffer is empty");
   zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 1,
                 "expected heartbeat updated once in main loop body");
+  zassert_equal_ptr(serviceManagerUpdateHeartbeat_fake.arg0_val, k_current_get_mock_fake.return_val,
+                    "expected heartbeat updated with k_current_get()");
 }
 
 /**
@@ -718,6 +728,7 @@ ZTEST(simhubDevice_tests, test_run_updates_led_strip_when_led_frame_ready)
   testRingBufByteCount = 1;
   ring_buf_get_mock_fake.custom_fake        = ring_buf_get_from_test_buf;
   simhubDevUtilReceivedByte_fake.return_val  = true;
+  simhubDevUtilLedFrameReady_fake.return_val = true;
   ledStripGetNextFramebuffer_fake.return_val = testFrame;
   simhubDevUtilGetLedFrame_fake.return_val   = true;
 
@@ -760,6 +771,8 @@ ZTEST(simhubDevice_tests, test_run_does_not_check_led_frame_when_received_byte_r
                 "expected ledStripGetNextFramebuffer not called when frame incomplete");
   zassert_equal(serviceManagerUpdateHeartbeat_fake.call_count, 1,
                 "expected heartbeat updated once");
+  zassert_equal_ptr(serviceManagerUpdateHeartbeat_fake.arg0_val, k_current_get_mock_fake.return_val,
+                    "expected heartbeat updated with k_current_get()");
 }
 
 /**
@@ -772,6 +785,7 @@ ZTEST(simhubDevice_tests, test_run_does_not_get_led_frame_when_framebuffer_is_nu
   testRingBufByteCount = 1;
   ring_buf_get_mock_fake.custom_fake         = ring_buf_get_from_test_buf;
   simhubDevUtilReceivedByte_fake.return_val  = true;
+  simhubDevUtilLedFrameReady_fake.return_val = true;
   ledStripGetNextFramebuffer_fake.return_val = NULL;
 
   run(NULL, NULL, NULL);
@@ -785,6 +799,31 @@ ZTEST(simhubDevice_tests, test_run_does_not_get_led_frame_when_framebuffer_is_nu
 }
 
 /**
+ * @test The run function must not call ledStripGetNextFramebuffer when a
+ *       complete ARQ frame arrives but no LED frame is ready — leaking a
+ *       framebuffer pool block per non-LED command (e.g. enumeration
+ *       exchanges) would starve the pool before any LED update is ever
+ *       received.
+ */
+ZTEST(simhubDevice_tests, test_run_does_not_allocate_framebuffer_when_led_frame_not_ready)
+{
+  testRingBufBytes[0]  = 0xAA;
+  testRingBufByteCount = 1;
+  ring_buf_get_mock_fake.custom_fake         = ring_buf_get_from_test_buf;
+  simhubDevUtilReceivedByte_fake.return_val  = true;
+  simhubDevUtilLedFrameReady_fake.return_val = false;
+
+  run(NULL, NULL, NULL);
+
+  zassert_equal(ledStripGetNextFramebuffer_fake.call_count, 0,
+                "expected ledStripGetNextFramebuffer not called when no LED frame is ready");
+  zassert_equal(simhubDevUtilGetLedFrame_fake.call_count, 0,
+                "expected simhubDevUtilGetLedFrame not called when no LED frame is ready");
+  zassert_equal(ledStripUpdateFrame_fake.call_count, 0,
+                "expected ledStripUpdateFrame not called when no LED frame is ready");
+}
+
+/**
  * @test The run function must not call ledStripUpdateFrame when
  *       simhubDevUtilGetLedFrame returns false
  */
@@ -795,6 +834,7 @@ ZTEST(simhubDevice_tests, test_run_does_not_update_led_strip_when_get_led_frame_
   testRingBufByteCount = 1;
   ring_buf_get_mock_fake.custom_fake         = ring_buf_get_from_test_buf;
   simhubDevUtilReceivedByte_fake.return_val  = true;
+  simhubDevUtilLedFrameReady_fake.return_val = true;
   ledStripGetNextFramebuffer_fake.return_val = testFrame;
   simhubDevUtilGetLedFrame_fake.return_val   = false;
 

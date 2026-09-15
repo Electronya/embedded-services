@@ -84,6 +84,17 @@ bool simhubDevUtilReceivedByte(uint8_t byte);
 bool simhubDevUtilGetLedFrame(struct led_rgb *frame);
 
 /**
+ * @brief   Check whether an LED frame is pending without consuming it.
+ *
+ *          Lets callers avoid allocating a framebuffer (e.g. via
+ *          ledStripGetNextFramebuffer) ahead of a simhubDevUtilGetLedFrame
+ *          call that would just return false.
+ *
+ * @return  true if a frame is pending, false otherwise.
+ */
+bool simhubDevUtilLedFrameReady(void);
+
+/**
  * @brief   Return the button state byte from the most recent LED group frame.
  *
  *          Each bit corresponds to one button (bit 0 = button 0). Returns 0

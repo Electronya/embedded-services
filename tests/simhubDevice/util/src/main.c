@@ -749,6 +749,8 @@ ZTEST(simhubDevUtil_tests, test_hello_sends_ack_broadcast_and_version_byte)
                 "Hello must call simhubArqBuildByte with 0x6A");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "Hello must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.call_count, 1,
                 "Hello must call txFn once");
   zassert_equal(mock_tx_fake.arg1_val, 4,
@@ -959,6 +961,8 @@ ZTEST(simhubDevUtil_tests, test_features_sends_six_feature_chars_and_terminator)
                 "Features must call simhubArqBuildStrTerm once");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "Features must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   /* ACK(00) + STR(1,'G') + STR(1,'N') + STR(1,'I') + STR(1,'J') + STR(1,'P')
    * + STR(1,'X') + STRTERM = 2 + 6*4 + 4 = 30 bytes */
   zassert_equal(mock_tx_fake.arg1_val, 30,
@@ -1031,6 +1035,8 @@ ZTEST(simhubDevUtil_tests, test_led_count_sends_ack_and_configured_count)
                 "LED count must call simhubArqBuildByte with SIMHUB_LED_COUNT (3)");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "LED count must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.arg1_val, 4, "LED count must pass 4 bytes to txFn");
   zassert_equal(txCapBuf[2], SIMHUB_ARQ_BYTE, "byte 2: BYTE type");
   zassert_equal(txCapBuf[3], 3,               "byte 3: SIMHUB_LED_COUNT");
@@ -1096,6 +1102,8 @@ ZTEST(simhubDevUtil_tests, test_tm1638_count_sends_ack_and_zero)
                 "TM1638 count must call simhubArqBuildByte with 0");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "TM1638 count must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.arg1_val, 4, "TM1638 count must pass 4 bytes to txFn");
   zassert_equal(txCapBuf[3], 0, "byte 3: 0");
 }
@@ -1160,6 +1168,8 @@ ZTEST(simhubDevUtil_tests, test_modules_count_sends_ack_and_zero)
                 "Modules count must call simhubArqBuildByte with 0");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "Modules count must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.arg1_val, 4, "Modules count must pass 4 bytes to txFn");
   zassert_equal(txCapBuf[3], 0, "byte 3: 0");
 }
@@ -1254,6 +1264,8 @@ ZTEST(simhubDevUtil_tests, test_name_sends_configured_name_string)
                 "Name must call simhubArqBuildStrTerm once");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "Name must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.arg1_val, (size_t)(2 + 3 + nameLen + 4),
                 "Name must pass the right number of bytes to txFn");
   zassert_mem_equal(&txCapBuf[4], name, nameLen,
@@ -1350,6 +1362,8 @@ ZTEST(simhubDevUtil_tests, test_unique_id_sends_configured_uid_string)
                 "UID must call simhubArqBuildStrTerm once");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "UID must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.arg1_val, (size_t)(2 + 3 + uidLen + 4),
                 "UID must pass the right number of bytes to txFn");
   zassert_mem_equal(&txCapBuf[4], uid, uidLen,
@@ -1416,6 +1430,8 @@ ZTEST(simhubDevUtil_tests, test_button_count_sends_ack_and_zero)
                 "Button count must call simhubArqBuildByte with 0");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "Button count must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.arg1_val, 4, "Button count must pass 4 bytes to txFn");
   zassert_equal(txCapBuf[3], 0, "byte 3: 0");
 }
@@ -1609,6 +1625,8 @@ ZTEST(simhubDevUtil_tests, test_x_list_sends_keepalive_mcutype_and_end_marker)
                 "X list must call simhubArqBuildByte with 0x0A");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "X list must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   /* ACK(04) + STR(10) + STR(8) + BYTE = 2 + 13 + 11 + 2 = 28 bytes */
   zassert_equal(mock_tx_fake.arg1_val, 28, "X list must pass 28 bytes to txFn");
 }
@@ -1699,6 +1717,8 @@ ZTEST(simhubDevUtil_tests, test_x_mcutype_sends_three_byte_values)
                 "third BYTE must be 0x87");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "X mcutype must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   /* ACK(08) + BYTE(1E) + BYTE(95) + BYTE(87) = 8 bytes */
   zassert_equal(mock_tx_fake.arg1_val, 8, "X mcutype must pass 8 bytes to txFn");
 }
@@ -1723,6 +1743,8 @@ ZTEST(simhubDevUtil_tests, test_x_cmd_keepalive_sends_ack_only)
                 "X keepalive must not call simhubArqBuildByte");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "X keepalive must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.arg1_val, 2,
                 "X keepalive must pass 2 bytes to txFn (ACK only)");
 }
@@ -1772,6 +1794,8 @@ ZTEST(simhubDevUtil_tests, test_group_frame_short_sends_ack_only)
                 "G short frame must not call simhubArqBuildByte");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "G short frame must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.call_count, 1,
                 "G short frame must call txFn once");
   zassert_equal(mock_tx_fake.arg1_val, 2,
@@ -1826,6 +1850,8 @@ ZTEST(simhubDevUtil_tests, test_group_frame_sends_ack_only_and_activates_group)
                 "G frame must not call simhubArqBuildByte");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "G frame must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.call_count, 1,
                 "G frame must call txFn once");
   zassert_equal(mock_tx_fake.arg1_val, 2,
@@ -1912,6 +1938,8 @@ ZTEST(simhubDevUtil_tests, test_group_single_frame_sends_ack_and_0x15)
                 "G single frame must call simhubArqBuildByte with 0x15");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "G single frame must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.call_count, 1,
                 "G single frame must call txFn once");
   zassert_equal(mock_tx_fake.arg1_val, 4,
@@ -2101,6 +2129,8 @@ ZTEST(simhubDevUtil_tests, test_group_continuation_sends_ack_only_and_stays_acti
                 "G continuation must not call simhubArqBuildByte");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "G continuation must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.call_count, 1,
                 "G continuation must call txFn once");
   zassert_equal(mock_tx_fake.arg1_val, 2,
@@ -2265,6 +2295,8 @@ ZTEST(simhubDevUtil_tests, test_group_terminal_sends_ack_and_0x15_and_clears_gro
                 "G terminal must call simhubArqBuildByte with 0x15");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "G terminal must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.call_count, 1,
                 "G terminal must call txFn once");
   zassert_equal(mock_tx_fake.arg1_val, 4,
@@ -2480,6 +2512,8 @@ ZTEST(simhubDevUtil_tests, test_baud_rate_sends_ack_only)
                 "Baud rate must not call simhubArqBuildStr");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "Baud rate must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.arg1_val, 2,
                 "Baud rate must pass 2 bytes to txFn (ACK only)");
   zassert_equal(txCapBuf[0], SIMHUB_ARQ_ACK, "byte 0: ACK");
@@ -2548,6 +2582,8 @@ ZTEST(simhubDevUtil_tests, test_led_data_short_payload_acks_without_frame)
                    "LED data short must pass a non-NULL buf to simhubArqBuildAck");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "LED data short must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.call_count, 1,
                 "LED data short must call txFn once");
   zassert_equal(mock_tx_fake.arg1_val, 2,
@@ -2573,6 +2609,8 @@ ZTEST(simhubDevUtil_tests, test_led_data_mode1_fills_all_leds_and_acks)
                 "LED data must call simhubArqBuildAck with pkt ID 0x10");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "LED data must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.arg1_val, 2,
                 "LED data must pass 2 bytes to txFn (ACK only)");
 
@@ -2640,6 +2678,8 @@ ZTEST(simhubDevUtil_tests, test_unknown_command_sends_ack)
                 "Unknown command must not call simhubArqBuildStr");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "Unknown command must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.arg1_val, 2,
                 "Unknown command must pass 2 bytes to txFn (ACK only)");
 }
@@ -2667,6 +2707,8 @@ ZTEST(simhubDevUtil_tests, test_dispatch_short_frame_does_not_call_txfn_when_bui
                 "Short dispatch must not call txFn when buildAck fails");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "Short dispatch must still call simhubArqFrameReset");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
 }
 
 /**
@@ -2687,6 +2729,8 @@ ZTEST(simhubDevUtil_tests, test_dispatch_short_frame_sends_ack_only)
                 "Short dispatch must not call simhubArqBuildByte");
   zassert_equal(simhubArqFrameReset_fake.call_count, 1,
                 "Short dispatch must call simhubArqFrameReset after dispatch");
+  zassert_not_null(simhubArqFrameReset_fake.arg0_val,
+                   "simhubArqFrameReset must be called with a non-NULL frame");
   zassert_equal(mock_tx_fake.call_count, 1,
                 "Short dispatch must call txFn once");
   zassert_equal(mock_tx_fake.arg1_val, 2,
@@ -2751,6 +2795,38 @@ ZTEST(simhubDevUtil_tests, test_get_led_frame_returns_true_and_clears_flag)
                "GetLedFrame must return true when a frame is pending");
   zassert_false(second,
                 "GetLedFrame must return false after the flag is cleared");
+}
+
+/* ===========================================================================
+ * simhubDevUtilLedFrameReady
+ * =========================================================================*/
+
+/**
+ * @test The simhubDevUtilLedFrameReady function must return false when no LED
+ * frame is pending.
+ */
+ZTEST(simhubDevUtil_tests, test_led_frame_ready_returns_false_when_no_data)
+{
+  zassert_false(simhubDevUtilLedFrameReady(),
+                "LedFrameReady must return false when no frame is pending");
+}
+
+/**
+ * @test The simhubDevUtilLedFrameReady function must return true when a frame
+ * is pending and must not clear the flag.
+ */
+ZTEST(simhubDevUtil_tests, test_led_frame_ready_returns_true_without_clearing)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_ledDataMode1Frame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  bool first  = simhubDevUtilLedFrameReady();
+  bool second = simhubDevUtilLedFrameReady();
+
+  zassert_true(first,
+               "LedFrameReady must return true when a frame is pending");
+  zassert_true(second,
+               "LedFrameReady must not clear the pending flag");
 }
 
 /* === simhubDevUtilGetButtonState === */
