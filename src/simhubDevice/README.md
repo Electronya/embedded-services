@@ -118,10 +118,12 @@ stateDiagram-v2
 
 ### ARQ Transport Layer (`simhubArqProto`)
 
-Pure byte-level parser/builder — no session state, no Kconfig access:
+Byte-level parser/builder — no session state, no Kconfig access, aside from one small counter:
 
 - `simhubArqParseByte()` drives a `SYNC0 → SYNC1 → PKTID → LEN → DATA → CRC → DONE` state
-  machine. A CRC mismatch resets straight back to `SYNC0`.
+  machine. A CRC mismatch resets straight back to `SYNC0` and increments a persistent CRC
+  error counter, readable via `simhubArqGetCrcErrorCount()` / cleared via
+  `simhubArqResetCrcErrorCount()`.
 - `simhubArqBuildAck/Byte/Str/StrTerm()` build response tokens into a caller-supplied buffer.
 
 ### Session State Machine (`simhubDevUtil`)
@@ -133,6 +135,9 @@ command (Hello, Features, LED count, …, group frame, group data, LED data). Tr
 - `pendingLedFrame` / `ledFrameReady` — the next frame to hand to the LED strip service
 - `groupActive`, `ledRxBuf`, `ledRxStart`, `ledRxCount` — in-progress `'G'` group accumulation
 - `lastButtonState`
+- `frameCount` / `lastCmd` — link health breadcrumbs: total dispatched frames and the last
+  command byte seen (`'G'` for group continuation/terminal frames), exposed via
+  `simhubDevUtilGetFrameCount()` / `simhubDevUtilGetLastCmd()` and surfaced by `simhub status`
 
 `simhubDevUtilLedFrameReady()` lets the caller check whether a frame is pending **without**
 consuming it — this matters for the thread loop below.
@@ -300,14 +305,22 @@ Shell commands are registered under `simhub`. Enable with `CONFIG_ENYA_SIMHUB_DE
 
 | Command | Description |
 |---------|-------------|
-| `simhub status` | Session state (idle/enumerating/streaming) plus the static identity fields reported during enumeration (device name, UID, LED count, button count) |
+| `simhub status` | Session state, static identity fields reported during enumeration (device name, UID, LED count, button count), and link health counters (frames dispatched, CRC errors, last command byte) |
+| `simhub reset` | Force the session back to `IDLE` (recover from a desync without power-cycling) |
 
 ```console
 uart:~$ simhub status
-SUCCESS: state=streaming name=Electronya LED uid=ENYA001 led_count=8 button_count=0
+SUCCESS: state=streaming name=Electronya LED uid=ENYA001 led_count=8 button_count=0 frames=142 crc_errors=0 last_cmd=0x47
+
+uart:~$ simhub reset
+SUCCESS: session reset to idle
 ```
 
-`simhub reset` (force the session back to `IDLE`) is not implemented yet.
+`frames` and `crc_errors` are cumulative counts since the last `simhub reset` (or service
+restart); `last_cmd` is the `DATA[1]` command byte of the most recently dispatched ARQ frame
+(`'G'` for `'G'` group continuation/terminal frames, which carry no command byte of their own).
+A non-zero `crc_errors` with `frames` not advancing points at UART link corruption rather than a
+protocol-logic problem.
 
 ## Testing
 
@@ -315,15 +328,18 @@ Tests live in `tests/simhubDevice/` and follow the same include-the-source patte
 elsewhere in this project. All four suites run at 100% line/branch/function coverage.
 
 - **`proto/`** — `simhubArqProto.c` in isolation: CRC-8, frame parser state machine (sync
-  detection, length validation, CRC mismatch handling), and every response builder.
+  detection, length validation, CRC mismatch handling), every response builder, and the CRC
+  error counter (increments on mismatch, unaffected by valid frames, clears on reset).
 - **`util/`** — `simhubDevUtil.c` with the parser mocked: every command handler, the `'G'` group
   streaming state machine (short/long headers, continuation, terminal frames, out-of-bounds
-  clamping), session state transitions, and the public getter API.
+  clamping), session state transitions, the public getter API, and the frame/last-command
+  counters across all dispatch paths (normal command, short frame, group continuation).
 - **`service/`** — `simhubDevice.c` with UART/ring-buffer/service-manager mocked: the UART ISR,
   the thread's control-message handling (stop/suspend/resume), the RX drain loop (including the
   framebuffer-starvation guard described above), and `simhubDeviceInit()`'s error paths.
 - **`cmd/`** — `simhubDevCmd.c` with `simhubDevUtil` mocked: `simhub status` output for each
-  session state and the configured device identity fields.
+  session state, the configured device identity fields, and the link health counters, and
+  `simhub reset` calling `simhubDevUtilReset()`.
 
 ## Troubleshooting
 

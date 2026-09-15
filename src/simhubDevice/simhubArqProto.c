@@ -23,6 +23,8 @@
 
 LOG_MODULE_DECLARE(simhubDevice, 3);
 
+static uint32_t crcErrorCount;
+
 uint8_t simhubArqCrc8(const uint8_t *buf, size_t len)
 {
   return crc8(buf, len, 0xD5, 0, false);
@@ -85,6 +87,7 @@ bool simhubArqParseByte(SimhubArqFrame_t *frame, uint8_t byte)
       if(byte != expected)
       {
         LOG_WRN("ARQ CRC mismatch: got 0x%02x expected 0x%02x", byte, expected);
+        crcErrorCount++;
         simhubArqFrameReset(frame);
         break;
       }
@@ -103,6 +106,16 @@ bool simhubArqParseByte(SimhubArqFrame_t *frame, uint8_t byte)
   }
 
   return false;
+}
+
+uint32_t simhubArqGetCrcErrorCount(void)
+{
+  return crcErrorCount;
+}
+
+void simhubArqResetCrcErrorCount(void)
+{
+  crcErrorCount = 0;
 }
 
 int simhubArqBuildAck(uint8_t id, uint8_t *buf, size_t size)

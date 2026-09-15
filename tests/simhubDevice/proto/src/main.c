@@ -62,6 +62,7 @@ static void arq_proto_before(void *fixture)
 {
   ARG_UNUSED(fixture);
   RESET_FAKE(crc8);
+  simhubArqResetCrcErrorCount();
 }
 
 /* ===========================================================================
@@ -311,6 +312,8 @@ ZTEST(simhubArqProto_tests, test_parseByte_rejects_mismatched_crc_and_resets)
                 "parseByte must return false on CRC mismatch");
   zassert_equal(frame.state, ARQ_SYNC0,
                 "state must reset to ARQ_SYNC0 on CRC mismatch");
+  zassert_equal(simhubArqGetCrcErrorCount(), 1,
+                "CRC error count must increment on mismatch");
 }
 
 /**
@@ -398,6 +401,56 @@ ZTEST(simhubArqProto_tests, test_parseByte_returns_true_on_valid_hello_frame)
   zassert_equal(frame.pktId,   0xFF, "pktId must be broadcast 0xFF");
   zassert_equal(frame.len,     0x03, "len must be 3");
   zassert_equal(frame.data[1], '1',  "data[1] must be '1' (Hello cmd)");
+}
+
+/* ===========================================================================
+ * simhubArqGetCrcErrorCount / simhubArqResetCrcErrorCount
+ * =========================================================================*/
+
+/**
+ * @test The simhubArqGetCrcErrorCount function must return 0 when no CRC
+ *       mismatch has occurred.
+ */
+ZTEST(simhubArqProto_tests, test_getCrcErrorCount_returns_zero_initially)
+{
+  zassert_equal(simhubArqGetCrcErrorCount(), 0,
+                "CRC error count must be 0 with no mismatches");
+}
+
+/**
+ * @test The simhubArqGetCrcErrorCount function must not increment on a
+ *       successful, CRC-valid parse.
+ */
+ZTEST(simhubArqProto_tests, test_getCrcErrorCount_unchanged_on_valid_frame)
+{
+  SimhubArqFrame_t frame;
+  simhubArqFrameReset(&frame);
+  crc8_fake.return_val = HELLO_FRAME_CRC;
+
+  feedPacket(&frame, kHelloFrame, sizeof(kHelloFrame));
+
+  zassert_equal(simhubArqGetCrcErrorCount(), 0,
+                "CRC error count must not increment on a valid frame");
+}
+
+/**
+ * @test The simhubArqResetCrcErrorCount function must reset the counter to 0.
+ */
+ZTEST(simhubArqProto_tests, test_resetCrcErrorCount_clears_counter)
+{
+  SimhubArqFrame_t frame;
+  simhubArqFrameReset(&frame);
+  for(size_t i = 0; i < sizeof(kFeaturesFrame) - 1; i++)
+    simhubArqParseByte(&frame, kFeaturesFrame[i]);
+  crc8_fake.return_val = FEATURES_FRAME_CRC;
+  simhubArqParseByte(&frame, 0xFF);  /* wrong CRC byte */
+  zassert_equal(simhubArqGetCrcErrorCount(), 1,
+                "pre-condition: CRC error count must be 1");
+
+  simhubArqResetCrcErrorCount();
+
+  zassert_equal(simhubArqGetCrcErrorCount(), 0,
+                "CRC error count must be 0 after reset");
 }
 
 /* ===========================================================================

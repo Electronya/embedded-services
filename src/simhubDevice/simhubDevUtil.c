@@ -35,6 +35,9 @@ static uint8_t  ledRxStart;
 static uint16_t ledRxBytes;
 static uint8_t  lastButtonState;
 
+static uint32_t frameCount;
+static uint8_t  lastCmd;
+
 static void handleHello(void)
 {
   int len = 0;
@@ -416,8 +419,11 @@ static void dispatchFrame(SimhubArqFrame_t *frame)
 {
   uint8_t id = frame->pktId;
 
+  frameCount++;
+
   if(groupActive)
   {
+    lastCmd = 'G';
     handleGroupData(id, frame->data, frame->len);
     simhubArqFrameReset(frame);
     return;
@@ -433,6 +439,7 @@ static void dispatchFrame(SimhubArqFrame_t *frame)
   }
 
   uint8_t cmd = frame->data[1];
+  lastCmd     = cmd;
 
   switch(cmd)
   {
@@ -499,6 +506,7 @@ int simhubDevUtilInit(SimhubDevTxFn_t fn)
 void simhubDevUtilReset(void)
 {
   simhubArqFrameReset(&rxFrame);
+  simhubArqResetCrcErrorCount();
   sessionState    = SIMHUB_ARQ_IDLE;
   ledFrameReady   = false;
   groupActive     = false;
@@ -506,6 +514,8 @@ void simhubDevUtilReset(void)
   ledRxCount      = 0;
   ledRxStart      = 0;
   lastButtonState = 0;
+  frameCount      = 0;
+  lastCmd         = 0;
 }
 
 bool simhubDevUtilReceivedByte(uint8_t byte)
@@ -540,6 +550,21 @@ uint8_t simhubDevUtilGetButtonState(void)
 SimhubArqState_t simhubDevUtilGetState(void)
 {
   return sessionState;
+}
+
+uint32_t simhubDevUtilGetFrameCount(void)
+{
+  return frameCount;
+}
+
+uint8_t simhubDevUtilGetLastCmd(void)
+{
+  return lastCmd;
+}
+
+uint32_t simhubDevUtilGetCrcErrorCount(void)
+{
+  return simhubArqGetCrcErrorCount();
 }
 
 /** @} */

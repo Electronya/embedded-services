@@ -111,6 +111,19 @@ void simhubArqFrameReset(SimhubArqFrame_t *frame);
 bool simhubArqParseByte(SimhubArqFrame_t *frame, uint8_t byte);
 
 /**
+ * @brief   Return the number of CRC-8 mismatches detected by simhubArqParseByte
+ *          since the last simhubArqResetCrcErrorCount call.
+ *
+ * @return  CRC error count.
+ */
+uint32_t simhubArqGetCrcErrorCount(void);
+
+/**
+ * @brief   Reset the CRC error counter to zero.
+ */
+void simhubArqResetCrcErrorCount(void);
+
+/**
  * @brief   Build an ACK response (03 ID) into buf.
  *
  * @param[in]   id:   Packet ID to acknowledge.

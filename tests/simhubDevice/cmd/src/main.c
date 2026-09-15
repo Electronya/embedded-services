@@ -82,9 +82,17 @@ typedef enum
 
 /* Mock simhubDevUtil public API used by the shell commands */
 FAKE_VALUE_FUNC(SimhubArqState_t, simhubDevUtilGetState);
+FAKE_VOID_FUNC(simhubDevUtilReset);
+FAKE_VALUE_FUNC(uint32_t, simhubDevUtilGetFrameCount);
+FAKE_VALUE_FUNC(uint8_t, simhubDevUtilGetLastCmd);
+FAKE_VALUE_FUNC(uint32_t, simhubDevUtilGetCrcErrorCount);
 
 #define FFF_FAKES_LIST(FAKE) \
-  FAKE(simhubDevUtilGetState)
+  FAKE(simhubDevUtilGetState) \
+  FAKE(simhubDevUtilReset) \
+  FAKE(simhubDevUtilGetFrameCount) \
+  FAKE(simhubDevUtilGetLastCmd) \
+  FAKE(simhubDevUtilGetCrcErrorCount)
 
 /* Setup logging */
 #include <zephyr/logging/log.h>
@@ -133,13 +141,22 @@ ZTEST(simhubDevCmd, test_execStatus_idle)
   char *argv[]           = {"status"};
   int result;
 
-  simhubDevUtilGetState_fake.return_val = SIMHUB_ARQ_IDLE;
+  simhubDevUtilGetState_fake.return_val         = SIMHUB_ARQ_IDLE;
+  simhubDevUtilGetFrameCount_fake.return_val     = 42;
+  simhubDevUtilGetCrcErrorCount_fake.return_val  = 3;
+  simhubDevUtilGetLastCmd_fake.return_val        = '1';
 
   result = execStatus(sh, 1, argv);
 
   zassert_equal(result, 0, "execStatus should return 0");
   zassert_equal(simhubDevUtilGetState_fake.call_count, 1,
                 "simhubDevUtilGetState should be called once");
+  zassert_equal(simhubDevUtilGetFrameCount_fake.call_count, 1,
+                "simhubDevUtilGetFrameCount should be called once");
+  zassert_equal(simhubDevUtilGetCrcErrorCount_fake.call_count, 1,
+                "simhubDevUtilGetCrcErrorCount should be called once");
+  zassert_equal(simhubDevUtilGetLastCmd_fake.call_count, 1,
+                "simhubDevUtilGetLastCmd should be called once");
   zassert_equal(shell_info_call_count, 1, "shell_info should be called once");
   zassert_true(strstr(captured_shell_output, "SUCCESS") == captured_shell_output,
                "output should start with SUCCESS");
@@ -153,6 +170,12 @@ ZTEST(simhubDevCmd, test_execStatus_idle)
                    "output should contain the LED count");
   zassert_not_null(strstr(captured_shell_output, "button_count=2"),
                    "output should contain the button count");
+  zassert_not_null(strstr(captured_shell_output, "frames=42"),
+                   "output should contain the frame count");
+  zassert_not_null(strstr(captured_shell_output, "crc_errors=3"),
+                   "output should contain the CRC error count");
+  zassert_not_null(strstr(captured_shell_output, "last_cmd=0x31"),
+                   "output should contain the last dispatched command byte");
 }
 
 /**
@@ -185,6 +208,29 @@ ZTEST(simhubDevCmd, test_execStatus_streaming)
 
   zassert_not_null(strstr(captured_shell_output, "streaming"),
                    "output should contain the streaming state");
+}
+
+/* ===========================================================================
+ * execReset
+ * =========================================================================*/
+
+/**
+ * @test execReset must call simhubDevUtilReset and print a SUCCESS message.
+ */
+ZTEST(simhubDevCmd, test_execReset_success)
+{
+  const struct shell *sh = (const struct shell *)0x1234;
+  char *argv[]           = {"reset"};
+  int result;
+
+  result = execReset(sh, 1, argv);
+
+  zassert_equal(result, 0, "execReset should return 0");
+  zassert_equal(simhubDevUtilReset_fake.call_count, 1,
+                "simhubDevUtilReset should be called once");
+  zassert_equal(shell_info_call_count, 1, "shell_info should be called once");
+  zassert_true(strstr(captured_shell_output, "SUCCESS") == captured_shell_output,
+               "output should start with SUCCESS");
 }
 
 ZTEST_SUITE(simhubDevCmd, NULL, cmd_tests_setup, cmd_tests_before, NULL, NULL);

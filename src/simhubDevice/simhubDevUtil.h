@@ -111,6 +111,32 @@ uint8_t simhubDevUtilGetButtonState(void);
  */
 SimhubArqState_t simhubDevUtilGetState(void);
 
+/**
+ * @brief   Return the number of complete ARQ frames dispatched since the last
+ *          reset.
+ *
+ * @return  Frame count.
+ */
+uint32_t simhubDevUtilGetFrameCount(void);
+
+/**
+ * @brief   Return the command byte (DATA[1]) of the most recently dispatched
+ *          frame. 'G' is reported for 'G' group continuation/terminal frames,
+ *          which carry no command byte of their own. Returns 0 until the
+ *          first frame has been dispatched.
+ *
+ * @return  Last dispatched command byte.
+ */
+uint8_t simhubDevUtilGetLastCmd(void);
+
+/**
+ * @brief   Return the number of CRC-8 mismatches detected by the ARQ parser
+ *          since the last reset.
+ *
+ * @return  CRC error count.
+ */
+uint32_t simhubDevUtilGetCrcErrorCount(void);
+
 #endif /* SIMHUB_DEV_UTIL_H */
 
 /** @} */

@@ -43,6 +43,8 @@ LOG_MODULE_REGISTER(simhubDevice, LOG_LEVEL_DBG);
 #define FFF_FAKES_LIST(FAKE)      \
   FAKE(simhubArqParseByte)        \
   FAKE(simhubArqFrameReset)       \
+  FAKE(simhubArqGetCrcErrorCount) \
+  FAKE(simhubArqResetCrcErrorCount) \
   FAKE(simhubArqBuildAck)         \
   FAKE(simhubArqBuildByte)        \
   FAKE(simhubArqBuildStr)         \
@@ -51,6 +53,8 @@ LOG_MODULE_REGISTER(simhubDevice, LOG_LEVEL_DBG);
 
 FAKE_VALUE_FUNC(bool, simhubArqParseByte, SimhubArqFrame_t *, uint8_t);
 FAKE_VOID_FUNC(simhubArqFrameReset, SimhubArqFrame_t *);
+FAKE_VALUE_FUNC(uint32_t, simhubArqGetCrcErrorCount);
+FAKE_VOID_FUNC(simhubArqResetCrcErrorCount);
 FAKE_VALUE_FUNC(int, simhubArqBuildAck, uint8_t, uint8_t *, size_t);
 FAKE_VALUE_FUNC(int, simhubArqBuildByte, uint8_t, uint8_t *, size_t);
 FAKE_VALUE_FUNC(int, simhubArqBuildStr, const char *, uint8_t, uint8_t *, size_t);
@@ -632,10 +636,16 @@ ZTEST(simhubDevUtil_tests, test_reset_clears_state_and_frame)
                 "Reset must call simhubArqFrameReset once");
   zassert_not_null(simhubArqFrameReset_fake.arg0_val,
                    "Reset must pass a non-NULL frame to simhubArqFrameReset");
+  zassert_equal(simhubArqResetCrcErrorCount_fake.call_count, 1,
+                "Reset must call simhubArqResetCrcErrorCount once");
   zassert_equal(simhubDevUtilGetState(), SIMHUB_ARQ_IDLE,
                 "Reset must set state to IDLE");
   zassert_false(simhubDevUtilGetLedFrame(frame),
                 "Reset must clear the pending LED frame flag");
+  zassert_equal(simhubDevUtilGetFrameCount(), 0,
+                "Reset must clear the frame count");
+  zassert_equal(simhubDevUtilGetLastCmd(), 0,
+                "Reset must clear the last dispatched command byte");
 }
 
 /* ===========================================================================
@@ -2858,6 +2868,133 @@ ZTEST(simhubDevUtil_tests, test_get_button_state_returns_zero_after_reset)
 
   zassert_equal(simhubDevUtilGetButtonState(), 0,
                 "GetButtonState must return 0 after reset");
+}
+
+/* ===========================================================================
+ * simhubDevUtilGetFrameCount
+ * =========================================================================*/
+
+/**
+ * @test The simhubDevUtilGetFrameCount function must return 0 before any
+ * frame has been dispatched.
+ */
+ZTEST(simhubDevUtil_tests, test_get_frame_count_returns_zero_initially)
+{
+  zassert_equal(simhubDevUtilGetFrameCount(), 0,
+                "GetFrameCount must return 0 before any frame is dispatched");
+}
+
+/**
+ * @test The simhubDevUtilGetFrameCount function must increment once per
+ * dispatched frame, including short frames and group continuation frames.
+ */
+ZTEST(simhubDevUtil_tests, test_get_frame_count_increments_per_dispatch)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_helloFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+  simhubArqParseByte_fake.custom_fake = parseByte_shortDispatchFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+  simhubArqParseByte_fake.custom_fake = parseByte_groupContinuationFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubDevUtilGetFrameCount(), 4,
+                "GetFrameCount must count every dispatched frame");
+}
+
+/**
+ * @test The simhubDevUtilGetFrameCount function must return 0 after
+ * simhubDevUtilReset is called.
+ */
+ZTEST(simhubDevUtil_tests, test_get_frame_count_returns_zero_after_reset)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_helloFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+  zassert_equal(simhubDevUtilGetFrameCount(), 1,
+                "pre-condition: frame count must be 1");
+
+  simhubDevUtilReset();
+
+  zassert_equal(simhubDevUtilGetFrameCount(), 0,
+                "GetFrameCount must return 0 after reset");
+}
+
+/* ===========================================================================
+ * simhubDevUtilGetLastCmd
+ * =========================================================================*/
+
+/**
+ * @test The simhubDevUtilGetLastCmd function must return 0 before any frame
+ * has been dispatched.
+ */
+ZTEST(simhubDevUtil_tests, test_get_last_cmd_returns_zero_initially)
+{
+  zassert_equal(simhubDevUtilGetLastCmd(), 0,
+                "GetLastCmd must return 0 before any frame is dispatched");
+}
+
+/**
+ * @test The simhubDevUtilGetLastCmd function must return the command byte of
+ * the most recently dispatched frame.
+ */
+ZTEST(simhubDevUtil_tests, test_get_last_cmd_returns_dispatched_command)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_helloFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubDevUtilGetLastCmd(), '1',
+                "GetLastCmd must return the last dispatched command byte");
+}
+
+/**
+ * @test The simhubDevUtilGetLastCmd function must report 'G' for group
+ * continuation frames, which carry no command byte of their own.
+ */
+ZTEST(simhubDevUtil_tests, test_get_last_cmd_reports_G_on_group_continuation)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_groupFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+  simhubArqParseByte_fake.custom_fake = parseByte_groupContinuationFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubDevUtilGetLastCmd(), 'G',
+                "GetLastCmd must report 'G' for group continuation frames");
+}
+
+/**
+ * @test The simhubDevUtilGetLastCmd function must leave the last command
+ * unchanged when a short (len < 2) frame is dispatched.
+ */
+ZTEST(simhubDevUtil_tests, test_get_last_cmd_unchanged_on_short_frame)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_helloFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+  simhubArqParseByte_fake.custom_fake = parseByte_shortDispatchFrame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  zassert_equal(simhubDevUtilGetLastCmd(), '1',
+                "GetLastCmd must not be overwritten by a short frame");
+}
+
+/* ===========================================================================
+ * simhubDevUtilGetCrcErrorCount
+ * =========================================================================*/
+
+/**
+ * @test The simhubDevUtilGetCrcErrorCount function must return the value
+ * from simhubArqGetCrcErrorCount.
+ */
+ZTEST(simhubDevUtil_tests, test_get_crc_error_count_delegates_to_proto)
+{
+  simhubArqGetCrcErrorCount_fake.return_val = 5;
+
+  uint32_t count = simhubDevUtilGetCrcErrorCount();
+
+  zassert_equal(count, 5,
+                "GetCrcErrorCount must return the proto layer's count");
+  zassert_equal(simhubArqGetCrcErrorCount_fake.call_count, 1,
+                "GetCrcErrorCount must call simhubArqGetCrcErrorCount once");
 }
 
 ZTEST_SUITE(simhubDevUtil_tests, NULL, util_tests_setup, util_tests_before, NULL, NULL);
