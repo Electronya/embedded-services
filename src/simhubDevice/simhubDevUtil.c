@@ -537,6 +537,11 @@ bool simhubDevUtilGetLedFrame(struct led_rgb *frame)
   return true;
 }
 
+void simhubDevUtilPeekLedFrame(struct led_rgb *frame)
+{
+  memcpy(frame, pendingLedFrame, sizeof(pendingLedFrame));
+}
+
 bool simhubDevUtilLedFrameReady(void)
 {
   return ledFrameReady;

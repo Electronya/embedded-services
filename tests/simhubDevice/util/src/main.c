@@ -2808,6 +2808,53 @@ ZTEST(simhubDevUtil_tests, test_get_led_frame_returns_true_and_clears_flag)
 }
 
 /* ===========================================================================
+ * simhubDevUtilPeekLedFrame
+ * =========================================================================*/
+
+/**
+ * @test The simhubDevUtilPeekLedFrame function must return the pending frame
+ * data without clearing the ready flag.
+ */
+ZTEST(simhubDevUtil_tests, test_peek_led_frame_returns_data_without_consuming)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_ledDataMode1Frame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  struct led_rgb peeked[3];
+  simhubDevUtilPeekLedFrame(peeked);
+
+  zassert_equal(peeked[0].r, 0x11, "PeekLedFrame must return LED 0 red");
+  zassert_equal(peeked[0].g, 0x22, "PeekLedFrame must return LED 0 green");
+  zassert_equal(peeked[0].b, 0x33, "PeekLedFrame must return LED 0 blue");
+  zassert_equal(peeked[2].r, 0x77, "PeekLedFrame must return LED 2 red");
+  zassert_equal(peeked[2].g, 0x88, "PeekLedFrame must return LED 2 green");
+  zassert_equal(peeked[2].b, 0x99, "PeekLedFrame must return LED 2 blue");
+
+  struct led_rgb consumed[3];
+  zassert_true(simhubDevUtilGetLedFrame(consumed),
+               "Peek must not have consumed the frame — GetLedFrame must still return true");
+}
+
+/**
+ * @test The simhubDevUtilPeekLedFrame function must still return the last
+ * known frame data after it has already been consumed by GetLedFrame.
+ */
+ZTEST(simhubDevUtil_tests, test_peek_led_frame_returns_data_after_consumed)
+{
+  simhubArqParseByte_fake.custom_fake = parseByte_ledDataMode1Frame;
+  simhubDevUtilReceivedByte(TEST_BYTE);
+
+  struct led_rgb consumed[3];
+  simhubDevUtilGetLedFrame(consumed);
+
+  struct led_rgb peeked[3];
+  simhubDevUtilPeekLedFrame(peeked);
+
+  zassert_equal(peeked[0].r, 0x11,
+               "PeekLedFrame must still return the last frame after it was consumed");
+}
+
+/* ===========================================================================
  * simhubDevUtilLedFrameReady
  * =========================================================================*/
 

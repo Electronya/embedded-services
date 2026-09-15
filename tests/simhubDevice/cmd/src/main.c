@@ -65,6 +65,15 @@ void shell_fprintf(const struct shell *sh, enum shell_vt100_color color,
 #define SHELL_STATIC_SUBCMD_SET_CREATE(...)
 #define SHELL_CMD_REGISTER(...)
 
+/* Prevent led_strip driver header — define only the type we need. */
+#define ZEPHYR_INCLUDE_DRIVERS_LED_STRIP_H_
+struct led_rgb
+{
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+};
+
 /* Prevent simhubDevUtil.h — provide only what simhubDevCmd.c needs. */
 #define SIMHUB_DEV_UTIL_H
 #define SIMHUB_LED_COUNT 3
@@ -86,13 +95,17 @@ FAKE_VOID_FUNC(simhubDevUtilReset);
 FAKE_VALUE_FUNC(uint32_t, simhubDevUtilGetFrameCount);
 FAKE_VALUE_FUNC(uint8_t, simhubDevUtilGetLastCmd);
 FAKE_VALUE_FUNC(uint32_t, simhubDevUtilGetCrcErrorCount);
+FAKE_VOID_FUNC(simhubDevUtilPeekLedFrame, struct led_rgb *);
+FAKE_VALUE_FUNC(uint8_t, simhubDevUtilGetButtonState);
 
 #define FFF_FAKES_LIST(FAKE) \
   FAKE(simhubDevUtilGetState) \
   FAKE(simhubDevUtilReset) \
   FAKE(simhubDevUtilGetFrameCount) \
   FAKE(simhubDevUtilGetLastCmd) \
-  FAKE(simhubDevUtilGetCrcErrorCount)
+  FAKE(simhubDevUtilGetCrcErrorCount) \
+  FAKE(simhubDevUtilPeekLedFrame) \
+  FAKE(simhubDevUtilGetButtonState)
 
 /* Setup logging */
 #include <zephyr/logging/log.h>
@@ -231,6 +244,102 @@ ZTEST(simhubDevCmd, test_execReset_success)
   zassert_equal(shell_info_call_count, 1, "shell_info should be called once");
   zassert_true(strstr(captured_shell_output, "SUCCESS") == captured_shell_output,
                "output should start with SUCCESS");
+}
+
+/* ===========================================================================
+ * execLed
+ * =========================================================================*/
+
+static void peekLedFrame_fixedColors(struct led_rgb *frame)
+{
+  frame[0] = (struct led_rgb){.r = 10, .g = 20, .b = 30};
+  frame[1] = (struct led_rgb){.r = 40, .g = 50, .b = 60};
+  frame[2] = (struct led_rgb){.r = 70, .g = 80, .b = 90};
+}
+
+/**
+ * @test execLed must dump every LED's index and RGB values with a SUCCESS
+ *       prefix, without consuming the frame.
+ */
+ZTEST(simhubDevCmd, test_execLed_success)
+{
+  const struct shell *sh = (const struct shell *)0x1234;
+  char *argv[]           = {"led"};
+  int result;
+
+  simhubDevUtilPeekLedFrame_fake.custom_fake = peekLedFrame_fixedColors;
+
+  result = execLed(sh, 1, argv);
+
+  zassert_equal(result, 0, "execLed should return 0");
+  zassert_equal(simhubDevUtilPeekLedFrame_fake.call_count, 1,
+                "simhubDevUtilPeekLedFrame should be called once");
+  zassert_equal(shell_info_call_count, 1, "shell_info should be called once");
+  zassert_true(strstr(captured_shell_output, "SUCCESS") == captured_shell_output,
+               "output should start with SUCCESS");
+  zassert_not_null(strstr(captured_shell_output, "led_count=3"),
+                   "output should contain the LED count");
+  zassert_not_null(strstr(captured_shell_output, "0:10,20,30"),
+                   "output should contain LED 0's RGB values");
+  zassert_not_null(strstr(captured_shell_output, "1:40,50,60"),
+                   "output should contain LED 1's RGB values");
+  zassert_not_null(strstr(captured_shell_output, "2:70,80,90"),
+                   "output should contain LED 2's RGB values");
+}
+
+/* ===========================================================================
+ * execButtons
+ * =========================================================================*/
+
+/**
+ * @test execButtons must dump every button's index and pressed/released
+ *       state with a SUCCESS prefix.
+ */
+ZTEST(simhubDevCmd, test_execButtons_mixed_state)
+{
+  const struct shell *sh = (const struct shell *)0x1234;
+  char *argv[]           = {"buttons"};
+  int result;
+
+  simhubDevUtilGetButtonState_fake.return_val = 0x01; /* button 0 pressed, button 1 released */
+
+  result = execButtons(sh, 1, argv);
+
+  zassert_equal(result, 0, "execButtons should return 0");
+  zassert_equal(simhubDevUtilGetButtonState_fake.call_count, 1,
+                "simhubDevUtilGetButtonState should be called once");
+  zassert_equal(shell_info_call_count, 1, "shell_info should be called once");
+  zassert_true(strstr(captured_shell_output, "SUCCESS") == captured_shell_output,
+               "output should start with SUCCESS");
+  zassert_not_null(strstr(captured_shell_output, "button_count=2"),
+                   "output should contain the button count");
+  zassert_not_null(strstr(captured_shell_output, "buttons=0x01"),
+                   "output should contain the raw bitmask");
+  zassert_not_null(strstr(captured_shell_output, "0:pressed"),
+                   "output should mark button 0 as pressed");
+  zassert_not_null(strstr(captured_shell_output, "1:released"),
+                   "output should mark button 1 as released");
+}
+
+/**
+ * @test execButtons must report every button as released when no bits are
+ *       set.
+ */
+ZTEST(simhubDevCmd, test_execButtons_no_buttons_pressed)
+{
+  const struct shell *sh = (const struct shell *)0x1234;
+  char *argv[]           = {"buttons"};
+
+  simhubDevUtilGetButtonState_fake.return_val = 0x00;
+
+  execButtons(sh, 1, argv);
+
+  zassert_not_null(strstr(captured_shell_output, "buttons=0x00"),
+                   "output should contain the raw bitmask");
+  zassert_not_null(strstr(captured_shell_output, "0:released"),
+                   "output should mark button 0 as released");
+  zassert_not_null(strstr(captured_shell_output, "1:released"),
+                   "output should mark button 1 as released");
 }
 
 ZTEST_SUITE(simhubDevCmd, NULL, cmd_tests_setup, cmd_tests_before, NULL, NULL);

@@ -221,10 +221,14 @@ Owns protocol session state and dispatches complete frames by command byte to on
 command (Hello, Features, LED count, …, group frame, group data, LED data). Tracks:
 
 - ``sessionState`` — the state machine above
-- ``pendingLedFrame`` / ``ledFrameReady`` — the next frame to hand to the LED strip service
+- ``pendingLedFrame`` / ``ledFrameReady`` — the next frame to hand to the LED strip service.
+  ``simhubDevUtilPeekLedFrame()`` copies the current contents without consuming it or clearing
+  the ready flag — used by ``simhub led`` to dump the last known LED data at any time, even a
+  frame already consumed by the service thread
 - ``groupActive``, ``ledRxBuf``, ``ledRxStart``, ``ledRxCount`` — in-progress ``'G'`` group
   accumulation
-- ``lastButtonState``
+- ``lastButtonState`` — bitmask from the most recent group frame's trailing byte, exposed via
+  ``simhubDevUtilGetButtonState()`` and surfaced by ``simhub buttons``
 - ``frameCount`` / ``lastCmd`` — link health breadcrumbs: total dispatched frames and the last
   command byte seen (``'G'`` for group continuation/terminal frames), exposed via
   ``simhubDevUtilGetFrameCount()`` / ``simhubDevUtilGetLastCmd()`` and surfaced by
@@ -443,20 +447,42 @@ Shell commands are registered under ``simhub``. Enable with
        last command byte)
    * - ``simhub reset``
      - Force the session back to ``IDLE`` (recover from a desync without power-cycling)
+   * - ``simhub led``
+     - Dump the current pending LED frame, one ``index:r,g,b`` entry per LED, without
+       consuming it
+   * - ``simhub buttons``
+     - Dump the last received button state, one ``index:pressed|released`` entry per button
 
 .. code-block:: console
 
    uart:~$ simhub status
-   SUCCESS: state=streaming name=Electronya LED uid=ENYA001 led_count=8 button_count=0 frames=142 crc_errors=0 last_cmd=0x47
+   SUCCESS: state=streaming name=Electronya LED uid=ENYA001 led_count=8 button_count=2 frames=142 crc_errors=0 last_cmd=0x47
 
    uart:~$ simhub reset
    SUCCESS: session reset to idle
+
+   uart:~$ simhub led
+   SUCCESS: led_count=8 leds=0:255,0,0 1:0,255,0 2:0,0,255 3:0,0,0 4:0,0,0 5:0,0,0 6:0,0,0 7:0,0,0
+
+   uart:~$ simhub buttons
+   SUCCESS: button_count=2 buttons=0x01 0:pressed 1:released
 
 ``frames`` and ``crc_errors`` are cumulative counts since the last ``simhub reset`` (or service
 restart); ``last_cmd`` is the ``DATA[1]`` command byte of the most recently dispatched ARQ frame
 (``'G'`` for ``'G'`` group continuation/terminal frames, which carry no command byte of their
 own). A non-zero ``crc_errors`` with ``frames`` not advancing points at UART link corruption
 rather than a protocol-logic problem.
+
+``simhub led`` reads whatever the service last decoded from SimHub — it does not read back
+from the physical LED strip. Use it to separate "SimHub sent the wrong colors" from "the strip
+isn't displaying what the firmware received": if ``simhub led`` shows the expected colors but
+the strip doesn't match, the bug is downstream in the LED strip service or hardware, not here.
+
+``simhub buttons`` reads ``lastButtonState``, which only updates from the trailing byte of a
+``'G'`` group frame's terminal — it stays at its last value between updates rather than
+clearing when no button is currently pressed, so a stale "pressed" reading after the physical
+button was released points at a missing/delayed update from SimHub rather than a bug in this
+command.
 
 Testing
 -------
@@ -469,16 +495,19 @@ elsewhere in this project. All four suites run at 100% line/branch/function cove
   error counter (increments on mismatch, unaffected by valid frames, clears on reset).
 - **``util/``** — ``simhubDevUtil.c`` with the parser mocked: every command handler, the
   ``'G'`` group streaming state machine (short/long headers, continuation, terminal frames,
-  out-of-bounds clamping), session state transitions, the public getter API, and the
+  out-of-bounds clamping), session state transitions, the public getter API, the
   frame/last-command counters across all dispatch paths (normal command, short frame, group
-  continuation).
+  continuation), and ``simhubDevUtilPeekLedFrame()`` (before/after consumption by
+  ``simhubDevUtilGetLedFrame()``).
 - **``service/``** — ``simhubDevice.c`` with UART/ring-buffer/service-manager mocked: the UART
   ISR, the thread's control-message handling (stop/suspend/resume), the RX drain loop
   (including the framebuffer-starvation guard described above), and ``simhubDeviceInit()``'s
   error paths.
 - **``cmd/``** — ``simhubDevCmd.c`` with ``simhubDevUtil`` mocked: ``simhub status`` output for
-  each session state, the configured device identity fields, and the link health counters, and
-  ``simhub reset`` calling ``simhubDevUtilReset()``.
+  each session state, the configured device identity fields, and the link health counters;
+  ``simhub reset`` calling ``simhubDevUtilReset()``; ``simhub led`` formatting every LED's
+  index and RGB values; and ``simhub buttons`` formatting every button's index and
+  pressed/released state.
 
 Troubleshooting
 ----------------

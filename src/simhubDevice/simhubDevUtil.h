@@ -84,6 +84,19 @@ bool simhubDevUtilReceivedByte(uint8_t byte);
 bool simhubDevUtilGetLedFrame(struct led_rgb *frame);
 
 /**
+ * @brief   Copy the current pending LED frame without consuming it or
+ *          clearing the ready flag.
+ *
+ *          Unlike simhubDevUtilGetLedFrame, this always copies whatever is in
+ *          pendingLedFrame — including a frame already consumed by a prior
+ *          simhubDevUtilGetLedFrame call — so it stays valid to call for
+ *          diagnostics/inspection at any time.
+ *
+ * @param[out]  frame: Buffer of SIMHUB_LED_COUNT led_rgb entries to fill.
+ */
+void simhubDevUtilPeekLedFrame(struct led_rgb *frame);
+
+/**
  * @brief   Check whether an LED frame is pending without consuming it.
  *
  *          Lets callers avoid allocating a framebuffer (e.g. via
