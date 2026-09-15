@@ -20,6 +20,15 @@ set -e
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_DIR"
 
+# Zephyr toolchain env vars are normally provided by direnv (workspace .envrc),
+# but direnv only reloads on a prompt redraw, so a shell can still be missing
+# them right after the .envrc changes. Fall back to known-good defaults so the
+# script never depends on that timing.
+: "${ZEPHYR_TOOLCHAIN_VARIANT:=zephyr}"
+: "${ZEPHYR_SDK_INSTALL_DIR:=/home/jbacon/zephyr-sdk-0.17.4}"
+export ZEPHYR_TOOLCHAIN_VARIANT
+export ZEPHYR_SDK_INSTALL_DIR
+
 # Get test path from argument or default to all tests
 TEST_PATH="${1:-tests}"
 
