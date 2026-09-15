@@ -35,7 +35,7 @@ All frames sent by SimHub share the same wire layout:
 |-------|------|-------------|
 | `01 01` | 2 bytes | Sync header (fixed) |
 | `ID` | 1 byte | Packet ID; `0xFF` = broadcast (Hello only) |
-| `LEN` | 1 byte | Payload length in bytes (0–32) |
+| `LEN` | 1 byte | Payload length in bytes (0-32) |
 | `DATA` | `LEN` bytes | Payload; `DATA[0]` is always `0x03` (MESSAGE_HEADER), `DATA[1]` is the command byte |
 | `CRC8` | 1 byte | CRC-8 (poly `0xD5`, init `0`, no reflection) over `ID \|\| LEN \|\| DATA` |
 

@@ -66,7 +66,7 @@ All frames sent by SimHub share the same wire layout:
      - Packet ID; ``0xFF`` = broadcast (Hello only)
    * - ``LEN``
      - 1 byte
-     - Payload length in bytes (0–32)
+     - Payload length in bytes (0-32)
    * - ``DATA``
      - ``LEN`` bytes
      - Payload; ``DATA[0]`` is always ``0x03`` (MESSAGE_HEADER), ``DATA[1]`` is the command byte

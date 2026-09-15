@@ -41,7 +41,7 @@ static int execGetPixelCount(const struct shell *sh, size_t argc, char **argv)
 /**
  * @brief   Shell command: fill and submit a full frame.
  *
- *          Expects chain_length × 3 channel values as arguments (r g b per pixel).
+ *          Expects chain_length x 3 channel values as arguments (r g b per pixel).
  *
  * @param[in]   sh:   Shell instance.
  * @param[in]   argc: Argument count.
@@ -94,7 +94,7 @@ static int execSetFrame(const struct shell *sh, size_t argc, char **argv)
  *
  * @param[in]   sh:   Shell instance.
  * @param[in]   argc: Argument count.
- * @param[in]   argv: Argument vector; argv[1] is the brightness value (0–255).
+ * @param[in]   argv: Argument vector; argv[1] is the brightness value (0-255).
  *
  * @return  0 if successful, -EINVAL on bad value, or the error code from
  *          ledStripSetBrightness().
