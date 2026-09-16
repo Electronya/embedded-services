@@ -6,7 +6,7 @@
  * @date      2026-04-25
  * @brief     LED Strip Updater Utilities
  *
- *            Led strip updater untilities.
+ *            LED strip updater utilities.
  *
  * @ingroup  ledStrip
  *
@@ -24,30 +24,30 @@
 #define LED_STRIP_LOGGER_NAME ledStrip
 
 /**
- * @brief   Intialize the LED strip device.
+ * @brief   Initialize the LED strip device.
  *
- * @return  0 if successful, the error code otherwiese.
+ * @return  0 if successful, the error code otherwise.
  */
 int ledStripUtilInitStrip(void);
 
 /**
- * @brief   Intialize the famebuffers.
+ * @brief   Initialize the framebuffers.
  *
- * @return  0 if successful, the error code otherwiese.
+ * @return  0 if successful, the error code otherwise.
  */
 int ledStripUtilInitFramebuffers(void);
 
 /**
  * @brief   Get the next framebuffer.
  *
- * @retunr  The framebuffer handle if successful, NULL otherwise.
+ * @return  The framebuffer handle if successful, NULL otherwise.
  */
 struct led_rgb *ledStripUtilGetNextFramebuffer(void);
 
 /**
  * @brief   Activate a new frame.
  *
- * @param[in]   newFrame: The new frame to activate.
+ * @param[in]   frame: The new frame to activate.
  */
 void ledStripUtilActivateFrame(struct led_rgb *frame);
 
@@ -61,7 +61,7 @@ int ledStripUtilPushFrame(void);
 /**
  * @brief   Set global brightness.
  *
- * @param[in]   newBirghtness: The global brightness.
+ * @param[in]   newBrightness: The global brightness.
  */
 void ledStripUtilSetBrightness(uint8_t newBrightness);
 

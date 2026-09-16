@@ -167,6 +167,9 @@ static void cmd_tests_before(void *fixture)
   ls_test_descriptors[2].missedHeartbeats = 2;
 }
 
+/* ===========================================================================
+ * execLs
+ * =========================================================================*/
 /**
  * @test The execLs function must print only the header when no services are registered.
  */
@@ -244,6 +247,9 @@ static unsigned long shell_strtoul_with_error(const char *str, int base, int *er
   return 0;
 }
 
+/* ===========================================================================
+ * execStart
+ * =========================================================================*/
 /**
  * @test The execStart function must return error when the index argument is invalid.
  */
@@ -329,6 +335,9 @@ ZTEST(serviceMngrCmd, test_start_success)
                "output should contain the service index");
 }
 
+/* ===========================================================================
+ * execStop
+ * =========================================================================*/
 /**
  * @test The execStop function must return error when the index argument is invalid.
  */
@@ -414,6 +423,9 @@ ZTEST(serviceMngrCmd, test_stop_success)
                "output should contain the service index");
 }
 
+/* ===========================================================================
+ * execSuspend
+ * =========================================================================*/
 /**
  * @test The execSuspend function must return error when the index argument is invalid.
  */
@@ -499,6 +511,9 @@ ZTEST(serviceMngrCmd, test_suspend_success)
                "output should contain the service index");
 }
 
+/* ===========================================================================
+ * execResume
+ * =========================================================================*/
 /**
  * @test The execResume function must return error when the index argument is invalid.
  */

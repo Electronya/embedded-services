@@ -1,0 +1,8 @@
+tests:
+  electronya.embedded_services.simhub_device.util:
+    tags:
+      - unit_test
+      - simhub
+    platform_allow:
+      - native_sim
+      - native_sim/native/64

@@ -23,3 +23,7 @@ endif()
 if(CONFIG_ENYA_LED_STRIP)
   add_subdirectory(./src/ledStrip)
 endif()
+
+if(CONFIG_ENYA_SIMHUB_DEVICE)
+  add_subdirectory(./src/simhubDevice)
+endif()

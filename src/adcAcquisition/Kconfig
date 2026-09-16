@@ -24,7 +24,7 @@ config ENYA_ADC_ACQUISITION_LOG_LEVEL
 
 config ENYA_ADC_ACQUISITION_STACK_SIZE
   int "Electronya ADC Acquisition Stack Size"
-  default 1024
+  default 512
   help
     The Electronya ADC acquisition service thread stack size in bytes.
 

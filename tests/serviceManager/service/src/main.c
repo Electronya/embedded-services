@@ -25,6 +25,7 @@ DEFINE_FFF_GLOBALS;
 #define CONFIG_ENYA_SERVICE_MANAGER 1
 #define CONFIG_ENYA_SERVICE_MANAGER_LOG_LEVEL 3
 #define CONFIG_SVC_MGR_LOOP_PERIOD_MS 100
+#undef CONFIG_ENYA_SERVICE_MANAGER_STACK_SIZE
 #define CONFIG_ENYA_SERVICE_MANAGER_STACK_SIZE 2048
 #define CONFIG_SVC_MGR_MAX_SERVICES 16
 #define CONFIG_ENYA_SERVICE_MANAGER_THREAD_PRIORITY 1
@@ -136,6 +137,9 @@ static ServiceDescriptor_t *getRegEntry_withTwoServices(size_t index)
   return NULL;
 }
 
+/* ===========================================================================
+ * run
+ * =========================================================================*/
 /**
  * @test The serviceManagerRun function must continue when feeding the watchdog fails.
  */
@@ -386,6 +390,9 @@ ZTEST(serviceManager, test_run_processResume)
                 "serviceMngrUtilResumeService should be called with index 2");
 }
 
+/* ===========================================================================
+ * serviceManagerInit
+ * =========================================================================*/
 /**
  * @test The serviceManagerInit function must return error when hardware watchdog init fails.
  */
@@ -463,6 +470,9 @@ ZTEST(serviceManager, test_init_success)
                 "k_thread_name_set should be called with 'serviceManager'");
 }
 
+/* ===========================================================================
+ * serviceManagerRegisterSrv
+ * =========================================================================*/
 /**
  * @test The serviceManagerRegisterSrv function must return error when registration fails.
  */
@@ -530,6 +540,9 @@ static ServiceDescriptor_t *getRegEntry_withMixedPriorities(size_t index)
   return NULL;
 }
 
+/* ===========================================================================
+ * serviceManagerStartAll
+ * =========================================================================*/
 /**
  * @test The serviceManagerStartAll function must return error when a service fails to start.
  */
@@ -588,6 +601,9 @@ ZTEST(serviceManager, test_startAll_success)
                 "third service started should be the APPLICATION one (index 0)");
 }
 
+/* ===========================================================================
+ * serviceManagerRequestStart
+ * =========================================================================*/
 /**
  * @test The serviceManagerRequestStart function must return error when the thread ID is not found.
  */
@@ -633,6 +649,9 @@ ZTEST(serviceManager, test_requestStart_success)
                 "k_msgq_put should be called once");
 }
 
+/* ===========================================================================
+ * serviceManagerRequestStop
+ * =========================================================================*/
 /**
  * @test The serviceManagerRequestStop function must return error when the thread ID is not found.
  */
@@ -675,6 +694,9 @@ ZTEST(serviceManager, test_requestStop_success)
                 "k_msgq_put should be called once");
 }
 
+/* ===========================================================================
+ * serviceManagerRequestSuspend
+ * =========================================================================*/
 /**
  * @test The serviceManagerRequestSuspend function must return error when the thread ID is not found.
  */
@@ -717,6 +739,9 @@ ZTEST(serviceManager, test_requestSuspend_success)
                 "k_msgq_put should be called once");
 }
 
+/* ===========================================================================
+ * serviceManagerRequestResume
+ * =========================================================================*/
 /**
  * @test The serviceManagerRequestResume function must return error when the thread ID is not found.
  */
@@ -759,6 +784,9 @@ ZTEST(serviceManager, test_requestResume_success)
                 "k_msgq_put should be called once");
 }
 
+/* ===========================================================================
+ * serviceManagerConfirmState
+ * =========================================================================*/
 /**
  * @test The serviceManagerConfirmState function must return error when the thread ID is not found.
  */
@@ -834,6 +862,9 @@ ZTEST(serviceManager, test_confirmState_success)
                 "serviceMngrUtilSetSrvState should be called with the state");
 }
 
+/* ===========================================================================
+ * serviceManagerUpdateHeartbeat
+ * =========================================================================*/
 /**
  * @test The serviceManagerUpdateHeartbeat function must return error when the thread ID is not found.
  */

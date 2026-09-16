@@ -21,21 +21,34 @@
 
 LOG_MODULE_DECLARE(LED_STRIP_LOGGER_NAME, CONFIG_ENYA_LED_STRIP_LOG_LEVEL);
 
+/** @brief  Number of framebuffer pool blocks. */
 #define FRAMEBUFFER_COUNT 2
 
+/** @brief  Framebuffer allocation timeout (ms). */
 #define FRAMEBUFFER_ALLOC_TIMEOUT 5
 
+/** @brief  The LED strip device. */
 static const struct device *ledStrip = DEVICE_DT_GET(DT_ALIAS(led_strip));
+
+/** @brief  Number of pixels in the strip, read from DTS chain-length. */
 static const uint32_t pixelCount = DT_PROP(DT_ALIAS(led_strip), chain_length);
 
+/** @brief  The framebuffer memory pool (2 blocks). */
 static osMemoryPoolId_t framebufferPool = NULL;
+
+/** @brief  The currently active frame being pushed to hardware. */
 static struct led_rgb *activeFrame;
+
+/** @brief  Global brightness scale factor (0=off, 255=full). */
 static uint8_t brightness = 255;
 
 /**
- * @brief   Apply global brightness.
+ * @brief   Apply global brightness scaling in-place to a frame.
  *
- * @param[in]   frame: The frame.
+ *          Each channel is scaled as: ch = (ch * brightness) / 255.
+ *          No-op if frame is NULL.
+ *
+ * @param[in]   frame: The frame to scale, or NULL.
  */
 void applyGlobalBrightness(struct led_rgb *frame)
 {

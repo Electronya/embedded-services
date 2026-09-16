@@ -128,6 +128,9 @@ static void util_tests_before(void *fixture)
   uintSubs.maxCount = 0;
 }
 
+/* ===========================================================================
+ * isBinaryDatapointInSubRange
+ * =========================================================================*/
 /**
  * @test The isBinaryDatapointInSubRange function must return true when
  * datapointId equals the subscription starting datapoint ID.
@@ -358,6 +361,9 @@ ZTEST(datastore_util_tests, test_is_binary_datapoint_in_range_zero_not_included)
                 "datapointId 0 should NOT be included in subscription range [5, 15)");
 }
 
+/* ===========================================================================
+ * notifyBinarySub
+ * =========================================================================*/
 /**
  * @test The notifyBinarySub function must return -ENOSPC when
  * memory pool allocation fails.
@@ -488,6 +494,9 @@ ZTEST(datastore_util_tests, test_notify_binary_sub_success)
                 "Callback should be called with valCount=2");
 }
 
+/* ===========================================================================
+ * notifyBinarySubs
+ * =========================================================================*/
 /**
  * @test The notifyBinarySubs function must return an error and stop processing
  * when notifyBinarySub fails for a subscription.
@@ -592,6 +601,9 @@ ZTEST(datastore_util_tests, test_notify_binary_subs_success)
                 "Callback should be called twice (for subscriptions 0 and 3)");
 }
 
+/* ===========================================================================
+ * isButtonDatapointInSubRange
+ * =========================================================================*/
 /**
  * @test The isButtonDatapointInSubRange function must return true when
  * datapointId equals the subscription starting datapoint ID.
@@ -822,6 +834,9 @@ ZTEST(datastore_util_tests, test_is_button_datapoint_in_range_zero_not_included)
                 "datapointId 0 should NOT be included in subscription range [5, 15)");
 }
 
+/* ===========================================================================
+ * notifyButtonSub
+ * =========================================================================*/
 /**
  * @test The notifyButtonSub function must return -ENOSPC when
  * memory pool allocation fails.
@@ -952,6 +967,9 @@ ZTEST(datastore_util_tests, test_notify_button_sub_success)
                 "Callback should be called with valCount=2");
 }
 
+/* ===========================================================================
+ * notifyButtonSubs
+ * =========================================================================*/
 /**
  * @test The notifyButtonSubs function must return an error and stop processing
  * when notifyButtonSub fails for a subscription.
@@ -1076,6 +1094,9 @@ ZTEST(datastore_util_tests, test_notify_button_subs_paused_in_range)
                 "Callback should not be called for paused subscriptions");
 }
 
+/* ===========================================================================
+ * isFloatDatapointInSubRange
+ * =========================================================================*/
 /**
  * @test The isFloatDatapointInSubRange function must return true when
  * datapointId equals the subscription starting datapoint ID.
@@ -1306,6 +1327,9 @@ ZTEST(datastore_util_tests, test_is_float_datapoint_in_range_zero_not_included)
                 "datapointId 0 should NOT be included in subscription range [1, 3)");
 }
 
+/* ===========================================================================
+ * notifyFloatSub
+ * =========================================================================*/
 /**
  * @test The notifyFloatSub function must return -ENOSPC when memory pool
  * allocation fails.
@@ -1419,6 +1443,9 @@ ZTEST(datastore_util_tests, test_notify_float_sub_success)
                 "Callback should be called with valCount=2");
 }
 
+/* ===========================================================================
+ * notifyFloatSubs
+ * =========================================================================*/
 /**
  * @test The notifyFloatSubs function must return an error and stop processing
  * when notifyFloatSub fails for a subscription.
@@ -1511,6 +1538,9 @@ ZTEST(datastore_util_tests, test_notify_float_subs_success)
                 "Callback should be called once for subscription 0");
 }
 
+/* ===========================================================================
+ * isIntDatapointInSubRange
+ * =========================================================================*/
 /**
  * @test The isIntDatapointInSubRange function must return true when
  * datapointId equals the subscription starting datapoint ID.
@@ -1741,6 +1771,9 @@ ZTEST(datastore_util_tests, test_is_int_datapoint_in_range_zero_not_included)
                 "datapointId 0 should NOT be included in subscription range [1, 3)");
 }
 
+/* ===========================================================================
+ * notifyIntSub
+ * =========================================================================*/
 /**
  * @test The notifyIntSub function must return -ENOSPC when memory pool
  * allocation fails.
@@ -1854,6 +1887,9 @@ ZTEST(datastore_util_tests, test_notify_int_sub_success)
                 "Callback should be called with valCount=2");
 }
 
+/* ===========================================================================
+ * notifyIntSubs
+ * =========================================================================*/
 /**
  * @test The notifyIntSubs function must return an error and stop processing
  * when notifyIntSub fails for a subscription.
@@ -1946,6 +1982,9 @@ ZTEST(datastore_util_tests, test_notify_int_subs_success)
                 "Callback should be called once for subscription 0");
 }
 
+/* ===========================================================================
+ * isMultiStateDatapointInSubRange
+ * =========================================================================*/
 /**
  * @test The isMultiStateDatapointInSubRange function must return true when
  * datapointId equals the subscription starting datapoint ID.
@@ -2176,6 +2215,9 @@ ZTEST(datastore_util_tests, test_is_multi_state_datapoint_in_range_zero_not_incl
                 "datapointId 0 should NOT be included in subscription range [1, 3)");
 }
 
+/* ===========================================================================
+ * notifyMultiStateSub
+ * =========================================================================*/
 /**
  * @test The notifyMultiStateSub function must return -ENOSPC when memory pool
  * allocation fails.
@@ -2289,6 +2331,9 @@ ZTEST(datastore_util_tests, test_notify_multi_state_sub_success)
                 "Callback should be called with valCount=2");
 }
 
+/* ===========================================================================
+ * notifyMultiStateSubs
+ * =========================================================================*/
 /**
  * @test The notifyMultiStateSubs function must return an error and stop processing
  * when notifyMultiStateSub fails for a subscription.
@@ -2381,6 +2426,9 @@ ZTEST(datastore_util_tests, test_notify_multi_state_subs_success)
                 "Callback should be called once for subscription 0");
 }
 
+/* ===========================================================================
+ * isUintDatapointInSubRange
+ * =========================================================================*/
 /**
  * @test The isUintDatapointInSubRange function must return true when
  * datapointId equals the subscription starting datapoint ID.
@@ -2611,6 +2659,9 @@ ZTEST(datastore_util_tests, test_is_uint_datapoint_in_range_zero_not_included)
                 "datapointId 0 should NOT be included in subscription range [1, 3)");
 }
 
+/* ===========================================================================
+ * notifyUintSub
+ * =========================================================================*/
 /**
  * @test The notifyUintSub function must return -ENOSPC when memory pool
  * allocation fails.
@@ -2724,6 +2775,9 @@ ZTEST(datastore_util_tests, test_notify_uint_sub_success)
                 "Callback should be called with valCount=2");
 }
 
+/* ===========================================================================
+ * notifyUintSubs
+ * =========================================================================*/
 /**
  * @test The notifyUintSubs function must return an error and stop processing
  * when notifyUintSub fails for a subscription.
@@ -2816,6 +2870,9 @@ ZTEST(datastore_util_tests, test_notify_uint_subs_success)
                 "Callback should be called once for subscription 0");
 }
 
+/* ===========================================================================
+ * isDatapointIdAndValCountValid
+ * =========================================================================*/
 /**
  * @test The isDatapointIdAndValCountValid function must return false when
  * datapointId is greater than or equal to datapointCount.
@@ -2948,6 +3005,9 @@ ZTEST(datastore_util_tests, test_is_datapoint_id_and_val_count_valid_full_range)
                "Should return true when range covers entire array");
 }
 
+/* ===========================================================================
+ * datastoreUtilAllocateBinarySubs
+ * =========================================================================*/
 /**
  * @test The datastoreUtilAllocateBinarySubs function must return -ENOSPC
  * when k_malloc fails to allocate memory.
@@ -2999,6 +3059,9 @@ ZTEST(datastore_util_tests, test_allocate_binary_subs_success)
                 "binarySubs.maxCount should be set to maxSubCount");
 }
 
+/* ===========================================================================
+ * datastoreUtilAllocateButtonSubs
+ * =========================================================================*/
 /**
  * @test The datastoreUtilAllocateButtonSubs function must return -ENOSPC
  * when k_malloc fails to allocate memory.
@@ -3050,6 +3113,9 @@ ZTEST(datastore_util_tests, test_allocate_button_subs_success)
                 "buttonSubs.maxCount should be set to maxSubCount");
 }
 
+/* ===========================================================================
+ * datastoreUtilAllocateFloatSubs
+ * =========================================================================*/
 /**
  * @test The datastoreUtilAllocateFloatSubs function must return -ENOSPC
  * when k_malloc fails to allocate memory.
@@ -3101,6 +3167,9 @@ ZTEST(datastore_util_tests, test_allocate_float_subs_success)
                 "floatSubs.maxCount should be set to maxSubCount");
 }
 
+/* ===========================================================================
+ * datastoreUtilAllocateIntSubs
+ * =========================================================================*/
 /**
  * @test The datastoreUtilAllocateIntSubs function must return -ENOSPC
  * when k_malloc fails to allocate memory.
@@ -3152,6 +3221,9 @@ ZTEST(datastore_util_tests, test_allocate_int_subs_success)
                 "intSubs.maxCount should be set to maxSubCount");
 }
 
+/* ===========================================================================
+ * datastoreUtilAllocateMultiStateSubs
+ * =========================================================================*/
 /**
  * @test The datastoreUtilAllocateMultiStateSubs function must return -ENOSPC
  * when k_malloc fails to allocate memory.
@@ -3203,6 +3275,9 @@ ZTEST(datastore_util_tests, test_allocate_multi_state_subs_success)
                 "multiStateSubs.maxCount should be set to maxSubCount");
 }
 
+/* ===========================================================================
+ * datastoreUtilAllocateUintSubs
+ * =========================================================================*/
 /**
  * @test The datastoreUtilAllocateUintSubs function must return -ENOSPC
  * when k_malloc fails to allocate memory.
@@ -3254,6 +3329,9 @@ ZTEST(datastore_util_tests, test_allocate_uint_subs_success)
                 "uintSubs.maxCount should be set to maxSubCount");
 }
 
+/* ===========================================================================
+ * datastoreUtilCalculateBufferSize
+ * =========================================================================*/
 /**
  * @test The datastoreUtilCalculateBufferSize function must return 0 when
  * all datapoint counts are zero.
@@ -3359,6 +3437,9 @@ ZTEST(datastore_util_tests, test_calculate_buffer_size_single_nonzero)
                 "Should return max_count * sizeof(Datapoint_t)");
 }
 
+/* ===========================================================================
+ * datastoreUtilAddBinarySub
+ * =========================================================================*/
 /**
  * @test The datastoreUtilAddBinarySub function must return -ENOBUFS when
  * the subscription list is full.
@@ -3471,6 +3552,9 @@ ZTEST(datastore_util_tests, test_add_binary_sub_success)
                 "Callback should be called once for notification");
 }
 
+/* ===========================================================================
+ * datastoreUtilRemoveBinarySub
+ * =========================================================================*/
 /**
  * @test The datastoreUtilRemoveBinarySub function must return -ESRCH when
  * the callback is not found in the subscription list.
@@ -3535,6 +3619,9 @@ ZTEST(datastore_util_tests, test_remove_binary_sub_success)
                 "Third entry's datapointId should be preserved");
 }
 
+/* ===========================================================================
+ * datastoreUtilSetBinarySubPauseState
+ * =========================================================================*/
 /**
  * @test The datastoreUtilSetBinarySubPauseState function must return -EINVAL
  * when the callback is NULL.
@@ -3645,6 +3732,9 @@ ZTEST(datastore_util_tests, test_set_binary_sub_pause_state_unpause_success)
                 "Callback should be called once for notification");
 }
 
+/* ===========================================================================
+ * datastoreUtilAddButtonSub
+ * =========================================================================*/
 /**
  * @test The datastoreUtilAddButtonSub function must return -ENOBUFS when
  * the subscription list is full.
@@ -3757,6 +3847,9 @@ ZTEST(datastore_util_tests, test_add_button_sub_success)
                 "Callback should be called once for notification");
 }
 
+/* ===========================================================================
+ * datastoreUtilRemoveButtonSub
+ * =========================================================================*/
 /**
  * @test The datastoreUtilRemoveButtonSub function must return -ESRCH when
  * the callback is not found in the subscription list.
@@ -3821,6 +3914,9 @@ ZTEST(datastore_util_tests, test_remove_button_sub_success)
                 "Third entry's datapointId should be preserved");
 }
 
+/* ===========================================================================
+ * datastoreUtilSetButtonSubPauseState
+ * =========================================================================*/
 /**
  * @test The datastoreUtilSetButtonSubPauseState function must return -EINVAL
  * when the callback is NULL.
@@ -3931,6 +4027,9 @@ ZTEST(datastore_util_tests, test_set_button_sub_pause_state_unpause_success)
                 "Callback should be called once for notification");
 }
 
+/* ===========================================================================
+ * datastoreUtilAddFloatSub
+ * =========================================================================*/
 /**
  * @test The datastoreUtilAddFloatSub function must return -ENOBUFS when
  * the subscription list is full.
@@ -4043,6 +4142,9 @@ ZTEST(datastore_util_tests, test_add_float_sub_success)
                 "Callback should be called once for notification");
 }
 
+/* ===========================================================================
+ * datastoreUtilRemoveFloatSub
+ * =========================================================================*/
 /**
  * @test The datastoreUtilRemoveFloatSub function must return -ESRCH when
  * the callback is not found in the subscription list.
@@ -4107,6 +4209,9 @@ ZTEST(datastore_util_tests, test_remove_float_sub_success)
                 "Third entry's datapointId should be preserved");
 }
 
+/* ===========================================================================
+ * datastoreUtilSetFloatSubPauseState
+ * =========================================================================*/
 /**
  * @test The datastoreUtilSetFloatSubPauseState function must return -EINVAL
  * when the callback is NULL.
@@ -4217,6 +4322,9 @@ ZTEST(datastore_util_tests, test_set_float_sub_pause_state_unpause_success)
                 "Callback should be called once for notification");
 }
 
+/* ===========================================================================
+ * datastoreUtilAddIntSub
+ * =========================================================================*/
 /**
  * @test The datastoreUtilAddIntSub function must return -ENOBUFS when
  * the subscription list is full.
@@ -4329,6 +4437,9 @@ ZTEST(datastore_util_tests, test_add_int_sub_success)
                 "Callback should be called once for notification");
 }
 
+/* ===========================================================================
+ * datastoreUtilRemoveIntSub
+ * =========================================================================*/
 /**
  * @test The datastoreUtilRemoveIntSub function must return -ESRCH when
  * the callback is not found in the subscription list.
@@ -4393,6 +4504,9 @@ ZTEST(datastore_util_tests, test_remove_int_sub_success)
                 "Third entry's datapointId should be preserved");
 }
 
+/* ===========================================================================
+ * datastoreUtilSetIntSubPauseState
+ * =========================================================================*/
 /**
  * @test The datastoreUtilSetIntSubPauseState function must return -EINVAL
  * when the callback is NULL.
@@ -4503,6 +4617,9 @@ ZTEST(datastore_util_tests, test_set_int_sub_pause_state_unpause_success)
                 "Callback should be called once for notification");
 }
 
+/* ===========================================================================
+ * datastoreUtilAddMultiStateSub
+ * =========================================================================*/
 /**
  * @test The datastoreUtilAddMultiStateSub function must return -ENOBUFS when
  * the subscription list is full.
@@ -4605,6 +4722,9 @@ ZTEST(datastore_util_tests, test_add_multi_state_sub_success)
                 "callback should be set correctly");
 }
 
+/* ===========================================================================
+ * datastoreUtilRemoveMultiStateSub
+ * =========================================================================*/
 /**
  * @test The datastoreUtilRemoveMultiStateSub function must return -ESRCH
  * when the callback is not found in the subscription list.
@@ -4669,6 +4789,9 @@ ZTEST(datastore_util_tests, test_remove_multi_state_sub_success)
                 "Third entry's datapointId should be preserved");
 }
 
+/* ===========================================================================
+ * datastoreUtilSetMultiStateSubPauseState
+ * =========================================================================*/
 /**
  * @test The datastoreUtilSetMultiStateSubPauseState function must return -EINVAL
  * when the callback is NULL.
@@ -4779,6 +4902,9 @@ ZTEST(datastore_util_tests, test_set_multi_state_sub_pause_state_unpause_success
                 "Callback should be called once for notification");
 }
 
+/* ===========================================================================
+ * datastoreUtilAddUintSub
+ * =========================================================================*/
 /**
  * @test The datastoreUtilAddUintSub function must return -ENOBUFS when
  * the subscription list is full.
@@ -4882,6 +5008,9 @@ ZTEST(datastore_util_tests, test_add_uint_sub_success)
                 "callback should be set correctly");
 }
 
+/* ===========================================================================
+ * datastoreUtilRemoveUintSub
+ * =========================================================================*/
 /**
  * @test The datastoreUtilRemoveUintSub function must return -ESRCH
  * when the callback is not found in the subscription list.
@@ -4946,6 +5075,9 @@ ZTEST(datastore_util_tests, test_remove_uint_sub_success)
                 "Third entry's datapointId should be preserved");
 }
 
+/* ===========================================================================
+ * datastoreUtilSetUintSubPauseState
+ * =========================================================================*/
 /**
  * @test The datastoreUtilSetUintSubPauseState function must return -EINVAL
  * when the callback is NULL.
@@ -5056,6 +5188,9 @@ ZTEST(datastore_util_tests, test_set_uint_sub_pause_state_unpause_success)
                 "Callback should be called once for notification");
 }
 
+/* ===========================================================================
+ * datastoreUtilRead
+ * =========================================================================*/
 /**
  * @test The datastoreUtilRead function must return -EINVAL when the
  * datapoint ID or value count is invalid.
@@ -5093,6 +5228,9 @@ ZTEST(datastore_util_tests, test_read_success)
   zassert_equal(values[1].uintVal, 0, "Second value should match");
 }
 
+/* ===========================================================================
+ * datastoreUtilWrite
+ * =========================================================================*/
 /**
  * @test The datastoreUtilWrite function must return -EINVAL when the
  * datapoint ID or value count is invalid.
@@ -5249,6 +5387,9 @@ ZTEST(datastore_util_tests, test_write_success_with_notification)
                    "Callback should be called with non-NULL message");
 }
 
+/* ===========================================================================
+ * datastoreUtilNotify
+ * =========================================================================*/
 /**
  * @test The datastoreUtilNotify function must return -ENOTSUP when the
  * datapoint type is invalid.

@@ -127,6 +127,9 @@ static void cmdUtil_tests_after(void *fixture)
   /* Cleanup if needed */
 }
 
+/* ===========================================================================
+ * getDatapointRegistrySize
+ * =========================================================================*/
 /**
  * @test getDatapointRegistrySize must return the total count of all datapoint types.
  */
@@ -140,6 +143,9 @@ ZTEST(cmdUtil_tests, test_getDatapointRegistrySize)
                 expectedSize, actualSize);
 }
 
+/* ===========================================================================
+ * toUpper
+ * =========================================================================*/
 /**
  * @test toUpper must convert all lowercase characters to uppercase.
  */
@@ -236,6 +242,9 @@ ZTEST(cmdUtil_tests, test_toUpper_single_char_uppercase)
   zassert_str_equal(str, "Z", "Single uppercase char should remain unchanged");
 }
 
+/* ===========================================================================
+ * getTypeName
+ * =========================================================================*/
 /**
  * @test getTypeName must return "unknown" for invalid datapoint type.
  */
@@ -306,6 +315,9 @@ ZTEST(cmdUtil_tests, test_getTypeName_uint)
   zassert_str_equal(typeName, "uint", "Type name for DATAPOINT_UINT must be 'uint'");
 }
 
+/* ===========================================================================
+ * parseBool
+ * =========================================================================*/
 /**
  * @test parseBool must parse "true" and set value to true.
  */
@@ -442,6 +454,9 @@ ZTEST(cmdUtil_tests, test_parseBool_with_whitespace)
   zassert_equal(result, -EINVAL, "parseBool must return -EINVAL for string with leading whitespace");
 }
 
+/* ===========================================================================
+ * getButtonValueString
+ * =========================================================================*/
 /**
  * @test getButtonValueString must return "unknown" for invalid button state.
  */
@@ -482,6 +497,9 @@ ZTEST(cmdUtil_tests, test_getButtonValueString_long_pressed)
   zassert_str_equal(valueString, "long_pressed", "Value string for BUTTON_LONG_PRESSED must be 'long_pressed'");
 }
 
+/* ===========================================================================
+ * printTableHeader
+ * =========================================================================*/
 /**
  * @test printTableHeader must call shell_fprintf_normal twice to print header and separator.
  */
@@ -502,6 +520,9 @@ ZTEST(cmdUtil_tests, test_printTableHeader)
                 "Second call must use correct shell pointer");
 }
 
+/* ===========================================================================
+ * printBinaryLine
+ * =========================================================================*/
 /**
  * @test printBinaryLine must call shell_fprintf_normal once with true value.
  */
@@ -538,6 +559,9 @@ ZTEST(cmdUtil_tests, test_printBinaryLine_false)
                 "printBinaryLine must use correct shell pointer");
 }
 
+/* ===========================================================================
+ * printButtonLine
+ * =========================================================================*/
 /**
  * @test printButtonLine must call shell_fprintf_normal once with BUTTON_UNPRESSED.
  */
@@ -592,6 +616,9 @@ ZTEST(cmdUtil_tests, test_printButtonLine_long_pressed)
                 "printButtonLine must use correct shell pointer");
 }
 
+/* ===========================================================================
+ * printFloatLine
+ * =========================================================================*/
 /**
  * @test printFloatLine must call shell_fprintf_normal once with positive float value.
  */
@@ -646,6 +673,9 @@ ZTEST(cmdUtil_tests, test_printFloatLine_zero)
                 "printFloatLine must use correct shell pointer");
 }
 
+/* ===========================================================================
+ * printIntLine
+ * =========================================================================*/
 /**
  * @test printIntLine must call shell_fprintf_normal once with positive int value.
  */
@@ -700,6 +730,9 @@ ZTEST(cmdUtil_tests, test_printIntLine_zero)
                 "printIntLine must use correct shell pointer");
 }
 
+/* ===========================================================================
+ * printMultiStateLine
+ * =========================================================================*/
 /**
  * @test printMultiStateLine must call shell_fprintf_normal once with small value.
  */
@@ -754,6 +787,9 @@ ZTEST(cmdUtil_tests, test_printMultiStateLine_zero)
                 "printMultiStateLine must use correct shell pointer");
 }
 
+/* ===========================================================================
+ * printUintLine
+ * =========================================================================*/
 /**
  * @test printUintLine must call shell_fprintf_normal once with small value.
  */
@@ -808,6 +844,9 @@ ZTEST(cmdUtil_tests, test_printUintLine_zero)
                 "printUintLine must use correct shell pointer");
 }
 
+/* ===========================================================================
+ * printBinaryValues
+ * =========================================================================*/
 /**
  * @test printBinaryValues must call shell_fprintf_normal once for single true value.
  */
@@ -888,6 +927,9 @@ ZTEST(cmdUtil_tests, test_printBinaryValues_zero_count)
                 "printBinaryValues must not call shell_fprintf_normal for zero count");
 }
 
+/* ===========================================================================
+ * printButtonValues
+ * =========================================================================*/
 /**
  * @test printButtonValues must call shell_fprintf_normal once for single unpressed value.
  */
@@ -992,6 +1034,9 @@ ZTEST(cmdUtil_tests, test_printButtonValues_zero_count)
                 "printButtonValues must not call shell_fprintf_normal for zero count");
 }
 
+/* ===========================================================================
+ * printFloatValues
+ * =========================================================================*/
 /**
  * @test printFloatValues must call shell_fprintf_normal once for single positive value.
  */
@@ -1096,6 +1141,9 @@ ZTEST(cmdUtil_tests, test_printFloatValues_zero_count)
                 "printFloatValues must not call shell_fprintf_normal for zero count");
 }
 
+/* ===========================================================================
+ * printIntValues
+ * =========================================================================*/
 /**
  * @test printIntValues must call shell_fprintf_normal once for single positive value.
  */
@@ -1200,6 +1248,9 @@ ZTEST(cmdUtil_tests, test_printIntValues_zero_count)
                 "printIntValues must not call shell_fprintf_normal for zero count");
 }
 
+/* ===========================================================================
+ * printMultiStateValues
+ * =========================================================================*/
 /**
  * @test printMultiStateValues must call shell_fprintf_normal once for single small value.
  */
@@ -1304,6 +1355,9 @@ ZTEST(cmdUtil_tests, test_printMultiStateValues_zero_count)
                 "printMultiStateValues must not call shell_fprintf_normal for zero count");
 }
 
+/* ===========================================================================
+ * printUintValues
+ * =========================================================================*/
 /**
  * @test printUintValues must call shell_fprintf_normal once for single small value.
  */
@@ -1408,6 +1462,9 @@ ZTEST(cmdUtil_tests, test_printUintValues_zero_count)
                 "printUintValues must not call shell_fprintf_normal for zero count");
 }
 
+/* ===========================================================================
+ * parseBinaryValues
+ * =========================================================================*/
 /**
  * @test parseBinaryValues must parse single true value successfully.
  */
@@ -1542,6 +1599,9 @@ ZTEST(cmdUtil_tests, test_parseBinaryValues_error_empty_string)
   zassert_equal(result, -EINVAL, "parseBinaryValues must return -EINVAL for empty string");
 }
 
+/* ===========================================================================
+ * parseButtonValues
+ * =========================================================================*/
 /**
  * @test parseButtonValues must parse single unpressed value successfully.
  */
@@ -1708,6 +1768,9 @@ ZTEST(cmdUtil_tests, test_parseButtonValues_error_partial_match)
   zassert_equal(result, -EINVAL, "parseButtonValues must return -EINVAL for partial match");
 }
 
+/* ===========================================================================
+ * parseFloatValues
+ * =========================================================================*/
 /**
  * @test parseFloatValues must parse single positive value successfully.
  */
@@ -1920,6 +1983,9 @@ static long shell_strtol_success(const char *str, int base, int *err)
   return result;
 }
 
+/* ===========================================================================
+ * parseIntValues
+ * =========================================================================*/
 /**
  * @test parseIntValues must parse single positive value successfully.
  */
@@ -2133,6 +2199,9 @@ static unsigned long shell_strtoul_success(const char *str, int base, int *err)
   return result;
 }
 
+/* ===========================================================================
+ * parseMultiStateValues
+ * =========================================================================*/
 /**
  * @test parseMultiStateValues must parse single small value successfully.
  */
@@ -2300,6 +2369,9 @@ ZTEST(cmdUtil_tests, test_parseMultiStateValues_error_negative)
   zassert_true(result < 0, "parseMultiStateValues must return error for negative number");
 }
 
+/* ===========================================================================
+ * parseUintValues
+ * =========================================================================*/
 /**
  * @test parseUintValues must parse single small value successfully.
  */
@@ -2467,6 +2539,9 @@ ZTEST(cmdUtil_tests, test_parseUintValues_error_negative)
   zassert_true(result < 0, "parseUintValues must return error for negative number");
 }
 
+/* ===========================================================================
+ * findDatapointByName
+ * =========================================================================*/
 /**
  * @test findDatapointByName must find first datapoint in registry successfully.
  */
@@ -2598,6 +2673,9 @@ ZTEST(cmdUtil_tests, test_findDatapointByName_error_case_mismatch)
   zassert_equal(result, -ENOENT, "findDatapointByName must return -ENOENT for case mismatch");
 }
 
+/* ===========================================================================
+ * parseButtonValue
+ * =========================================================================*/
 /**
  * @test parseButtonValue must parse "unpressed" and set value to BUTTON_UNPRESSED.
  */

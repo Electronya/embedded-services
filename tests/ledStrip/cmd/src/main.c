@@ -123,6 +123,9 @@ static void cmd_tests_before(void *f)
   shell_error_call_count = 0;
 }
 
+/* ===========================================================================
+ * execGetPixelCount
+ * =========================================================================*/
 /**
  * @test execGetPixelCount must print the pixel count from DTS with a SUCCESS prefix.
  */
@@ -151,6 +154,9 @@ static unsigned long shell_strtoul_with_error(const char *str, int base, int *er
   return 0;
 }
 
+/* ===========================================================================
+ * execSetFrame
+ * =========================================================================*/
 /**
  * @test execSetFrame must return -ENOMEM and print FAIL when no frame buffer is available.
  */
@@ -251,6 +257,9 @@ ZTEST(ledStripCmd, test_execSetFrame_success)
                "output should start with SUCCESS");
 }
 
+/* ===========================================================================
+ * execSetBrightness
+ * =========================================================================*/
 /**
  * @test execSetBrightness must return error and print FAIL when the brightness value is invalid.
  */

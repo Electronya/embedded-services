@@ -115,7 +115,9 @@ static void filter_no_init_teardown(void *f)
   filterCount = 0;
 }
 
-/* adcAcqFilterInit tests - error cases first */
+/* ===========================================================================
+ * adcAcqFilterInit
+ * =========================================================================*/
 
 /**
  * @test The adcAcqFilterInit function must return -ENOSPC when k_malloc fails.
@@ -230,7 +232,9 @@ ZTEST(adc_filter_init_tests, test_filter_init_zeros_buffer)
   }
 }
 
-/* adcAcqFilterPushData tests - error cases first */
+/* ===========================================================================
+ * adcAcqFilterPushData
+ * =========================================================================*/
 
 /**
  * @test The adcAcqFilterPushData function must return -EINVAL
@@ -346,7 +350,9 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_push_data_independent_channels)
   zassert_equal(filtData1, 2000, "Channel 1 data should be independent");
 }
 
-/* adcAcqFilterGetRawData tests - error cases first */
+/* ===========================================================================
+ * adcAcqFilterGetRawData
+ * =========================================================================*/
 
 /**
  * @test The adcAcqFilterGetRawData function must return -EINVAL
@@ -414,7 +420,9 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_get_raw_data_unfiltered)
   zassert_equal(rawData, input, "Raw data should equal input");
 }
 
-/* adcAcqFilterGetFirstOrderData tests - error cases first */
+/* ===========================================================================
+ * adcAcqFilterGetFirstOrderData
+ * =========================================================================*/
 
 /**
  * @test The adcAcqFilterGetFirstOrderData function must return -EINVAL
@@ -494,7 +502,9 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_first_order_state_maintained)
   zassert_within(filtData, 1900, 100, "Filter should continue converging");
 }
 
-/* adcAcqFilterGetSecondOrderData tests - error cases first */
+/* ===========================================================================
+ * adcAcqFilterGetSecondOrderData
+ * =========================================================================*/
 
 /**
  * @test The adcAcqFilterGetSecondOrderData function must return -EINVAL
@@ -553,7 +563,9 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_second_order_stronger_filtering)
   zassert_true(secondOrder < input, "Second order should be less than raw input");
 }
 
-/* adcAcqFilterGetThirdOrderData tests - error cases first */
+/* ===========================================================================
+ * adcAcqFilterGetThirdOrderData
+ * =========================================================================*/
 
 /**
  * @test The adcAcqFilterGetThirdOrderData function must return -EINVAL
@@ -617,7 +629,9 @@ ZTEST_F(adc_filter_with_init_tests, test_filter_third_order_strongest_filtering)
   zassert_true(thirdOrder < input, "Third order should be less than input");
 }
 
-/* Integration tests - filter behavior */
+/* ===========================================================================
+ * integration
+ * =========================================================================*/
 
 /**
  * @test The filter must produce monotonically increasing output for a positive step input,

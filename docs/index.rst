@@ -80,6 +80,25 @@ brightness scaling, and hardware push; color logic lives in the producer.
 
 See :doc:`services/led-strip` for the full API reference.
 
+SimHub Device Service
+~~~~~~~~~~~~~~~~~~~~~
+
+Emulates a SimHub Standard Firmware Arduino/Dash LED device over USB CDC ACM using a
+reverse-engineered binary ARQ protocol. Acts as a producer for the LED Strip service —
+receives RGB frame data from SimHub (PC sim-racing dashboard software) and submits it to the
+LED strip for display.
+
+**Key Features:**
+
+- ARQ binary frame protocol (CRC-8 checksum, sync header, ACK/NACK/byte/string responses)
+- USB CDC ACM transport via Zephyr's next-generation USB device stack
+- Session state machine (``IDLE`` → ``ENUMERATING`` → ``STREAMING``)
+- Single-frame and multi-frame group LED streaming, matching SimHub's real on-wire behavior
+- Interrupt-driven UART RX/TX with ring buffer
+- Shell commands for status/identity/link health inspection, reset, and pending LED/button dumps
+
+See :doc:`services/simhub-device` for the full API reference.
+
 West Module Usage
 -----------------
 
@@ -124,4 +143,5 @@ Tests run on the Zephyr native simulator — no hardware required.
    services/adc-acquisition
    services/datastore
    services/led-strip
+   services/simhub-device
    services/service-manager

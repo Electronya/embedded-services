@@ -112,6 +112,10 @@ static void cmd_tests_before(void *f)
   shell_error_call_count = 0;
 }
 
+/* ===========================================================================
+ * execGetChanCount
+ * =========================================================================*/
+
 /**
  * @test  The execGetChanCount function must call adcAcqUtilGetChanCount
  *        and print the channel count with SUCCESS prefix via shell_print.
@@ -149,6 +153,10 @@ static unsigned long shell_strtoul_with_error(const char *str, int base, int *er
   *err = -EINVAL;
   return 0;
 }
+
+/* ===========================================================================
+ * execGetRaw
+ * =========================================================================*/
 
 /**
  * @test The execGetRaw function must return error when shell_strtoul
@@ -256,6 +264,10 @@ ZTEST(adc_cmd_tests, test_get_raw_util_fails)
   zassert_equal(result, -EINVAL,
                 "execGetRaw should return error from adcAcqUtilGetRaw");
 }
+
+/* ===========================================================================
+ * execGetVolt
+ * =========================================================================*/
 
 /**
  * @test The execGetVolt function must return error when shell_strtoul

@@ -169,6 +169,9 @@ static void util_tests_before(void *fixture)
   registeredServiceCount = 8;
 }
 
+/* ===========================================================================
+ * serviceMngrUtilInitHardWdg
+ * =========================================================================*/
 /**
  * @test The serviceMngrUtilInitHardWdg function must return error when device is not ready.
  */
@@ -267,6 +270,9 @@ ZTEST(serviceMngrUtil, test_initHardWdg_success)
                 "wdt_setup should be called with WDT_OPT_PAUSE_HALTED_BY_DBG");
 }
 
+/* ===========================================================================
+ * serviceMngrUtilInitSrvRegistry
+ * =========================================================================*/
 /**
  * @test The serviceMngrUtilInitSrvRegistry function must successfully initialize service registry.
  */
@@ -281,6 +287,9 @@ ZTEST(serviceMngrUtil, test_initSrvRegistry_success)
   zassert_equal(result, 0, "Expected success (0)");
 }
 
+/* ===========================================================================
+ * serviceMngrUtilAddSrvToRegistry
+ * =========================================================================*/
 /**
  * @test The serviceMngrUtilAddSrvToRegistry function must return error when descriptor is NULL.
  */
@@ -440,6 +449,9 @@ ZTEST(serviceMngrUtil, test_addSrvToRegistry_success)
                 "State should be initialized to STOPPED");
 }
 
+/* ===========================================================================
+ * serviceMngrUtilGetRegEntryByIndex
+ * =========================================================================*/
 /**
  * @test The serviceMngrUtilGetRegEntryByIndex function must return NULL when index is out of bounds.
  */
@@ -474,6 +486,9 @@ ZTEST(serviceMngrUtil, test_getRegEntryByIndex_success)
   zassert_equal(entry->heartbeatIntervalMs, 2000, "Heartbeat interval should match");
 }
 
+/* ===========================================================================
+ * serviceMngrUtilGetIndexFromId
+ * =========================================================================*/
 /**
  * @test The serviceMngrUtilGetIndexFromId function must return error when thread ID is NULL.
  */
@@ -516,6 +531,9 @@ ZTEST(serviceMngrUtil, test_getIndexFromId_success)
   zassert_equal(result, 7, "Expected index 7 for thread ID 0x7000");
 }
 
+/* ===========================================================================
+ * serviceMngrUtilStartService
+ * =========================================================================*/
 /**
  * @test The serviceMngrUtilStartService function must return error when index is out of bounds.
  */
@@ -586,6 +604,9 @@ ZTEST(serviceMngrUtil, test_startService_success)
   zassert_equal(serviceRegistry[5].state, SVC_STATE_RUNNING, "Service state should be RUNNING");
 }
 
+/* ===========================================================================
+ * serviceMngrUtilStopService
+ * =========================================================================*/
 /**
  * @test The serviceMngrUtilStopService function must return error when index is out of bounds.
  */
@@ -654,6 +675,9 @@ ZTEST(serviceMngrUtil, test_stopService_success)
   /* Note: state is confirmed by the service itself via serviceManagerConfirmState, not here */
 }
 
+/* ===========================================================================
+ * serviceMngrUtilSuspendService
+ * =========================================================================*/
 /**
  * @test The serviceMngrUtilSuspendService function must return error when index is out of bounds.
  */
@@ -722,6 +746,9 @@ ZTEST(serviceMngrUtil, test_suspendService_success)
   /* Note: state is confirmed by the service itself via serviceManagerConfirmState, not here */
 }
 
+/* ===========================================================================
+ * serviceMngrUtilResumeService
+ * =========================================================================*/
 /**
  * @test The serviceMngrUtilResumeService function must return error when index is out of bounds.
  */
@@ -792,6 +819,9 @@ ZTEST(serviceMngrUtil, test_resumeService_success)
   zassert_equal(serviceRegistry[5].state, SVC_STATE_RUNNING, "Service state should be RUNNING");
 }
 
+/* ===========================================================================
+ * serviceMngrUtilSetSrvState
+ * =========================================================================*/
 /**
  * @test The serviceMngrUtilSetSrvState function must return error when index is out of bounds.
  */
@@ -868,6 +898,9 @@ ZTEST(serviceMngrUtil, test_setSrvState_stopped)
                 "lastHeartbeatMs should be reset to current uptime on stop");
 }
 
+/* ===========================================================================
+ * serviceMngrUtilUpdateSrvHeartbeat
+ * =========================================================================*/
 /**
  * @test The serviceMngrUtilUpdateSrvHeartbeat function must return error when index is out of bounds.
  */
@@ -906,6 +939,9 @@ ZTEST(serviceMngrUtil, test_updateSrvHeartbeat_success)
                 "Missed heartbeats should be reset to 0");
 }
 
+/* ===========================================================================
+ * serviceMngrUtilFeedHardWdg
+ * =========================================================================*/
 /**
  * @test The serviceMngrUtilFeedHardWdg function must return error when wdt_feed fails.
  */
@@ -948,6 +984,9 @@ ZTEST(serviceMngrUtil, test_feedHardWdg_success)
   zassert_equal(wdt_feed_mock_fake.arg1_val, 0, "wdt_feed should use channel 0");
 }
 
+/* ===========================================================================
+ * serviceMngrUtilCheckSrvHeartbeat
+ * =========================================================================*/
 /**
  * @test The serviceMngrUtilCheckSrvHeartbeat function must return error when index is out of bounds.
  */
